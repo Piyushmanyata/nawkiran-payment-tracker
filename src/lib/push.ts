@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { formatInr } from "@/lib/format";
 import type { PushEvent } from "@/lib/push-client";
 import type { Payment } from "@/types/database";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type { PushEvent };
 
@@ -16,10 +17,11 @@ export type SerializedPushSubscription = {
 };
 
 function vapidConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY &&
-      process.env.VAPID_PRIVATE_KEY
-  );
+  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+  const priv = process.env.VAPID_PRIVATE_KEY?.trim();
+  if (!pub || !priv) return false;
+  if (pub.startsWith("your_") || priv.startsWith("your_")) return false;
+  return true;
 }
 
 function ensureVapid(): boolean {
@@ -37,7 +39,9 @@ export function isPushConfigured(): boolean {
 }
 
 export function publicVapidKey(): string | null {
-  return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null;
+  const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? null;
+  if (key && key.startsWith("your_")) return null;
+  return key;
 }
 
 /** Build title/body for a payment lifecycle event. */
@@ -115,13 +119,14 @@ export async function removePushSubscription(endpoint: string): Promise<void> {
 export async function sendPaymentPush(
   paymentId: string,
   event: PushEvent,
-  payload: { title: string; body: string; url: string; tag: string }
+  payload: { title: string; body: string; url: string; tag: string },
+  supabaseClient?: SupabaseClient
 ): Promise<{ sent: number; failed: number }> {
   if (!ensureVapid()) {
     return { sent: 0, failed: 0 };
   }
 
-  const supabase = await createClient();
+  const supabase = supabaseClient ?? (await createClient());
   const { data, error } = await supabase.rpc("list_push_targets", {
     p_payment_id: paymentId,
     p_event: event,

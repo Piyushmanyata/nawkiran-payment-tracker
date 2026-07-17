@@ -106,7 +106,7 @@ export async function notifyPaymentEvent(
         const result = await sendPaymentPush(paymentId, event, {
           ...payload,
           tag: `${paymentId}:${event}:${payment.version}`,
-        });
+        }, supabase);
         if (result.failed > 0) {
           console.error("notifyPaymentEvent delivery failures", {
             event,

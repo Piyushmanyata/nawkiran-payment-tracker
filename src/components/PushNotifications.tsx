@@ -26,7 +26,9 @@ type Status =
 
 /** Public VAPID key is already browser-safe — no server round-trip. */
 function getClientPushPublicKey(): string | null {
-  return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || null;
+  const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || null;
+  if (key && key.startsWith("your_")) return null;
+  return key;
 }
 
 async function saveSubscription(sub: PushSubscription): Promise<string | null> {
