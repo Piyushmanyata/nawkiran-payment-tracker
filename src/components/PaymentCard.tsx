@@ -2,6 +2,7 @@
 
 import type { Payment, UserRole } from "@/types/database";
 import { formatDueLabel, formatInr, statusLabel } from "@/lib/format";
+import { canApprove as roleCanApprove, canMarkPaid as roleCanMarkPaid } from "@/lib/roles";
 import { StatusBadge } from "@/components/StatusBadge";
 import { LoadingButton } from "@/components/LoadingButton";
 
@@ -18,16 +19,15 @@ export function PaymentCard({
   onDeny?: (p: Payment) => void;
   onMarkPaid?: (p: Payment) => void;
 }) {
-  const canApprove =
+  const showApprove =
     payment.status === "pending" &&
-    (role === "director" || role === "admin") &&
-    onApprove &&
-    onDeny;
+    roleCanApprove(role) &&
+    Boolean(onApprove && onDeny);
 
-  const canMarkPaid =
+  const showMarkPaid =
     payment.status === "approved" &&
-    (role === "accounts" || role === "admin") &&
-    onMarkPaid;
+    roleCanMarkPaid(role) &&
+    Boolean(onMarkPaid);
 
   const secondaryLine =
     payment.status === "approved"
@@ -81,20 +81,20 @@ export function PaymentCard({
         </p>
       ) : null}
 
-      {canApprove ? (
+      {showApprove ? (
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <LoadingButton variant="primary" onClick={() => onApprove(payment)}>
+          <LoadingButton variant="primary" onClick={() => onApprove?.(payment)}>
             Approve
           </LoadingButton>
-          <LoadingButton variant="danger" onClick={() => onDeny(payment)}>
+          <LoadingButton variant="danger" onClick={() => onDeny?.(payment)}>
             Deny
           </LoadingButton>
         </div>
       ) : null}
 
-      {canMarkPaid ? (
+      {showMarkPaid ? (
         <div className="mt-4">
-          <LoadingButton variant="primary" onClick={() => onMarkPaid(payment)}>
+          <LoadingButton variant="primary" onClick={() => onMarkPaid?.(payment)}>
             Mark Paid
           </LoadingButton>
         </div>

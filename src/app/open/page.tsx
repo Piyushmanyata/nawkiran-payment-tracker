@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { PaymentCard } from "@/components/PaymentCard";
+import { PaymentTotals } from "@/components/PaymentTotals";
 import { ApproveDialog } from "@/components/ApproveDialog";
 import { DenyDialog } from "@/components/DenyDialog";
 import { MarkPaidDialog } from "@/components/MarkPaidDialog";
@@ -13,6 +14,7 @@ import {
 } from "@/lib/payments";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { userMessageFromError } from "@/lib/errors";
+import { canApprove, canMarkPaid } from "@/lib/roles";
 import type { Payment, PaymentMode } from "@/types/database";
 
 export default function OpenPage() {
@@ -33,21 +35,11 @@ export default function OpenPage() {
     () => payments.filter((p) => p.status === "approved"),
     [payments]
   );
-  const mine = useMemo(
-    () =>
-      payments.filter(
-        (p) =>
-          p.status === "pending" ||
-          p.status === "approved" ||
-          p.status === "denied"
-      ),
-    [payments]
-  );
 
-  const isEmployeeOnly = role === "employee";
-  const showPendingSection = role === "director" || role === "admin";
-  const showOutstanding =
-    role === "director" || role === "accounts" || role === "admin";
+  const showPending = canApprove(role);
+  const showOutstanding = canMarkPaid(role) || canApprove(role) || role === "accounts";
+  // Director sees outstanding read-only (no mark paid); employee marks paid
+  const outstandingMarkPaid = canMarkPaid(role);
 
   async function doApprove() {
     if (!approveTarget) return;
@@ -99,28 +91,15 @@ export default function OpenPage() {
     <div className="space-y-6">
       <h1 className="text-xl font-bold text-slate-900">Open</h1>
 
+      <PaymentTotals payments={payments} />
+
       {error ? (
         <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
           {error}
         </p>
       ) : null}
 
-      {isEmployeeOnly ? (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            My Requests
-          </h2>
-          {mine.length === 0 ? (
-            <EmptyState text="No open requests yet. Tap Add to create one." />
-          ) : (
-            mine.map((p) => (
-              <PaymentCard key={p.id} payment={p} role={role} />
-            ))
-          )}
-        </section>
-      ) : null}
-
-      {showPendingSection ? (
+      {showPending ? (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             Waiting for Approval
@@ -141,6 +120,22 @@ export default function OpenPage() {
         </section>
       ) : null}
 
+      {/* Employees: show their pending requests without approve buttons */}
+      {role === "employee" ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Waiting for Approval
+          </h2>
+          {pending.length === 0 ? (
+            <EmptyState text="No payments waiting for approval." />
+          ) : (
+            pending.map((p) => (
+              <PaymentCard key={p.id} payment={p} role={role} />
+            ))
+          )}
+        </section>
+      ) : null}
+
       {showOutstanding ? (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -154,7 +149,7 @@ export default function OpenPage() {
                 key={p.id}
                 payment={p}
                 role={role}
-                onMarkPaid={setPaidTarget}
+                onMarkPaid={outstandingMarkPaid ? setPaidTarget : undefined}
               />
             ))
           )}

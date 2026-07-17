@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { PaymentCard } from "@/components/PaymentCard";
+import { PaymentTotals } from "@/components/PaymentTotals";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 
 type Filter = "all" | "paid" | "denied";
@@ -28,6 +29,8 @@ export default function HistoryPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-slate-900">History</h1>
+
+      <PaymentTotals payments={payments} />
 
       <label className="block">
         <span className="sr-only">Search by party</span>
