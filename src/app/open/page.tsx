@@ -7,17 +7,19 @@ import { PaymentTotals } from "@/components/PaymentTotals";
 import { ApproveDialog } from "@/components/ApproveDialog";
 import { DenyDialog } from "@/components/DenyDialog";
 import { MarkPaidDialog } from "@/components/MarkPaidDialog";
+import { CorrectPaymentDialog } from "@/components/CorrectPaymentDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageLoading } from "@/components/PageLoading";
 import {
   approvePayment,
+  correctDeniedPayment,
   denyPayment,
   markPaymentPaid,
 } from "@/lib/payments";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { userMessageFromError } from "@/lib/errors";
-import { canApprove, canMarkPaid } from "@/lib/roles";
+import { canApprove, canCorrectDenied, canMarkPaid } from "@/lib/roles";
 import type { Payment } from "@/types/database";
 
 export default function OpenPage() {
@@ -29,6 +31,7 @@ export default function OpenPage() {
   const [approveTarget, setApproveTarget] = useState<Payment | null>(null);
   const [denyTarget, setDenyTarget] = useState<Payment | null>(null);
   const [paidTarget, setPaidTarget] = useState<Payment | null>(null);
+  const [correctTarget, setCorrectTarget] = useState<Payment | null>(null);
 
   const pending = useMemo(
     () => payments.filter((p) => p.status === "pending"),
@@ -38,12 +41,17 @@ export default function OpenPage() {
     () => payments.filter((p) => p.status === "approved"),
     [payments]
   );
+  const denied = useMemo(
+    () => payments.filter((p) => p.status === "denied"),
+    [payments]
+  );
 
   const showPending = canApprove(role);
   const showOutstanding =
     canMarkPaid(role) || canApprove(role) || role === "accounts";
   const outstandingMarkPaid = canMarkPaid(role);
   const employeePending = role === "employee";
+  const showNeedsCorrection = canCorrectDenied(role);
 
   async function doApprove() {
     if (!approveTarget) return;
@@ -87,6 +95,31 @@ export default function OpenPage() {
     }
   }
 
+  async function doCorrect(input: {
+    party: string;
+    amount: number;
+    dueDate: string | null;
+    purpose: string | null;
+  }) {
+    if (!correctTarget) return;
+    setBusy(true);
+    try {
+      await correctDeniedPayment({
+        paymentId: correctTarget.id,
+        party: input.party,
+        amount: input.amount,
+        dueDate: input.dueDate,
+        purpose: input.purpose,
+      });
+      setCorrectTarget(null);
+      await reload();
+    } catch (err) {
+      setError(userMessageFromError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) {
     return <PageLoading label="Loading payments..." />;
   }
@@ -96,7 +129,7 @@ export default function OpenPage() {
       <div>
         <h1 className="text-xl font-bold tracking-tight text-slate-900">Open</h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Pending approvals and outstanding payouts
+          Pending approvals, corrections, and outstanding payouts
         </p>
       </div>
 
@@ -110,6 +143,24 @@ export default function OpenPage() {
             void reload();
           }}
         />
+      ) : null}
+
+      {showNeedsCorrection && denied.length > 0 ? (
+        <section className="space-y-3">
+          <SectionHeading title="Needs correction" count={denied.length} />
+          <p className="text-sm text-slate-600">
+            These payments were denied. Fix the details using the denial reason,
+            then resubmit for approval.
+          </p>
+          {denied.map((p) => (
+            <PaymentCard
+              key={p.id}
+              payment={p}
+              role={role}
+              onCorrect={setCorrectTarget}
+            />
+          ))}
+        </section>
       ) : null}
 
       {showPending ? (
@@ -189,6 +240,13 @@ export default function OpenPage() {
         loading={busy}
         onCancel={() => setPaidTarget(null)}
         onConfirm={() => void doMarkPaid()}
+      />
+      <CorrectPaymentDialog
+        open={Boolean(correctTarget)}
+        payment={correctTarget}
+        loading={busy}
+        onCancel={() => setCorrectTarget(null)}
+        onConfirm={(input) => void doCorrect(input)}
       />
     </div>
   );

@@ -67,6 +67,10 @@ export function userMessageFromError(error: unknown): string {
     return "Only paid or denied history items can be deleted.";
   }
 
+  if (text.includes("not_found")) {
+    return "This payment was not found. Refresh and try again.";
+  }
+
   if (
     text.includes("could not find the table") ||
     text.includes("pgrst205") ||

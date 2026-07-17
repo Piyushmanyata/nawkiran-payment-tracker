@@ -9,10 +9,11 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageLoading } from "@/components/PageLoading";
 import { Modal } from "@/components/Modal";
+import { CorrectPaymentDialog } from "@/components/CorrectPaymentDialog";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
-import { adminDeletePayment } from "@/lib/payments";
+import { adminDeletePayment, correctDeniedPayment } from "@/lib/payments";
 import { userMessageFromError } from "@/lib/errors";
-import { canDeleteHistory } from "@/lib/roles";
+import { canCorrectDenied, canDeleteHistory } from "@/lib/roles";
 import { formatInr } from "@/lib/format";
 import { fieldClass } from "@/lib/ui";
 import type { Payment } from "@/types/database";
@@ -26,7 +27,9 @@ export default function HistoryPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
+  const [correctTarget, setCorrectTarget] = useState<Payment | null>(null);
   const [busy, setBusy] = useState(false);
+  const allowCorrect = canCorrectDenied(role);
 
   const history = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -50,6 +53,31 @@ export default function HistoryPage() {
     }
   }
 
+  async function doCorrect(input: {
+    party: string;
+    amount: number;
+    dueDate: string | null;
+    purpose: string | null;
+  }) {
+    if (!correctTarget) return;
+    setBusy(true);
+    try {
+      await correctDeniedPayment({
+        paymentId: correctTarget.id,
+        party: input.party,
+        amount: input.amount,
+        dueDate: input.dueDate,
+        purpose: input.purpose,
+      });
+      setCorrectTarget(null);
+      await reload();
+    } catch (err) {
+      setError(userMessageFromError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) {
     return <PageLoading label="Loading history..." />;
   }
@@ -61,7 +89,8 @@ export default function HistoryPage() {
           History
         </h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Paid and denied payments
+          Paid payments
+          {allowCorrect ? " · denied items can be corrected and resubmitted" : " and denied payments"}
         </p>
       </div>
 
@@ -135,6 +164,11 @@ export default function HistoryPage() {
               key={p.id}
               payment={p}
               role={role}
+              onCorrect={
+                allowCorrect && p.status === "denied"
+                  ? setCorrectTarget
+                  : undefined
+              }
               onDelete={canDeleteHistory(role) ? setDeleteTarget : undefined}
             />
           ))}
@@ -170,6 +204,14 @@ export default function HistoryPage() {
           </LoadingButton>
         </div>
       </Modal>
+
+      <CorrectPaymentDialog
+        open={Boolean(correctTarget)}
+        payment={correctTarget}
+        loading={busy}
+        onCancel={() => setCorrectTarget(null)}
+        onConfirm={(input) => void doCorrect(input)}
+      />
     </div>
   );
 }

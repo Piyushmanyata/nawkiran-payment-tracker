@@ -4,6 +4,7 @@ import type { Payment, UserRole } from "@/types/database";
 import { formatDueLabel, formatInr, isOverdue } from "@/lib/format";
 import {
   canApprove as roleCanApprove,
+  canCorrectDenied,
   canDeleteHistory,
   canMarkPaid as roleCanMarkPaid,
 } from "@/lib/roles";
@@ -17,6 +18,7 @@ export function PaymentCard({
   onDeny,
   onMarkPaid,
   onDelete,
+  onCorrect,
 }: {
   payment: Payment;
   role: UserRole | null;
@@ -24,6 +26,7 @@ export function PaymentCard({
   onDeny?: (p: Payment) => void;
   onMarkPaid?: (p: Payment) => void;
   onDelete?: (p: Payment) => void;
+  onCorrect?: (p: Payment) => void;
 }) {
   const showApprove =
     payment.status === "pending" &&
@@ -35,6 +38,11 @@ export function PaymentCard({
     roleCanMarkPaid(role) &&
     Boolean(onMarkPaid);
 
+  const showCorrect =
+    payment.status === "denied" &&
+    canCorrectDenied(role) &&
+    Boolean(onCorrect);
+
   const showDelete =
     (payment.status === "paid" || payment.status === "denied") &&
     canDeleteHistory(role) &&
@@ -43,7 +51,13 @@ export function PaymentCard({
   const overdue = isOverdue(payment.status, payment.due_date);
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300">
+    <article
+      className={`rounded-2xl border bg-white p-4 shadow-sm transition hover:border-slate-300 ${
+        payment.status === "denied"
+          ? "border-red-200"
+          : "border-slate-200"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-base font-bold leading-snug text-slate-900">
@@ -78,7 +92,8 @@ export function PaymentCard({
 
       {payment.status === "denied" && payment.denial_reason ? (
         <p className="mt-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-sm text-red-700">
-          Reason: {payment.denial_reason}
+          <span className="font-semibold">Denial reason: </span>
+          {payment.denial_reason}
         </p>
       ) : null}
 
@@ -101,8 +116,16 @@ export function PaymentCard({
         </div>
       ) : null}
 
-      {showDelete ? (
+      {showCorrect ? (
         <div className="mt-4">
+          <LoadingButton variant="primary" onClick={() => onCorrect?.(payment)}>
+            Correct & resubmit
+          </LoadingButton>
+        </div>
+      ) : null}
+
+      {showDelete ? (
+        <div className={showCorrect ? "mt-2" : "mt-4"}>
           <LoadingButton variant="danger" onClick={() => onDelete?.(payment)}>
             Delete from history
           </LoadingButton>

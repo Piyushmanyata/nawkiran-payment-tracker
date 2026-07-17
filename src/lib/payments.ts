@@ -136,3 +136,23 @@ export async function adminDeletePayment(paymentId: string): Promise<void> {
   });
   if (error) throw error;
 }
+
+/** Edit a denied payment and resubmit it as pending. */
+export async function correctDeniedPayment(input: {
+  paymentId: string;
+  party: string;
+  amount: number;
+  dueDate?: string | null;
+  purpose?: string | null;
+}): Promise<Payment> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("correct_denied_payment", {
+    p_payment_id: input.paymentId,
+    p_party: input.party,
+    p_amount: input.amount,
+    p_due_date: input.dueDate || null,
+    p_purpose: input.purpose || null,
+  });
+  if (error) throw error;
+  return mapPayment(data as Record<string, unknown>);
+}
