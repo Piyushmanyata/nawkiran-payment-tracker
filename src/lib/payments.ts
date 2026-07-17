@@ -1,5 +1,5 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase";
-import type { Payment, PaymentMode, Profile } from "@/types/database";
+import type { Payment, Profile } from "@/types/database";
 
 function mapPayment(row: Record<string, unknown>): Payment {
   return {
@@ -118,16 +118,11 @@ export async function denyPayment(
   return mapPayment(data as Record<string, unknown>);
 }
 
-export async function markPaymentPaid(
-  paymentId: string,
-  paymentMode: PaymentMode,
-  paymentReference?: string | null
-): Promise<Payment> {
+/** Mark approved payment paid (no mode/UTR — DB defaults). */
+export async function markPaymentPaid(paymentId: string): Promise<Payment> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.rpc("mark_payment_paid", {
     p_payment_id: paymentId,
-    p_payment_mode: paymentMode,
-    p_payment_reference: paymentReference || null,
   });
   if (error) throw error;
   return mapPayment(data as Record<string, unknown>);

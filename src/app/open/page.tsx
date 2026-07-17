@@ -15,7 +15,7 @@ import {
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { userMessageFromError } from "@/lib/errors";
 import { canApprove, canMarkPaid } from "@/lib/roles";
-import type { Payment, PaymentMode } from "@/types/database";
+import type { Payment } from "@/types/database";
 
 export default function OpenPage() {
   const { profile } = useAuth();
@@ -69,11 +69,11 @@ export default function OpenPage() {
     }
   }
 
-  async function doMarkPaid(mode: PaymentMode, reference: string) {
+  async function doMarkPaid() {
     if (!paidTarget) return;
     setBusy(true);
     try {
-      await markPaymentPaid(paidTarget.id, mode, reference || null);
+      await markPaymentPaid(paidTarget.id);
       setPaidTarget(null);
       await reload();
     } catch (err) {
@@ -172,9 +172,11 @@ export default function OpenPage() {
       />
       <MarkPaidDialog
         open={Boolean(paidTarget)}
+        party={paidTarget?.party ?? ""}
+        amount={paidTarget?.amount ?? 0}
         loading={busy}
         onCancel={() => setPaidTarget(null)}
-        onConfirm={(mode, ref) => void doMarkPaid(mode, ref)}
+        onConfirm={() => void doMarkPaid()}
       />
     </div>
   );

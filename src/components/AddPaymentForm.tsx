@@ -2,19 +2,23 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 import { createPayment } from "@/lib/payments";
 import { userMessageFromError } from "@/lib/errors";
+import { canApprove } from "@/lib/roles";
 import { LoadingButton } from "@/components/LoadingButton";
 
 export function AddPaymentForm() {
   const router = useRouter();
+  const { profile } = useAuth();
+  const autoApprove = canApprove(profile?.role);
   const [party, setParty] = useState("");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [purpose, setPurpose] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -42,7 +46,11 @@ export function AddPaymentForm() {
         purpose: purpose.trim() || null,
         clientRequestId: crypto.randomUUID(),
       });
-      setSuccess(true);
+      setSuccess(
+        autoApprove
+          ? "Added and approved"
+          : "Sent for approval"
+      );
       setParty("");
       setAmount("");
       setDueDate("");
@@ -121,7 +129,7 @@ export function AddPaymentForm() {
 
       {success ? (
         <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-          Sent for approval
+          {success}
         </p>
       ) : null}
 

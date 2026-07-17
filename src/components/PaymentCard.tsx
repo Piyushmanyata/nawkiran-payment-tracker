@@ -83,15 +83,6 @@ export function PaymentCard({
         </p>
       ) : null}
 
-      {payment.status === "paid" && payment.payment_mode ? (
-        <p className="mt-2 text-sm text-slate-500">
-          {payment.payment_mode}
-          {payment.payment_reference
-            ? ` · ${payment.payment_reference}`
-            : ""}
-        </p>
-      ) : null}
-
       {showApprove ? (
         <div className="mt-4 grid grid-cols-2 gap-3">
           <LoadingButton variant="primary" onClick={() => onApprove?.(payment)}>
