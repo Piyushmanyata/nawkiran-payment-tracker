@@ -9,8 +9,8 @@ Stack: **Next.js** (Vercel) + **Supabase** (Auth, Postgres, Realtime, RLS).
 ## Quick start
 
 1. Create a Supabase project (region closest to India).
-2. In the SQL editor, run migrations in order under `supabase/migrations/` (001–009).
-3. Disable public signup (Auth → Providers → Email → turn off signups).
+2. Apply migrations in order under `supabase/migrations/`.
+3. Disable public signup and enable leaked-password protection.
 4. Create users in Supabase Auth, then insert matching rows in `profiles`:
 
 ```sql
@@ -69,4 +69,4 @@ supabase/migrations/  schema, functions, RLS
 
 ## Plan
 
-See `nawkiran-payment-tracker-implementation-plan.md` for the original v1 plan and its prominent current-product override note.
+See [`docs/SETUP.md`](docs/SETUP.md) for the full setup and [`supabase/README.md`](supabase/README.md) for database conventions.
