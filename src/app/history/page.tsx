@@ -13,7 +13,7 @@ import { CorrectPaymentDialog } from "@/components/CorrectPaymentDialog";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { adminDeletePayment, correctDeniedPayment } from "@/lib/payments";
 import { userMessageFromError } from "@/lib/errors";
-import { canCorrectDenied, canDeleteHistory } from "@/lib/roles";
+import { canDeleteHistory } from "@/lib/roles";
 import { formatInr } from "@/lib/format";
 import { fieldClass } from "@/lib/ui";
 import type { Payment } from "@/types/database";
@@ -29,7 +29,8 @@ export default function HistoryPage() {
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
   const [correctTarget, setCorrectTarget] = useState<Payment | null>(null);
   const [busy, setBusy] = useState(false);
-  const allowCorrect = canCorrectDenied(role);
+  const canCorrect = (payment: Payment) =>
+    payment.requested_by === profile?.id || role === "admin";
 
   const history = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -90,7 +91,7 @@ export default function HistoryPage() {
         </h1>
         <p className="mt-0.5 text-sm text-slate-500">
           Paid payments
-          {allowCorrect ? " · denied items can be corrected and resubmitted" : " and denied payments"}
+          {profile ? " · your denied items can be corrected and resubmitted" : " and denied payments"}
         </p>
       </div>
 
@@ -98,7 +99,7 @@ export default function HistoryPage() {
 
       {canDeleteHistory(role) ? (
         <p className="text-xs text-slate-500">
-          As admin you can permanently delete paid or denied items from history.
+          As admin you can remove paid or denied items while retaining their audit trail.
         </p>
       ) : null}
 
@@ -165,7 +166,7 @@ export default function HistoryPage() {
               payment={p}
               role={role}
               onCorrect={
-                allowCorrect && p.status === "denied"
+                p.status === "denied" && canCorrect(p)
                   ? setCorrectTarget
                   : undefined
               }
@@ -178,13 +179,13 @@ export default function HistoryPage() {
       <Modal
         open={Boolean(deleteTarget)}
         titleId="delete-title"
-        title="Delete from history?"
+        title="Remove from history?"
         onClose={() => setDeleteTarget(null)}
         disableClose={busy}
       >
         <p className="mt-2 text-base text-slate-700">
-          Permanently remove {formatInr(deleteTarget?.amount ?? 0)} for{" "}
-          {deleteTarget?.party}? This cannot be undone.
+          Remove {formatInr(deleteTarget?.amount ?? 0)} for{" "}
+          {deleteTarget?.party} from the active history? Its audit record will be retained.
         </p>
         <div className="mt-5 grid grid-cols-2 gap-3">
           <LoadingButton
@@ -197,10 +198,10 @@ export default function HistoryPage() {
           <LoadingButton
             variant="danger"
             loading={busy}
-            loadingText="Deleting..."
+            loadingText="Removing..."
             onClick={() => void doDelete()}
           >
-            Delete
+            Remove
           </LoadingButton>
         </div>
       </Modal>

@@ -5,6 +5,8 @@
 **Date:** 16 July 2026  
 **Goal:** Build an extremely simple, phone-first internal payment tracker that updates instantly across all users.
 
+> **Current product overrides (migrations 004–009):** this document began as the v1 plan. The shipped workflow now gives all active staff read access, lets employees/accounts/admin mark approved payments paid, auto-approves director/admin-created payments, lets requesters correct their own denied payments (admin may correct any), and lets admins hide paid/denied history while preserving audit events. These explicit overrides supersede conflicting v1 role and transition rules below.
+
 ---
 
 ## 1. What the app will do

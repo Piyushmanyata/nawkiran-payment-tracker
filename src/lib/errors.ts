@@ -87,11 +87,5 @@ export function userMessageFromError(error: unknown): string {
     return "Payment functions are missing. Run the SQL migrations in Supabase.";
   }
 
-  // Surface short technical detail for debugging (first line only)
-  const short = raw.split("\n")[0]?.trim() ?? "";
-  if (short && short.length < 160 && short !== "Failed to fetch") {
-    return `Could not save. (${short})`;
-  }
-
   return "Could not save. Please try again.";
 }

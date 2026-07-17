@@ -4,7 +4,6 @@ import type { Payment, UserRole } from "@/types/database";
 import { formatDueLabel, formatInr, isOverdue } from "@/lib/format";
 import {
   canApprove as roleCanApprove,
-  canCorrectDenied,
   canDeleteHistory,
   canMarkPaid as roleCanMarkPaid,
 } from "@/lib/roles";
@@ -40,7 +39,6 @@ export function PaymentCard({
 
   const showCorrect =
     payment.status === "denied" &&
-    canCorrectDenied(role) &&
     Boolean(onCorrect);
 
   const showDelete =
@@ -127,7 +125,7 @@ export function PaymentCard({
       {showDelete ? (
         <div className={showCorrect ? "mt-2" : "mt-4"}>
           <LoadingButton variant="danger" onClick={() => onDelete?.(payment)}>
-            Delete from history
+            Remove from history
           </LoadingButton>
         </div>
       ) : null}

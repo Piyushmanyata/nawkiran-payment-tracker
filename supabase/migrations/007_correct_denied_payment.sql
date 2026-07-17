@@ -43,9 +43,8 @@ begin
     raise exception 'ALREADY_PROCESSED' using errcode = 'P0001';
   end if;
 
-  -- Employees/accounts/admin, or the original requester, may correct.
-  if me.role not in ('employee', 'accounts', 'admin')
-     and row.requested_by <> me.id then
+  -- Requesters may correct their own payment; admins may recover any record.
+  if row.requested_by <> me.id and me.role <> 'admin' then
     raise exception 'NOT_AUTHORISED' using errcode = 'P0001';
   end if;
 

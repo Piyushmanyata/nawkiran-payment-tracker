@@ -24,8 +24,3 @@ export function canCreatePayment(role: UserRole | null | undefined): boolean {
 export function canDeleteHistory(role: UserRole | null | undefined): boolean {
   return role === "admin";
 }
-
-/** Employees (and accounts/admin) can edit a denied payment and resubmit it. */
-export function canCorrectDenied(role: UserRole | null | undefined): boolean {
-  return role === "employee" || role === "accounts" || role === "admin";
-}

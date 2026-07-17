@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { createPayment } from "@/lib/payments";
@@ -26,6 +26,7 @@ export function AddPaymentForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const requestId = useRef<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -47,13 +48,15 @@ export function AddPaymentForm() {
 
     setSubmitting(true);
     try {
+      requestId.current ??= crypto.randomUUID();
       await createPayment({
         party: partyClean,
         amount: Math.round(amountNum * 100) / 100,
         dueDate: dueDate || null,
         purpose: purpose.trim() || null,
-        clientRequestId: crypto.randomUUID(),
+        clientRequestId: requestId.current,
       });
+      requestId.current = null;
       setSuccess(autoApprove ? "Added and approved" : "Sent for approval");
       setParty("");
       setAmount("");

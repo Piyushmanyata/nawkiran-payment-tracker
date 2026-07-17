@@ -2,41 +2,34 @@
 
 App: https://nawkiran-payment-tracker.vercel.app
 
-## Ready after you run `FIX_team_roles.sql`
+## Security action required
 
-| Name | Role | Email (login id) | Password |
-|---|---|---|---|
-| Anjali | employee | `anjali@nawkiran.com` | `Anjali@Pay1` |
-| Sweeti | employee | `sweeti@nawkiran.com` | `Sweeti@Pay1` |
-| Piyush (you) | admin | `iipiyushsodhaniii@gmail.com` | (your password) |
+Passwords previously documented in this repository are compromised and must be rotated in Supabase Auth before the app is used. Never store user passwords in source control.
 
-Auth UUIDs (already in SQL):
+Create users through **Supabase Authentication → Users**, send/reset their passwords through Supabase Auth, then add the matching UUID and role to `public.profiles` as described in `SETUP.md`.
 
-- Anjali: `285d1e4d-994e-4d6d-a7f6-3340b257441e`
-- Sweeti: `50dfa9c5-4528-49ef-acc2-88ed57b106dd`
+| Name | Role |
+|---|---|
+| Anjali | employee |
+| Sweeti | employee |
+| Piyush | admin |
+| Nawneet | director |
 
-## Nawneet (director)
+## Admin remove history
 
-Run `FIX_admin_delete_and_nawneet.sql` — creates Nawneet automatically.
-
-| Name | Role | Email | Password |
-|---|---|---|---|
-| Nawneet | director | `nawneet@nawkiran.com` | `Nawneet@Pay1` |
-
-## Admin delete history
-
-Logged in as **admin**, open **History** → **Delete from history** on any paid/denied card (with confirm).
+Logged in as **admin**, open **History** → **Remove from history** on any paid/denied card. This hides the payment from the active UI but preserves its database audit events.
 
 ## Permissions
 
-| Action | Employee (Anjali/Sweeti) | Director (Nawneet) | Admin |
-|---|---|---|---|
-| Add payment | Yes | Yes | Yes |
-| Full Waiting / Outstanding / History | Yes | Yes | Yes |
-| Approve / Deny | No | Yes | Yes |
-| Mark Paid | Yes | No | Yes |
-| Live totals | Yes | Yes | Yes |
+| Action | Employee | Director | Accounts | Admin |
+|---|---|---|---|---|
+| Add payment | Yes | Yes, auto-approved | Yes | Yes, auto-approved |
+| Full Waiting / Outstanding / History | Yes | Yes | Yes | Yes |
+| Approve / Deny | No | Yes | No | Yes |
+| Mark Paid | Yes | No | Yes | Yes |
+| Correct own denied payment | Yes | Yes | Yes | Yes |
+| Live totals | Yes | Yes | Yes | Yes |
 
-## Required SQL once
+Admins may correct any denied payment. Other roles may correct only payments they originally requested.
 
-Run entire file: `FIX_team_roles.sql` in SQL Editor.
+Apply all ordered migrations `001` through `009`; do not use the legacy `FIX_*.sql` files for a new installation.

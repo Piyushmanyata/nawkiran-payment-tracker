@@ -19,7 +19,7 @@ import {
 } from "@/lib/payments";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { userMessageFromError } from "@/lib/errors";
-import { canApprove, canCorrectDenied, canMarkPaid } from "@/lib/roles";
+import { canApprove, canMarkPaid } from "@/lib/roles";
 import type { Payment } from "@/types/database";
 
 export default function OpenPage() {
@@ -45,13 +45,19 @@ export default function OpenPage() {
     () => payments.filter((p) => p.status === "denied"),
     [payments]
   );
+  const correctableDenied = useMemo(
+    () =>
+      denied.filter(
+        (p) => p.requested_by === profile?.id || role === "admin"
+      ),
+    [denied, profile?.id, role]
+  );
 
   const showPending = canApprove(role);
   const showOutstanding =
     canMarkPaid(role) || canApprove(role) || role === "accounts";
   const outstandingMarkPaid = canMarkPaid(role);
   const employeePending = role === "employee";
-  const showNeedsCorrection = canCorrectDenied(role);
 
   async function doApprove() {
     if (!approveTarget) return;
@@ -145,14 +151,14 @@ export default function OpenPage() {
         />
       ) : null}
 
-      {showNeedsCorrection && denied.length > 0 ? (
+      {correctableDenied.length > 0 ? (
         <section className="space-y-3">
-          <SectionHeading title="Needs correction" count={denied.length} />
+          <SectionHeading title="Needs correction" count={correctableDenied.length} />
           <p className="text-sm text-slate-600">
             These payments were denied. Fix the details using the denial reason,
             then resubmit for approval.
           </p>
-          {denied.map((p) => (
+          {correctableDenied.map((p) => (
             <PaymentCard
               key={p.id}
               payment={p}

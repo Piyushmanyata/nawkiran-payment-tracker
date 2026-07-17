@@ -22,6 +22,12 @@ In Supabase → **SQL Editor** → New query, run **in order** (one file at a ti
 1. `supabase/migrations/001_schema.sql`
 2. `supabase/migrations/002_functions.sql`
 3. `supabase/migrations/003_rls.sql`
+4. `supabase/migrations/004_team_role_access.sql`
+5. `supabase/migrations/005_admin_delete_and_nawneet.sql`
+6. `supabase/migrations/006_auto_approve_and_simple_paid.sql`
+7. `supabase/migrations/007_correct_denied_payment.sql`
+8. `supabase/migrations/008_revoke_anon_rpc_execute.sql`
+9. `supabase/migrations/009_preserve_admin_delete_audit.sql`
 
 Confirm no errors after each file.
 
@@ -32,18 +38,15 @@ Confirm no errors after each file.
 3. **Leaked password protection**: enable under Authentication → Providers → Email (or Security) — checks against HaveIBeenPwned
 4. Optional: set site URL later to your Vercel URL under Authentication → URL Configuration
 
-### 3b. Security grants (run after functions exist)
-
-If Supabase warns that **anon can execute SECURITY DEFINER functions**, run `FIX_security_revoke_anon_rpc.sql` in the SQL Editor.
-That revokes EXECUTE from PUBLIC/anon. Payment RPCs stay available to signed-in users only.
-`authenticated_security_definer_function_executable` on those RPCs is expected (intentional after login).
+Migration 008 always revokes RPC execution from PUBLIC/anon. Payment RPCs remain available to signed-in users only. `authenticated_security_definer_function_executable` on those RPCs is expected.
 ### 4. Create test users
 
 For each person (employee, director, accounts):
 
 1. **Authentication → Users → Add user**
-   - Email + password
+   - Email + a unique temporary password that is never committed
    - Auto-confirm user: yes
+   - Require the user to reset the temporary password
 2. Copy the user **UUID**
 3. **SQL Editor**:
 
@@ -118,13 +121,17 @@ Vercel Hobby is for non-commercial personal use. For company production, move to
 
 | Step | Expected |
 |---|---|
-| Employee adds party + amount | Card under My Requests |
+| Employee adds party + amount | Card under Waiting for Approval |
 | Director Open tab | Waiting for Approval updates (no refresh) |
 | Director Approve | Moves to Outstanding |
-| Accounts Mark Paid (mode + optional UTR) | Leaves Outstanding; appears in History |
+| Employee/accounts Mark Paid | Leaves Outstanding; appears in History |
 | Deny with reason | Appears in History as Denied |
 | Double-tap Submit | Second attempt: already submitted / no duplicate |
 | Airplane mode toggle | Offline banner; reconnect reloads |
+
+### Backups
+
+The admin owns a weekly CSV export of `payments` and `payment_events` to the company-controlled encrypted drive. Once per month, open both exports and verify row counts and payment IDs match. Record the export date and reviewer in the drive folder; Supabase Free backups are not a substitute for this check.
 
 ---
 

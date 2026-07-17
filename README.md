@@ -9,8 +9,7 @@ Stack: **Next.js** (Vercel) + **Supabase** (Auth, Postgres, Realtime, RLS).
 ## Quick start
 
 1. Create a Supabase project (region closest to India).
-2. In the SQL editor, run migrations in order under `supabase/migrations/` (001–008).  
-   Or run the matching `FIX_*.sql` files on an existing project (including `FIX_security_revoke_anon_rpc.sql` to block anon RPC execute).
+2. In the SQL editor, run migrations in order under `supabase/migrations/` (001–009).
 3. Disable public signup (Auth → Providers → Email → turn off signups).
 4. Create users in Supabase Auth, then insert matching rows in `profiles`:
 
@@ -41,10 +40,12 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Role | Can do |
 |---|---|
-| employee | Add payments; see own requests |
-| director | Approve / deny pending |
-| accounts | Mark approved payments paid |
-| admin | All of the above |
+| employee | Add payments; see the team list; mark approved payments paid; correct own denied requests |
+| director | Add auto-approved payments; approve / deny pending requests |
+| accounts | Add payments; see the team list; mark approved payments paid; correct own denied requests |
+| admin | All actions; correct any denied request; remove history from the active UI |
+
+Admin removal is a soft delete: the payment disappears from the active UI while its event trail remains in the database.
 
 Security is enforced by **Row Level Security** and **Postgres RPCs**. The browser never updates payment status rows directly.
 
@@ -68,4 +69,4 @@ supabase/migrations/  schema, functions, RLS
 
 ## Plan
 
-See `nawkiran-payment-tracker-implementation-plan.md` for product rules and acceptance criteria.
+See `nawkiran-payment-tracker-implementation-plan.md` for the original v1 plan and its prominent current-product override note.

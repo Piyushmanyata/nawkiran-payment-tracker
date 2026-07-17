@@ -47,11 +47,16 @@ export interface Payment {
 export interface PaymentEvent {
   id: number;
   payment_id: string;
-  action: "created" | "approved" | "denied" | "paid" | "resubmitted";
+  action:
+    | "created"
+    | "approved"
+    | "denied"
+    | "paid"
+    | "resubmitted"
+    | "admin_deleted";
   performed_by: string;
   old_status: PaymentStatus | null;
   new_status: PaymentStatus;
   note: string | null;
   created_at: string;
 }
-
