@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { roleLabel } from "@/lib/ui";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { loading, configured, session, profile, signOut } = useAuth();
@@ -29,8 +30,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-full items-center justify-center bg-slate-50 text-slate-600">
-        Loading...
+      <div className="flex min-h-full flex-col items-center justify-center gap-3 bg-slate-50 text-slate-600">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+        <p className="text-sm font-medium">Loading…</p>
       </div>
     );
   }
@@ -46,34 +48,37 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (!session) {
     return (
-      <div className="flex min-h-full items-center justify-center bg-slate-50 text-slate-600">
-        Redirecting...
+      <div className="flex min-h-full items-center justify-center bg-slate-50 text-sm text-slate-600">
+        Redirecting…
       </div>
     );
   }
 
+  const name = profile?.full_name?.trim() || "User";
+  const role = roleLabel(profile?.role);
+
   return (
     <div className="min-h-full bg-slate-50">
       <OfflineBanner />
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-bold text-slate-900">Nawkiran Payments</p>
-            <p className="text-xs text-slate-500">
-              {profile?.full_name ?? "User"}
-              {profile?.role ? ` · ${profile.role}` : ""}
+            <p className="truncate text-xs text-slate-500">
+              {name}
+              {role ? ` · ${role}` : ""}
             </p>
           </div>
           <button
             type="button"
             onClick={() => void signOut()}
-            className="min-h-10 rounded-lg px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+            className="min-h-10 shrink-0 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 active:bg-slate-200"
           >
             Log out
           </button>
         </div>
       </header>
-      <main className="mx-auto max-w-lg px-4 pb-24 pt-4">{children}</main>
+      <main className="mx-auto max-w-lg px-4 pb-28 pt-4">{children}</main>
       <BottomNavigation />
     </div>
   );

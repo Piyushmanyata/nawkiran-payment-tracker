@@ -1,7 +1,7 @@
 "use client";
 
 import type { Payment, UserRole } from "@/types/database";
-import { formatDueLabel, formatInr, statusLabel } from "@/lib/format";
+import { formatDueLabel, formatInr, isOverdue } from "@/lib/format";
 import {
   canApprove as roleCanApprove,
   canDeleteHistory,
@@ -40,45 +40,44 @@ export function PaymentCard({
     canDeleteHistory(role) &&
     Boolean(onDelete);
 
-  const secondaryLine =
-    payment.status === "approved"
-      ? "Approved · Outstanding"
-      : payment.status === "pending"
-        ? "Pending approval"
-        : statusLabel(payment.status);
+  const overdue = isOverdue(payment.status, payment.due_date);
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-base font-bold leading-snug text-slate-900">
-          {payment.party}
-        </h3>
+        <div className="min-w-0">
+          <h3 className="truncate text-base font-bold leading-snug text-slate-900">
+            {payment.party}
+          </h3>
+          <div className="mt-1.5">
+            <StatusBadge status={payment.status} dueDate={payment.due_date} />
+          </div>
+        </div>
         <p className="shrink-0 text-lg font-bold tabular-nums text-slate-900">
           {formatInr(payment.amount)}
         </p>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <StatusBadge status={payment.status} dueDate={payment.due_date} />
-        <span className="text-sm text-slate-600">{secondaryLine}</span>
-      </div>
-
-      <p className="mt-2 text-sm text-slate-600">
+      <p
+        className={`mt-3 text-sm ${
+          overdue ? "font-semibold text-amber-800" : "text-slate-600"
+        }`}
+      >
         {formatDueLabel(payment.status, payment.due_date)}
       </p>
 
       {payment.purpose ? (
-        <p className="mt-2 text-sm text-slate-700">{payment.purpose}</p>
+        <p className="mt-2 line-clamp-3 text-sm text-slate-700">{payment.purpose}</p>
       ) : null}
 
       {payment.requester_name ? (
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-2 text-xs text-slate-500">
           Requested by {payment.requester_name}
         </p>
       ) : null}
 
       {payment.status === "denied" && payment.denial_reason ? (
-        <p className="mt-2 text-sm text-red-700">
+        <p className="mt-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-sm text-red-700">
           Reason: {payment.denial_reason}
         </p>
       ) : null}

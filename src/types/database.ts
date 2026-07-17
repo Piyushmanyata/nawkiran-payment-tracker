@@ -55,12 +55,3 @@ export interface PaymentEvent {
   created_at: string;
 }
 
-export const PAYMENT_MODES: PaymentMode[] = [
-  "NEFT",
-  "RTGS",
-  "IMPS",
-  "UPI",
-  "Cheque",
-  "Cash",
-  "Other",
-];

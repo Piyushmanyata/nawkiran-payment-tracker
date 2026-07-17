@@ -36,10 +36,21 @@ export function LoadingButton({
     <button
       type={type}
       disabled={disabled || loading}
-      className={`inline-flex min-h-12 w-full items-center justify-center rounded-xl px-4 text-base font-semibold transition disabled:cursor-not-allowed ${variantClass[variant]} ${className}`}
+      aria-busy={loading || undefined}
+      className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold transition disabled:cursor-not-allowed ${variantClass[variant]} ${className}`}
       {...rest}
     >
-      {loading ? loadingText : children}
+      {loading ? (
+        <>
+          <span
+            className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent opacity-80"
+            aria-hidden
+          />
+          {loadingText}
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 }

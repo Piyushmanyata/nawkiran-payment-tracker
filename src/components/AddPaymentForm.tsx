@@ -6,6 +6,13 @@ import { useAuth } from "@/components/AuthProvider";
 import { createPayment } from "@/lib/payments";
 import { userMessageFromError } from "@/lib/errors";
 import { canApprove } from "@/lib/roles";
+import {
+  errorBoxClass,
+  fieldClass,
+  hintClass,
+  labelClass,
+  successBoxClass,
+} from "@/lib/ui";
 import { LoadingButton } from "@/components/LoadingButton";
 
 export function AddPaymentForm() {
@@ -25,6 +32,7 @@ export function AddPaymentForm() {
     if (submitting) return;
 
     setError(null);
+    setSuccess(null);
     const partyClean = party.trim();
     const amountNum = Number(amount);
 
@@ -46,16 +54,12 @@ export function AddPaymentForm() {
         purpose: purpose.trim() || null,
         clientRequestId: crypto.randomUUID(),
       });
-      setSuccess(
-        autoApprove
-          ? "Added and approved"
-          : "Sent for approval"
-      );
+      setSuccess(autoApprove ? "Added and approved" : "Sent for approval");
       setParty("");
       setAmount("");
       setDueDate("");
       setPurpose("");
-      setTimeout(() => router.push("/open"), 600);
+      window.setTimeout(() => router.push("/open"), 600);
     } catch (err) {
       setError(userMessageFromError(err));
       setSubmitting(false);
@@ -65,80 +69,71 @@ export function AddPaymentForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-slate-700">
-          Party / vendor *
-        </span>
+        <span className={labelClass}>Party / vendor *</span>
         <input
           required
           maxLength={150}
           value={party}
           onChange={(e) => setParty(e.target.value)}
           autoComplete="organization"
-          className="w-full rounded-xl border border-slate-300 px-3 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          placeholder="e.g. ABC Suppliers"
+          className={fieldClass}
         />
       </label>
 
       <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-slate-700">
-          Amount *
-        </span>
-        <input
-          required
-          inputMode="decimal"
-          type="number"
-          min="0.01"
-          step="0.01"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-full rounded-xl border border-slate-300 px-3 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        />
+        <span className={labelClass}>Amount *</span>
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base font-semibold text-slate-400">
+            ₹
+          </span>
+          <input
+            required
+            inputMode="decimal"
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            className={`${fieldClass} pl-8`}
+          />
+        </div>
       </label>
 
       <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-slate-700">
-          Due date
-        </span>
+        <span className={labelClass}>Due date</span>
         <input
           type="date"
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
-          className="w-full rounded-xl border border-slate-300 px-3 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          className={fieldClass}
         />
-        <span className="mt-1 block text-xs text-slate-500">Optional</span>
+        <span className={hintClass}>Optional</span>
       </label>
 
       <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-slate-700">
-          Purpose / note
-        </span>
+        <span className={labelClass}>Purpose / note</span>
         <textarea
           maxLength={500}
           rows={3}
           value={purpose}
           onChange={(e) => setPurpose(e.target.value)}
-          className="w-full rounded-xl border border-slate-300 px-3 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          placeholder="What is this payment for?"
+          className={fieldClass}
         />
-        <span className="mt-1 block text-xs text-slate-500">Optional</span>
+        <span className={hintClass}>Optional</span>
       </label>
 
-      {error ? (
-        <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-          {error}
-        </p>
-      ) : null}
-
-      {success ? (
-        <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-          {success}
-        </p>
-      ) : null}
+      {error ? <p className={errorBoxClass}>{error}</p> : null}
+      {success ? <p className={successBoxClass}>{success}</p> : null}
 
       <LoadingButton
         type="submit"
         loading={submitting}
         loadingText="Submitting..."
       >
-        Submit
+        {autoApprove ? "Add payment" : "Submit for approval"}
       </LoadingButton>
     </form>
   );

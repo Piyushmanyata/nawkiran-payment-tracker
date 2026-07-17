@@ -40,19 +40,19 @@ export function PaymentTotals({ payments }: { payments: Payment[] }) {
   ] as const;
 
   return (
-    <section aria-label="Payment totals" className="grid grid-cols-2 gap-2">
+    <section aria-label="Payment totals" className="grid grid-cols-2 gap-2.5">
       {tiles.map((tile) => (
         <div
           key={tile.key}
-          className={`rounded-2xl p-3 ring-1 ${tile.className}`}
+          className={`rounded-2xl p-3.5 ring-1 ${tile.className}`}
         >
-          <p className="text-xs font-semibold uppercase tracking-wide opacity-80">
+          <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">
             {tile.label}
           </p>
-          <p className="mt-1 text-lg font-bold tabular-nums">
+          <p className="mt-1 text-lg font-bold leading-tight tabular-nums">
             {formatInr(tile.sum)}
           </p>
-          <p className="text-xs font-medium opacity-70">
+          <p className="mt-0.5 text-xs font-medium opacity-70">
             {tile.count} {tile.count === 1 ? "payment" : "payments"}
           </p>
         </div>

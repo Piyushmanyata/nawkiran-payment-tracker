@@ -21,7 +21,8 @@ export function OfflineBanner() {
   return (
     <div
       role="status"
-      className="bg-amber-500 px-4 py-2 text-center text-sm font-semibold text-white"
+      aria-live="polite"
+      className="bg-amber-500 px-4 py-2.5 text-center text-sm font-semibold text-white"
     >
       You are offline. Reconnect and try again.
     </div>

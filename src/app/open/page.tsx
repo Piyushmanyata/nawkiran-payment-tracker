@@ -7,6 +7,9 @@ import { PaymentTotals } from "@/components/PaymentTotals";
 import { ApproveDialog } from "@/components/ApproveDialog";
 import { DenyDialog } from "@/components/DenyDialog";
 import { MarkPaidDialog } from "@/components/MarkPaidDialog";
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorBanner } from "@/components/ErrorBanner";
+import { PageLoading } from "@/components/PageLoading";
 import {
   approvePayment,
   denyPayment,
@@ -37,9 +40,10 @@ export default function OpenPage() {
   );
 
   const showPending = canApprove(role);
-  const showOutstanding = canMarkPaid(role) || canApprove(role) || role === "accounts";
-  // Director sees outstanding read-only (no mark paid); employee marks paid
+  const showOutstanding =
+    canMarkPaid(role) || canApprove(role) || role === "accounts";
   const outstandingMarkPaid = canMarkPaid(role);
+  const employeePending = role === "employee";
 
   async function doApprove() {
     if (!approveTarget) return;
@@ -84,26 +88,36 @@ export default function OpenPage() {
   }
 
   if (loading) {
-    return <p className="text-sm text-slate-500">Loading payments...</p>;
+    return <PageLoading label="Loading payments..." />;
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-slate-900">Open</h1>
+      <div>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">Open</h1>
+        <p className="mt-0.5 text-sm text-slate-500">
+          Pending approvals and outstanding payouts
+        </p>
+      </div>
 
       <PaymentTotals payments={payments} />
 
       {error ? (
-        <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-          {error}
-        </p>
+        <ErrorBanner
+          message={error}
+          onRetry={() => {
+            setError(null);
+            void reload();
+          }}
+        />
       ) : null}
 
       {showPending ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Waiting for Approval
-          </h2>
+          <SectionHeading
+            title="Waiting for approval"
+            count={pending.length}
+          />
           {pending.length === 0 ? (
             <EmptyState text="Nothing waiting for approval." />
           ) : (
@@ -120,12 +134,12 @@ export default function OpenPage() {
         </section>
       ) : null}
 
-      {/* Employees: show their pending requests without approve buttons */}
-      {role === "employee" ? (
+      {employeePending ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Waiting for Approval
-          </h2>
+          <SectionHeading
+            title="Waiting for approval"
+            count={pending.length}
+          />
           {pending.length === 0 ? (
             <EmptyState text="No payments waiting for approval." />
           ) : (
@@ -138,9 +152,7 @@ export default function OpenPage() {
 
       {showOutstanding ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Outstanding
-          </h2>
+          <SectionHeading title="Outstanding" count={outstanding.length} />
           {outstanding.length === 0 ? (
             <EmptyState text="No outstanding payments." />
           ) : (
@@ -182,10 +194,15 @@ export default function OpenPage() {
   );
 }
 
-function EmptyState({ text }: { text: string }) {
+function SectionHeading({ title, count }: { title: string; count: number }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
-      {text}
+    <div className="flex items-baseline justify-between gap-2">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+        {title}
+      </h2>
+      <span className="text-xs font-medium tabular-nums text-slate-400">
+        {count}
+      </span>
     </div>
   );
 }
