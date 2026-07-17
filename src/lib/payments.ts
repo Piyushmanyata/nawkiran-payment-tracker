@@ -1,36 +1,12 @@
 import { notifyPaymentEvent } from "@/app/actions/push";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { mapPayment } from "@/lib/map-payment";
 import { firePaymentPush, pushEventForPayment } from "@/lib/push-client";
 import type { Payment, Profile } from "@/types/database";
 
 /** Only columns the UI uses — smaller payloads than select("*"). */
 const PAYMENT_COLUMNS =
   "id, party, amount, due_date, purpose, status, requested_by, requested_at, approved_by, approved_at, denied_by, denied_at, denial_reason, paid_by, paid_at, payment_mode, payment_reference, updated_at, version, client_request_id";
-
-function mapPayment(row: Record<string, unknown>): Payment {
-  return {
-    id: String(row.id),
-    party: String(row.party),
-    amount: row.amount as number | string,
-    due_date: (row.due_date as string | null) ?? null,
-    purpose: (row.purpose as string | null) ?? null,
-    status: row.status as Payment["status"],
-    requested_by: String(row.requested_by),
-    requested_at: String(row.requested_at),
-    approved_by: (row.approved_by as string | null) ?? null,
-    approved_at: (row.approved_at as string | null) ?? null,
-    denied_by: (row.denied_by as string | null) ?? null,
-    denied_at: (row.denied_at as string | null) ?? null,
-    denial_reason: (row.denial_reason as string | null) ?? null,
-    paid_by: (row.paid_by as string | null) ?? null,
-    paid_at: (row.paid_at as string | null) ?? null,
-    payment_mode: (row.payment_mode as string | null) ?? null,
-    payment_reference: (row.payment_reference as string | null) ?? null,
-    updated_at: String(row.updated_at),
-    version: Number(row.version ?? 1),
-    client_request_id: String(row.client_request_id),
-  };
-}
 
 /** Prefer session user id (local) over getUser() network round-trip. */
 export async function fetchMyProfile(
@@ -58,12 +34,32 @@ export async function fetchMyProfile(
 }
 
 /**
- * Load payments + requester names in parallel (one RTT instead of sequential).
- * Profiles table is small (team app); join client-side.
+ * One query: payments + requester names via FK embed (one RTT).
+ * Falls back to parallel queries if embed is unavailable.
  */
 export async function fetchPayments(): Promise<Payment[]> {
   const supabase = getSupabaseBrowserClient();
 
+  const embedded = await supabase
+    .from("payments")
+    .select(
+      `${PAYMENT_COLUMNS}, requester:profiles!payments_requested_by_fkey(full_name)`
+    )
+    .order("requested_at", { ascending: false });
+
+  if (!embedded.error && embedded.data) {
+    return embedded.data.map((row) => {
+      const r = row as Record<string, unknown>;
+      const payment = mapPayment(r);
+      const requester = r.requester as { full_name?: string } | null;
+      return {
+        ...payment,
+        requester_name: requester?.full_name ?? null,
+      };
+    });
+  }
+
+  // Fallback: two parallel selects (older schemas / missing FK name)
   const [paymentsRes, profilesRes] = await Promise.all([
     supabase
       .from("payments")

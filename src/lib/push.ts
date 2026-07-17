@@ -159,7 +159,8 @@ export async function sendPaymentPush(
             keys: { p256dh: t.p256dh, auth: t.auth },
           },
           body,
-          { TTL: 60 * 60 * 12, urgency: "normal" }
+          // high urgency helps mobile carriers deliver payment alerts promptly
+          { TTL: 60 * 60 * 24, urgency: "high" }
         );
         sent += 1;
       } catch (err: unknown) {

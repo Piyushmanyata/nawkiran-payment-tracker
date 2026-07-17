@@ -42,8 +42,8 @@ VAPID_PRIVATE_KEY=...
 VAPID_SUBJECT=mailto:admin@yourcompany.com
 ```
 
-Generate keys once with `npx web-push generate-vapid-keys`, then apply migration
-`012_push_subscriptions.sql` in the Supabase SQL editor.
+Generate keys once with `npx web-push generate-vapid-keys`, then apply
+`012_push_subscriptions.sql` and `014_push_reliability.sql` in the Supabase SQL editor.
 
 Never expose a service-role, VAPID private key, or other secret to the browser or
 Vercel **public** env. Put `VAPID_PRIVATE_KEY` only as a server/env secret.
@@ -60,7 +60,7 @@ For push alerts, also set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, a
 
 Uses the standard **Web Push API + VAPID** only (browser push services; no paid plan).
 
-1. Run `012_push_subscriptions.sql` in Supabase.
+1. Run `012_push_subscriptions.sql` and `014_push_reliability.sql` in Supabase.
 2. Set VAPID env vars (local + Vercel).
 3. Each user taps **Enable** under the header after login.
 4. **iPhone:** Share → Add to Home Screen, open the installed icon, then Enable.

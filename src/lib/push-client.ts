@@ -33,6 +33,7 @@ export function pushEventForPayment(
   }
 }
 
+/** Decode VAPID key for PushManager.subscribe (Safari needs a plain ArrayBuffer-backed view). */
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -41,7 +42,8 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   for (let i = 0; i < rawData.length; ++i) {
     outputArray[i] = rawData.charCodeAt(i);
   }
-  return outputArray;
+  // Detach from any SharedArrayBuffer quirks — copy into a fresh ArrayBuffer.
+  return new Uint8Array(outputArray);
 }
 
 export function isPushBrowserSupported(): boolean {
@@ -51,6 +53,25 @@ export function isPushBrowserSupported(): boolean {
     "PushManager" in window &&
     "Notification" in window
   );
+}
+
+export function getDeviceInfo(): { isIos: boolean; isStandalone: boolean } {
+  if (typeof window === "undefined") {
+    return { isIos: false, isStandalone: true };
+  }
+
+  const ua = navigator.userAgent;
+  // iPadOS 13+ reports as Macintosh + touch
+  const isIos =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.matchMedia("(display-mode: fullscreen)").matches ||
+    Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+
+  return { isIos, isStandalone };
 }
 
 export function serializePushSubscription(sub: PushSubscription): {
@@ -65,6 +86,18 @@ export function serializePushSubscription(sub: PushSubscription): {
       auth: json.keys!.auth!,
     },
   };
+}
+
+/** Register / reuse the app service worker (always call before push subscribe). */
+export async function registerPushServiceWorker(): Promise<ServiceWorkerRegistration> {
+  const reg = await navigator.serviceWorker.register("/sw.js", {
+    scope: "/",
+    updateViaCache: "none",
+  });
+  // Kick update check (mobile often keeps a stale SW after deploy)
+  void reg.update().catch(() => {});
+  await navigator.serviceWorker.ready;
+  return reg;
 }
 
 /** Best-effort notify after a successful payment RPC. Never throws. */

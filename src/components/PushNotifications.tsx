@@ -3,31 +3,33 @@
 import { useCallback, useEffect, useState } from "react";
 import { subscribeUser, unsubscribeUser } from "@/app/actions/push";
 import {
+  getDeviceInfo,
   isPushBrowserSupported,
+  registerPushServiceWorker,
   serializePushSubscription,
   urlBase64ToUint8Array,
 } from "@/lib/push-client";
 
-type Status = "loading" | "unsupported" | "denied" | "off" | "on" | "hidden";
+type Status =
+  | "loading"
+  | "unsupported"
+  | "ios-install"
+  | "denied"
+  | "off"
+  | "on"
+  | "hidden";
 
 /** Public VAPID key is already browser-safe — no server round-trip. */
 function getClientPushPublicKey(): string | null {
   return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || null;
 }
 
-function getDeviceInfo() {
-  if (typeof window === "undefined") {
-    return { isIos: false, isStandalone: true };
-  }
-
-  return {
-    isIos:
-      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-      !(window as unknown as { MSStream?: unknown }).MSStream,
-    isStandalone:
-      window.matchMedia("(display-mode: standalone)").matches ||
-      Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
-  };
+async function saveSubscription(sub: PushSubscription): Promise<string | null> {
+  const result = await subscribeUser(
+    serializePushSubscription(sub),
+    navigator.userAgent
+  );
+  return result.success ? null : (result.error ?? "Could not save subscription");
 }
 
 /**
@@ -38,17 +40,26 @@ export function PushNotifications() {
   const [status, setStatus] = useState<Status>("loading");
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
-  const { isIos, isStandalone } = getDeviceInfo();
+  const [device, setDevice] = useState(() => getDeviceInfo());
 
   const refresh = useCallback(async () => {
-    if (!isPushBrowserSupported()) {
-      setStatus("unsupported");
-      return;
-    }
+    const info = getDeviceInfo();
+    setDevice(info);
 
     const publicKey = getClientPushPublicKey();
     if (!publicKey) {
       setStatus("hidden");
+      return;
+    }
+
+    // iOS Safari (not installed): PushManager often missing — still show install help
+    if (info.isIos && !info.isStandalone) {
+      setStatus("ios-install");
+      return;
+    }
+
+    if (!isPushBrowserSupported()) {
+      setStatus(info.isIos ? "ios-install" : "unsupported");
       return;
     }
 
@@ -58,29 +69,75 @@ export function PushNotifications() {
     }
 
     try {
-      const reg = await navigator.serviceWorker.register("/sw.js", {
-        scope: "/",
-        updateViaCache: "none",
-      });
-      await navigator.serviceWorker.ready;
+      const reg = await registerPushServiceWorker();
       const sub = await reg.pushManager.getSubscription();
-      setStatus(sub ? "on" : "off");
+      if (sub) {
+        // Re-upsert so a wiped DB / rotated endpoint still receives pushes
+        void saveSubscription(sub);
+        setStatus("on");
+      } else if (Notification.permission === "granted") {
+        // Permission already granted but no sub (SW update, cleared storage)
+        setStatus("off");
+      } else {
+        setStatus("off");
+      }
     } catch {
-      setStatus("unsupported");
+      setStatus(info.isIos ? "ios-install" : "unsupported");
+    }
+  }, []);
+
+  const resubscribeQuiet = useCallback(async () => {
+    try {
+      const publicKey = getClientPushPublicKey();
+      if (!publicKey || !isPushBrowserSupported()) return;
+      if (Notification.permission !== "granted") return;
+
+      const reg = await registerPushServiceWorker();
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(
+            publicKey
+          ) as BufferSource,
+        });
+      }
+      await saveSubscription(sub);
+      setStatus("on");
+    } catch {
+      /* optional path */
     }
   }, []);
 
   useEffect(() => {
-    // Idle-time init so shell paint is not blocked by SW registration
     const ric = window.requestIdleCallback?.bind(window);
     let idleId: number | undefined;
     let timeoutId: number | undefined;
 
     const run = () => void refresh();
     if (ric) {
-      idleId = ric(run, { timeout: 2500 });
+      idleId = ric(run, { timeout: 1800 });
     } else {
       timeoutId = window.setTimeout(run, 1);
+    }
+
+    // After Add to Home Screen, re-check when display mode becomes standalone
+    const mq = window.matchMedia("(display-mode: standalone)");
+    const onMode = () => void refresh();
+    mq.addEventListener?.("change", onMode);
+
+    // SW asks for re-subscribe after endpoint rotation; also deep-link nav
+    const onMessage = (event: MessageEvent) => {
+      const type = event.data?.type;
+      if (type === "nawkiran-push-resubscribe") {
+        void resubscribeQuiet();
+      }
+      if (type === "nawkiran-navigate" && typeof event.data?.url === "string") {
+        window.location.assign(event.data.url);
+      }
+    };
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", onMessage);
     }
 
     return () => {
@@ -88,55 +145,79 @@ export function PushNotifications() {
         window.cancelIdleCallback(idleId);
       }
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      mq.removeEventListener?.("change", onMode);
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("message", onMessage);
+      }
     };
-  }, [refresh]);
+  }, [refresh, resubscribeQuiet]);
 
   async function enable() {
     setBusy(true);
     setHint(null);
     try {
-      if (isIos && !isStandalone) {
+      const info = getDeviceInfo();
+      setDevice(info);
+
+      if (info.isIos && !info.isStandalone) {
+        setStatus("ios-install");
         setHint(
-          "On iPhone: Share → Add to Home Screen, open the app icon, then enable alerts."
+          "On iPhone: Share → Add to Home Screen, open the app icon, then Enable."
         );
-        setBusy(false);
         return;
       }
 
       const publicKey = getClientPushPublicKey();
       if (!publicKey) {
         setHint("Push is not configured on the server.");
-        setBusy(false);
         return;
       }
+
+      if (!isPushBrowserSupported()) {
+        setStatus("unsupported");
+        setHint("This browser does not support push alerts.");
+        return;
+      }
+
+      // Register SW before permission/subscribe — ready alone can race on mobile
+      const reg = await registerPushServiceWorker();
 
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setStatus("denied");
-        setBusy(false);
         return;
       }
 
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
-      });
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(
+            publicKey
+          ) as BufferSource,
+        });
+      }
 
-      const result = await subscribeUser(
-        serializePushSubscription(sub),
-        navigator.userAgent
-      );
-      if (!result.success) {
-        setHint(result.error ?? "Could not save subscription");
+      const err = await saveSubscription(sub);
+      if (err) {
+        setHint(err);
         await sub.unsubscribe().catch(() => {});
-        setBusy(false);
         return;
       }
 
       setStatus("on");
     } catch (err) {
-      setHint(err instanceof Error ? err.message : "Could not enable alerts");
+      const msg = err instanceof Error ? err.message : "Could not enable alerts";
+      // iOS often throws until installed as PWA
+      if (device.isIos || /permission|denied|not supported/i.test(msg)) {
+        setHint(
+          device.isIos
+            ? "Install to Home Screen first, then open the app icon and enable alerts."
+            : msg
+        );
+      } else {
+        setHint(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -146,7 +227,7 @@ export function PushNotifications() {
     setBusy(true);
     setHint(null);
     try {
-      const reg = await navigator.serviceWorker.ready;
+      const reg = await registerPushServiceWorker();
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
         await unsubscribeUser(sub.endpoint);
@@ -164,26 +245,30 @@ export function PushNotifications() {
     return null;
   }
 
+  const title =
+    status === "on"
+      ? "Push alerts on"
+      : status === "denied"
+        ? "Alerts blocked in browser"
+        : status === "ios-install"
+          ? "Install app for alerts"
+          : "Get payment alerts";
+
+  const subtitle =
+    status === "on"
+      ? "You’ll be notified on this device"
+      : status === "denied"
+        ? "Allow notifications in browser settings"
+        : status === "ios-install"
+          ? "Share → Add to Home Screen, then open the icon"
+          : "Free · works when the app is closed";
+
   return (
     <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-2">
       <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-slate-700">
-            {status === "on"
-              ? "Push alerts on"
-              : status === "denied"
-                ? "Alerts blocked in browser"
-                : "Get payment alerts"}
-          </p>
-          <p className="truncate text-[11px] text-slate-500">
-            {status === "on"
-              ? "You’ll be notified on this device"
-              : status === "denied"
-                ? "Allow notifications in browser settings"
-                : isIos && !isStandalone
-                  ? "Install to Home Screen first (iOS)"
-                  : "Free · works when the app is closed"}
-          </p>
+          <p className="text-xs font-semibold text-slate-700">{title}</p>
+          <p className="truncate text-[11px] text-slate-500">{subtitle}</p>
         </div>
         {status === "on" ? (
           <button
@@ -194,7 +279,7 @@ export function PushNotifications() {
           >
             Turn off
           </button>
-        ) : status === "denied" ? null : (
+        ) : status === "denied" || status === "ios-install" ? null : (
           <button
             type="button"
             disabled={busy}

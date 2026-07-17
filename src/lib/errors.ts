@@ -87,5 +87,9 @@ export function userMessageFromError(error: unknown): string {
     return "Payment functions are missing. Run the SQL migrations in Supabase.";
   }
 
+  if (text.includes("not_authenticated") || text.includes("jwt expired")) {
+    return "Please log in again.";
+  }
+
   return "Could not save. Please try again.";
 }

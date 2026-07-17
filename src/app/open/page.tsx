@@ -40,25 +40,27 @@ export default function OpenPage() {
   const [paidTarget, setPaidTarget] = useState<Payment | null>(null);
   const [correctTarget, setCorrectTarget] = useState<Payment | null>(null);
 
-  const pending = useMemo(
-    () => payments.filter((p) => p.status === "pending"),
-    [payments]
-  );
-  const outstanding = useMemo(
-    () => payments.filter((p) => p.status === "approved"),
-    [payments]
-  );
-  const denied = useMemo(
-    () => payments.filter((p) => p.status === "denied"),
-    [payments]
-  );
-  const correctableDenied = useMemo(
-    () =>
-      denied.filter(
-        (p) => p.requested_by === profile?.id || role === "admin"
-      ),
-    [denied, profile?.id, role]
-  );
+  // Single pass over payments (was 4 separate filters)
+  const { pending, outstanding, correctableDenied } = useMemo(() => {
+    const pendingList: Payment[] = [];
+    const outstandingList: Payment[] = [];
+    const correctable: Payment[] = [];
+    for (const p of payments) {
+      if (p.status === "pending") pendingList.push(p);
+      else if (p.status === "approved") outstandingList.push(p);
+      else if (
+        p.status === "denied" &&
+        (p.requested_by === profile?.id || role === "admin")
+      ) {
+        correctable.push(p);
+      }
+    }
+    return {
+      pending: pendingList,
+      outstanding: outstandingList,
+      correctableDenied: correctable,
+    };
+  }, [payments, profile?.id, role]);
 
   const showPending = canApprove(role);
   const showOutstanding =

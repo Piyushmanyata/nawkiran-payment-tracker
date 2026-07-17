@@ -14,8 +14,13 @@ const sql = Object.fromEntries(
 test("the canonical migration chain is ordered and has no bundled duplicate", () => {
   assert.deepEqual(
     migrations.map((name) => name.slice(0, 3)),
-    ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013"]
+    ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "014"]
   );
+});
+
+test("push target window is long enough for delayed server actions", () => {
+  assert.match(sql["014_push_reliability.sql"], /2 hours/i);
+  assert.match(sql["014_push_reliability.sql"], /list_push_targets/i);
 });
 
 test("migrations never provision Auth users or fixed passwords", () => {

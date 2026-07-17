@@ -14,10 +14,21 @@ const geistSans = Geist({
 export const metadata: Metadata = {
   title: "Nawkiran Payments",
   description: "Simple phone-first payment tracker for Nawkiran",
+  applicationName: "Nawkiran Payments",
   appleWebApp: {
     capable: true,
     title: "Nawkiran Payments",
     statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
+  formatDetection: {
+    telephone: false,
   },
 };
 

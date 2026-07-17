@@ -54,7 +54,7 @@ Security is enforced by **Row Level Security** and **Postgres RPCs**. The browse
 1. Push to a private GitHub repo.
 2. Import into Vercel.
 3. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
-4. Optional free push: set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and run migration `012_push_subscriptions.sql`.
+4. Optional free push: set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and run migrations `012_push_subscriptions.sql` + `014_push_reliability.sql`.
 5. Deploy Preview, test on phones, then promote to Production.
 
 Do **not** put the Supabase service-role key or `VAPID_PRIVATE_KEY` in the frontend or Vercel public env.
