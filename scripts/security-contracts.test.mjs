@@ -58,6 +58,33 @@ test("push targets are restricted to the lifecycle actor", () => {
   assert.doesNotMatch(sql[hardening], /using \(user_id = auth\.uid\(\)\)/i);
 });
 
+test("push workflow routes director vs employees correctly", () => {
+  const workflow = migrations.find((name) =>
+    name.endsWith("_push_notification_workflow.sql")
+  );
+  assert.ok(workflow, "push_notification_workflow migration missing");
+  const body = sql[workflow];
+  assert.match(body, /when 'pending' then array\['director', 'admin'\]/i);
+  assert.match(body, /when 'approved' then array\['employee', 'accounts'\]/i);
+  assert.match(body, /when 'denied' then array\['employee', 'accounts'\]/i);
+  assert.match(body, /when 'paid' then array\['director', 'admin'\]/i);
+  assert.match(body, /s\.user_id\s*<>\s*me/i);
+  assert.doesNotMatch(body, /s\.user_id\s*=\s*pay\.requested_by/i);
+});
+
+test("push payload always includes party amount and initiator", () => {
+  const push = readFileSync(join(process.cwd(), "src", "lib", "push.ts"), "utf8");
+  const action = readFileSync(
+    join(process.cwd(), "src", "app", "actions", "push.ts"),
+    "utf8"
+  );
+  assert.match(push, /export type PaymentPushParams/i);
+  assert.match(push, /initiatedBy/i);
+  assert.match(push, /party} · \$\{amount} · by \$\{by}/);
+  assert.match(action, /profiles!payments_requested_by_fkey\(full_name\)/i);
+  assert.match(action, /initiatedBy:/i);
+});
+
 test("mobile push rotation works without an open app window", () => {
   const worker = readFileSync(join(process.cwd(), "public", "sw.js"), "utf8");
   assert.match(worker, /pushsubscriptionchange/i);

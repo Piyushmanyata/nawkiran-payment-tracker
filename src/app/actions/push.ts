@@ -11,7 +11,6 @@ import {
   type PushEvent,
   type SerializedPushSubscription,
 } from "@/lib/push";
-import { mapPayment } from "@/lib/map-payment";
 import { createClient } from "@/utils/supabase/server";
 
 export async function getPushPublicKey(): Promise<string | null> {
@@ -78,8 +77,14 @@ export async function sendTestNotification(
 }
 
 /**
- * Fire-and-forget friendly: notify role targets after a payment lifecycle change.
+ * Fire-and-forget: notify role targets after a payment lifecycle change.
  * Safe to ignore failures — payment already succeeded.
+ *
+ * Routing (DB list_push_targets):
+ *   pending  → director/admin
+ *   approved → employee/accounts
+ *   denied   → employee/accounts
+ *   paid     → director/admin
  */
 export async function notifyPaymentEvent(
   paymentId: string,
@@ -98,10 +103,11 @@ export async function notifyPaymentEvent(
       return { success: false, error: "Not signed in" };
     }
 
+    // Lean select: only push fields + initiator name (one RTT).
     const { data, error } = await supabase
       .from("payments")
       .select(
-        "id, party, amount, due_date, purpose, status, requested_by, requested_at, approved_by, approved_at, denied_by, denied_at, denial_reason, paid_by, paid_at, payment_mode, payment_reference, updated_at, version, client_request_id"
+        "party, amount, denial_reason, version, requester:profiles!payments_requested_by_fkey(full_name)"
       )
       .eq("id", paymentId)
       .maybeSingle();
@@ -109,14 +115,35 @@ export async function notifyPaymentEvent(
     if (error) throw error;
     if (!data) return { success: false, error: "Payment not found" };
 
-    const payment = mapPayment(data as Record<string, unknown>);
-    const payload = buildPushPayload(event, payment);
+    const row = data as {
+      party: string;
+      amount: number | string;
+      denial_reason: string | null;
+      version: number | null;
+      requester: { full_name?: string } | { full_name?: string }[] | null;
+    };
+    const requester = Array.isArray(row.requester)
+      ? row.requester[0]
+      : row.requester;
+    const version = Number(row.version ?? 1);
+    const payload = buildPushPayload(event, {
+      party: row.party,
+      amount: row.amount,
+      initiatedBy: requester?.full_name?.trim() || "Unknown",
+      denialReason: row.denial_reason,
+    });
+
     after(async () => {
       try {
-        const result = await sendPaymentPush(paymentId, event, {
-          ...payload,
-          tag: `${paymentId}:${event}:${payment.version}`,
-        }, supabase);
+        const result = await sendPaymentPush(
+          paymentId,
+          event,
+          {
+            ...payload,
+            tag: `${paymentId}:${event}:${version}`,
+          },
+          supabase
+        );
         if (result.failed > 0) {
           console.error("notifyPaymentEvent delivery failures", {
             event,

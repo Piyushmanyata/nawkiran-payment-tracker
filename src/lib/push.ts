@@ -3,7 +3,6 @@ import webpush from "web-push";
 import { createClient } from "@/utils/supabase/server";
 import { formatInr } from "@/lib/format";
 import type { PushEvent } from "@/lib/push-client";
-import type { Payment } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type { PushEvent };
@@ -67,45 +66,63 @@ export function publicVapidKey(): string | null {
   return key;
 }
 
-/** Build title/body for a payment lifecycle event. */
+/** Params always shown on payment push: party, amount, who initiated. */
+export type PaymentPushParams = {
+  party: string;
+  amount: number | string;
+  initiatedBy: string;
+  denialReason?: string | null;
+};
+
+/**
+ * Build title/body for a payment lifecycle event.
+ * Body always includes party · amount · by initiator.
+ *
+ * Workflow:
+ *   pending  → director approval
+ *   approved → employees can pay
+ *   denied   → employees correct
+ *   paid     → director informed
+ */
 export function buildPushPayload(
   event: PushEvent,
-  payment: Pick<Payment, "party" | "amount" | "denial_reason">
+  payment: PaymentPushParams
 ): { title: string; body: string; url: string } {
   const amount = formatInr(payment.amount);
-  const party = payment.party;
+  const by = payment.initiatedBy.trim() || "Unknown";
+  const core = `${payment.party} · ${amount} · by ${by}`;
 
   switch (event) {
     case "pending":
       return {
-        title: "New payment request",
-        body: `${party} · ${amount} needs approval`,
+        title: "Approval needed",
+        body: core,
         url: "/open",
       };
     case "approved":
       return {
         title: "Ready to pay",
-        body: `${party} · ${amount} is outstanding`,
+        body: core,
         url: "/open",
       };
     case "denied":
       return {
-        title: "Payment denied",
-        body: payment.denial_reason
-          ? `${party} · ${amount} — ${payment.denial_reason}`
-          : `${party} · ${amount}`,
+        title: "Payment denied — correct it",
+        body: payment.denialReason
+          ? `${core} — ${payment.denialReason}`
+          : core,
         url: "/open",
       };
     case "paid":
       return {
-        title: "Payment marked paid",
-        body: `${party} · ${amount}`,
+        title: "Marked paid",
+        body: core,
         url: "/history",
       };
     default:
       return {
         title: "Nawkiran Payments",
-        body: `${party} · ${amount}`,
+        body: core,
         url: "/open",
       };
   }
