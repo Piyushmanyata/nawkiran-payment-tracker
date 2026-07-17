@@ -6,10 +6,13 @@ export type PushEvent = "pending" | "approved" | "denied" | "paid";
 
 /**
  * Map a payment after an action to the push event to fire.
- * Director/admin create → auto-approved → "approved".
+ *
+ * - Employee create → pending → directors
+ * - Director/admin create (auto-approved) → approved → employees
+ * - Director approve → approved → employees
  */
 export function pushEventForPayment(
-  payment: Pick<Payment, "status">,
+  payment: Pick<Payment, "status" | "approved_by">,
   action:
     | "created"
     | "approved"
@@ -19,7 +22,11 @@ export function pushEventForPayment(
 ): PushEvent | null {
   switch (action) {
     case "created":
-      return payment.status === "approved" ? "approved" : "pending";
+      // Auto-approve on create must never fall through as "pending".
+      if (payment.status === "approved" || payment.approved_by) {
+        return "approved";
+      }
+      return "pending";
     case "resubmitted":
       return "pending";
     case "approved":

@@ -72,6 +72,25 @@ test("push workflow routes director vs employees correctly", () => {
   assert.doesNotMatch(body, /s\.user_id\s*=\s*pay\.requested_by/i);
 });
 
+test("director auto-approve create notifies employees via approved targets", () => {
+  const latest = migrations.find((name) =>
+    name.endsWith("_push_director_initiate_employees.sql")
+  );
+  assert.ok(latest, "push_director_initiate_employees migration missing");
+  const body = sql[latest];
+  assert.match(
+    body,
+    /e\.action\s*=\s*'created'\s+and\s+e\.new_status\s*=\s*'approved'/i
+  );
+  assert.match(body, /when 'approved' then array\['employee', 'accounts'\]/i);
+
+  const client = readFileSync(
+    join(process.cwd(), "src", "lib", "push-client.ts"),
+    "utf8"
+  );
+  assert.match(client, /payment\.status\s*===\s*"approved"\s*\|\|\s*payment\.approved_by/i);
+});
+
 test("push payload always includes party amount and initiator", () => {
   const push = readFileSync(join(process.cwd(), "src", "lib", "push.ts"), "utf8");
   const action = readFileSync(

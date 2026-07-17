@@ -100,8 +100,9 @@ export function buildPushPayload(
         url: "/open",
       };
     case "approved":
+      // Director/admin initiate (auto-approve) or director approval of a request.
       return {
-        title: "Ready to pay",
+        title: "New payment to pay",
         body: core,
         url: "/open",
       };

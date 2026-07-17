@@ -2,26 +2,34 @@ import type { Payment } from "@/types/database";
 
 /** Map a payments row (RPC or table) to the app Payment shape. */
 export function mapPayment(row: Record<string, unknown>): Payment {
+  // Some RPC clients wrap a single composite row in an array.
+  const r = (
+    Array.isArray(row) ? (row[0] as Record<string, unknown> | undefined) : row
+  ) as Record<string, unknown>;
+  if (!r?.id) {
+    throw new Error("Invalid payment row");
+  }
+
   return {
-    id: String(row.id),
-    party: String(row.party),
-    amount: row.amount as number | string,
-    due_date: (row.due_date as string | null) ?? null,
-    purpose: (row.purpose as string | null) ?? null,
-    status: row.status as Payment["status"],
-    requested_by: String(row.requested_by),
-    requested_at: String(row.requested_at),
-    approved_by: (row.approved_by as string | null) ?? null,
-    approved_at: (row.approved_at as string | null) ?? null,
-    denied_by: (row.denied_by as string | null) ?? null,
-    denied_at: (row.denied_at as string | null) ?? null,
-    denial_reason: (row.denial_reason as string | null) ?? null,
-    paid_by: (row.paid_by as string | null) ?? null,
-    paid_at: (row.paid_at as string | null) ?? null,
-    payment_mode: (row.payment_mode as string | null) ?? null,
-    payment_reference: (row.payment_reference as string | null) ?? null,
-    updated_at: String(row.updated_at),
-    version: Number(row.version ?? 1),
-    client_request_id: String(row.client_request_id),
+    id: String(r.id),
+    party: String(r.party),
+    amount: r.amount as number | string,
+    due_date: (r.due_date as string | null) ?? null,
+    purpose: (r.purpose as string | null) ?? null,
+    status: r.status as Payment["status"],
+    requested_by: String(r.requested_by),
+    requested_at: String(r.requested_at),
+    approved_by: (r.approved_by as string | null) ?? null,
+    approved_at: (r.approved_at as string | null) ?? null,
+    denied_by: (r.denied_by as string | null) ?? null,
+    denied_at: (r.denied_at as string | null) ?? null,
+    denial_reason: (r.denial_reason as string | null) ?? null,
+    paid_by: (r.paid_by as string | null) ?? null,
+    paid_at: (r.paid_at as string | null) ?? null,
+    payment_mode: (r.payment_mode as string | null) ?? null,
+    payment_reference: (r.payment_reference as string | null) ?? null,
+    updated_at: String(r.updated_at),
+    version: Number(r.version ?? 1),
+    client_request_id: String(r.client_request_id),
   };
 }
