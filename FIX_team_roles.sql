@@ -4,10 +4,9 @@
 -- ============================================================
 
 -- A) Confirm emails for users created via API (no mailbox required)
+-- Note: confirmed_at is a GENERATED column — only update email_confirmed_at
 update auth.users
-set
-  email_confirmed_at = coalesce(email_confirmed_at, now()),
-  confirmed_at = coalesce(confirmed_at, now())
+set email_confirmed_at = coalesce(email_confirmed_at, now())
 where id in (
   '285d1e4d-994e-4d6d-a7f6-3340b257441e', -- Anjali
   '50dfa9c5-4528-49ef-acc2-88ed57b106dd'  -- Sweeti
