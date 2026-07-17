@@ -29,8 +29,14 @@ Confirm no errors after each file.
 
 1. **Authentication → Providers → Email**: enabled
 2. **Disable public signup** (Sign up / allow new users off)
-3. Optional: set site URL later to your Vercel URL under Authentication → URL Configuration
+3. **Leaked password protection**: enable under Authentication → Providers → Email (or Security) — checks against HaveIBeenPwned
+4. Optional: set site URL later to your Vercel URL under Authentication → URL Configuration
 
+### 3b. Security grants (run after functions exist)
+
+If Supabase warns that **anon can execute SECURITY DEFINER functions**, run `FIX_security_revoke_anon_rpc.sql` in the SQL Editor.
+That revokes EXECUTE from PUBLIC/anon. Payment RPCs stay available to signed-in users only.
+`authenticated_security_definer_function_executable` on those RPCs is expected (intentional after login).
 ### 4. Create test users
 
 For each person (employee, director, accounts):
