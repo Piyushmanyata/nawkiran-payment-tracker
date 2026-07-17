@@ -100,5 +100,7 @@ begin
 end;
 $$;
 
+revoke all on function public.correct_denied_payment(uuid, text, numeric, date, text) from public;
+revoke all on function public.correct_denied_payment(uuid, text, numeric, date, text) from anon;
 grant execute on function public.correct_denied_payment(uuid, text, numeric, date, text)
   to authenticated;

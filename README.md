@@ -9,10 +9,8 @@ Stack: **Next.js** (Vercel) + **Supabase** (Auth, Postgres, Realtime, RLS).
 ## Quick start
 
 1. Create a Supabase project (region closest to India).
-2. In the SQL editor, run migrations in order:
-   - `supabase/migrations/001_schema.sql`
-   - `supabase/migrations/002_functions.sql`
-   - `supabase/migrations/003_rls.sql`
+2. In the SQL editor, run migrations in order under `supabase/migrations/` (001–008).  
+   Or run the matching `FIX_*.sql` files on an existing project (including `FIX_security_revoke_anon_rpc.sql` to block anon RPC execute).
 3. Disable public signup (Auth → Providers → Email → turn off signups).
 4. Create users in Supabase Auth, then insert matching rows in `profiles`:
 
