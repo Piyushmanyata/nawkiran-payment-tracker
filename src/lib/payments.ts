@@ -3,6 +3,10 @@ import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { firePaymentPush, pushEventForPayment } from "@/lib/push-client";
 import type { Payment, Profile } from "@/types/database";
 
+/** Only columns the UI uses — smaller payloads than select("*"). */
+const PAYMENT_COLUMNS =
+  "id, party, amount, due_date, purpose, status, requested_by, requested_at, approved_by, approved_at, denied_by, denied_at, denial_reason, paid_by, paid_at, payment_mode, payment_reference, updated_at, version, client_request_id";
+
 function mapPayment(row: Record<string, unknown>): Payment {
   return {
     id: String(row.id),
@@ -28,17 +32,24 @@ function mapPayment(row: Record<string, unknown>): Payment {
   };
 }
 
-export async function fetchMyProfile(): Promise<Profile | null> {
+/** Prefer session user id (local) over getUser() network round-trip. */
+export async function fetchMyProfile(
+  userId?: string | null
+): Promise<Profile | null> {
   const supabase = getSupabaseBrowserClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  let id = userId ?? null;
+  if (!id) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    id = session?.user?.id ?? null;
+  }
+  if (!id) return null;
 
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, role, active, created_at")
-    .eq("id", user.id)
+    .eq("id", id)
     .maybeSingle();
 
   if (error) throw error;
@@ -46,36 +57,34 @@ export async function fetchMyProfile(): Promise<Profile | null> {
   return data as Profile;
 }
 
+/**
+ * Load payments + requester names in parallel (one RTT instead of sequential).
+ * Profiles table is small (team app); join client-side.
+ */
 export async function fetchPayments(): Promise<Payment[]> {
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("payments")
-    .select("*")
-    .order("requested_at", { ascending: false });
 
-  if (error) throw error;
+  const [paymentsRes, profilesRes] = await Promise.all([
+    supabase
+      .from("payments")
+      .select(PAYMENT_COLUMNS)
+      .order("requested_at", { ascending: false }),
+    supabase.from("profiles").select("id, full_name"),
+  ]);
 
-  const payments = (data ?? []).map((row) =>
-    mapPayment(row as Record<string, unknown>)
-  );
-
-  // Attach requester names when profiles are readable
-  const ids = [...new Set(payments.map((p) => p.requested_by))];
-  if (ids.length === 0) return payments;
-
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .in("id", ids);
+  if (paymentsRes.error) throw paymentsRes.error;
 
   const nameById = new Map(
-    (profiles ?? []).map((p) => [p.id as string, p.full_name as string])
+    (profilesRes.data ?? []).map((p) => [p.id as string, p.full_name as string])
   );
 
-  return payments.map((p) => ({
-    ...p,
-    requester_name: nameById.get(p.requested_by) ?? null,
-  }));
+  return (paymentsRes.data ?? []).map((row) => {
+    const payment = mapPayment(row as Record<string, unknown>);
+    return {
+      ...payment,
+      requester_name: nameById.get(payment.requested_by) ?? null,
+    };
+  });
 }
 
 export async function createPayment(input: {

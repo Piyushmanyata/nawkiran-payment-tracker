@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { createPayment } from "@/lib/payments";
 import { userMessageFromError } from "@/lib/errors";
 import { canApprove } from "@/lib/roles";
@@ -18,6 +19,7 @@ import { LoadingButton } from "@/components/LoadingButton";
 export function AddPaymentForm() {
   const router = useRouter();
   const { profile } = useAuth();
+  const { upsertPayment } = usePaymentsLive();
   const autoApprove = canApprove(profile?.role);
   const [party, setParty] = useState("");
   const [amount, setAmount] = useState("");
@@ -49,12 +51,16 @@ export function AddPaymentForm() {
     setSubmitting(true);
     try {
       requestId.current ??= crypto.randomUUID();
-      await createPayment({
+      const payment = await createPayment({
         party: partyClean,
         amount: Math.round(amountNum * 100) / 100,
         dueDate: dueDate || null,
         purpose: purpose.trim() || null,
         clientRequestId: requestId.current,
+      });
+      upsertPayment({
+        ...payment,
+        requester_name: profile?.full_name ?? payment.requester_name,
       });
       requestId.current = null;
       setSuccess(autoApprove ? "Added and approved" : "Sent for approval");
@@ -62,7 +68,7 @@ export function AddPaymentForm() {
       setAmount("");
       setDueDate("");
       setPurpose("");
-      window.setTimeout(() => router.push("/open"), 600);
+      window.setTimeout(() => router.push("/open"), 400);
     } catch (err) {
       setError(userMessageFromError(err));
       setSubmitting(false);

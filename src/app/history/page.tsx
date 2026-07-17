@@ -23,7 +23,15 @@ type Filter = "all" | "paid" | "denied";
 export default function HistoryPage() {
   const { profile } = useAuth();
   const role = profile?.role ?? null;
-  const { payments, loading, error, setError, reload } = usePaymentsLive();
+  const {
+    payments,
+    loading,
+    error,
+    setError,
+    reload,
+    upsertPayment,
+    removePayment,
+  } = usePaymentsLive();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
@@ -44,9 +52,10 @@ export default function HistoryPage() {
     if (!deleteTarget) return;
     setBusy(true);
     try {
-      await adminDeletePayment(deleteTarget.id);
+      const id = deleteTarget.id;
+      await adminDeletePayment(id);
+      removePayment(id);
       setDeleteTarget(null);
-      await reload();
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -63,15 +72,15 @@ export default function HistoryPage() {
     if (!correctTarget) return;
     setBusy(true);
     try {
-      await correctDeniedPayment({
+      const updated = await correctDeniedPayment({
         paymentId: correctTarget.id,
         party: input.party,
         amount: input.amount,
         dueDate: input.dueDate,
         purpose: input.purpose,
       });
+      upsertPayment(updated);
       setCorrectTarget(null);
-      await reload();
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {

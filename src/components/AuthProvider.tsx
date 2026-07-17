@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -34,19 +35,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const profileUserId = useRef<string | null>(null);
 
-  const loadProfile = useCallback(async () => {
-    if (!configured) {
-      setProfile(null);
-      return;
-    }
-    try {
-      const p = await fetchMyProfile();
-      setProfile(p);
-    } catch {
-      setProfile(null);
-    }
-  }, [configured]);
+  const loadProfile = useCallback(
+    async (userId?: string | null) => {
+      if (!configured) {
+        setProfile(null);
+        profileUserId.current = null;
+        return;
+      }
+      try {
+        const p = await fetchMyProfile(userId);
+        setProfile(p);
+        profileUserId.current = p?.id ?? userId ?? null;
+      } catch {
+        setProfile(null);
+        profileUserId.current = null;
+      }
+    },
+    [configured]
+  );
 
   useEffect(() => {
     if (!configured) return;
@@ -54,26 +62,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = getSupabaseBrowserClient();
     let mounted = true;
 
-    // Auth session restore is an external system sync (Supabase client).
-    void supabase.auth.getSession().then(async ({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      if (data.session) {
-        await loadProfile();
-      }
-      if (mounted) setLoading(false);
-    });
-
+    // Single path: onAuthStateChange fires INITIAL_SESSION with local session
+    // (no getSession + getUser double hop). Profile uses user id, not getUser().
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, next) => {
+      if (!mounted) return;
       setSession(next);
       setUser(next?.user ?? null);
-      if (next) {
-        void loadProfile();
+
+      if (next?.user) {
+        // Skip profile re-fetch on TOKEN_REFRESHED for the same user.
+        if (profileUserId.current !== next.user.id) {
+          void loadProfile(next.user.id).finally(() => {
+            if (mounted) setLoading(false);
+          });
+        } else if (mounted) {
+          setLoading(false);
+        }
       } else {
+        profileUserId.current = null;
         setProfile(null);
+        if (mounted) setLoading(false);
       }
     });
 
@@ -86,12 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     async (email: string, password: string) => {
       const supabase = getSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
       if (error) throw error;
-      await loadProfile();
+      // onAuthStateChange will load profile; still await for callers that need it
+      await loadProfile(data.user?.id);
+      setLoading(false);
     },
     [loadProfile]
   );
@@ -99,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
     await supabase.auth.signOut();
+    profileUserId.current = null;
     setProfile(null);
   }, []);
 
@@ -109,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user,
       profile,
-      refreshProfile: loadProfile,
+      refreshProfile: () => loadProfile(user?.id),
       signIn,
       signOut,
     }),

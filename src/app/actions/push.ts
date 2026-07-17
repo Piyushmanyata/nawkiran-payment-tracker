@@ -100,7 +100,9 @@ export async function notifyPaymentEvent(
 
     const { data, error } = await supabase
       .from("payments")
-      .select("*")
+      .select(
+        "id, party, amount, due_date, purpose, status, requested_by, requested_at, approved_by, approved_at, denied_by, denied_at, denial_reason, paid_by, paid_at, payment_mode, payment_reference, updated_at, version, client_request_id"
+      )
       .eq("id", paymentId)
       .maybeSingle();
 

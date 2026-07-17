@@ -1,11 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  getPushPublicKey,
-  subscribeUser,
-  unsubscribeUser,
-} from "@/app/actions/push";
+import { subscribeUser, unsubscribeUser } from "@/app/actions/push";
 import {
   isPushBrowserSupported,
   serializePushSubscription,
@@ -13,6 +9,11 @@ import {
 } from "@/lib/push-client";
 
 type Status = "loading" | "unsupported" | "denied" | "off" | "on" | "hidden";
+
+/** Public VAPID key is already browser-safe — no server round-trip. */
+function getClientPushPublicKey(): string | null {
+  return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || null;
+}
 
 function getDeviceInfo() {
   if (typeof window === "undefined") {
@@ -25,7 +26,6 @@ function getDeviceInfo() {
       !(window as unknown as { MSStream?: unknown }).MSStream,
     isStandalone:
       window.matchMedia("(display-mode: standalone)").matches ||
-      // iOS Safari legacy
       Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
   };
 }
@@ -46,7 +46,7 @@ export function PushNotifications() {
       return;
     }
 
-    const publicKey = await getPushPublicKey();
+    const publicKey = getClientPushPublicKey();
     if (!publicKey) {
       setStatus("hidden");
       return;
@@ -71,11 +71,24 @@ export function PushNotifications() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void refresh();
-    }, 0);
+    // Idle-time init so shell paint is not blocked by SW registration
+    const ric = window.requestIdleCallback?.bind(window);
+    let idleId: number | undefined;
+    let timeoutId: number | undefined;
 
-    return () => window.clearTimeout(timer);
+    const run = () => void refresh();
+    if (ric) {
+      idleId = ric(run, { timeout: 2500 });
+    } else {
+      timeoutId = window.setTimeout(run, 1);
+    }
+
+    return () => {
+      if (idleId !== undefined && window.cancelIdleCallback) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
   }, [refresh]);
 
   async function enable() {
@@ -90,7 +103,7 @@ export function PushNotifications() {
         return;
       }
 
-      const publicKey = await getPushPublicKey();
+      const publicKey = getClientPushPublicKey();
       if (!publicKey) {
         setHint("Push is not configured on the server.");
         setBusy(false);
@@ -107,9 +120,7 @@ export function PushNotifications() {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(
-          publicKey
-        ) as BufferSource,
+        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
       });
 
       const result = await subscribeUser(

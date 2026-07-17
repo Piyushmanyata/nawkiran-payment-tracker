@@ -25,7 +25,14 @@ import type { Payment } from "@/types/database";
 export default function OpenPage() {
   const { profile } = useAuth();
   const role = profile?.role ?? null;
-  const { payments, loading, error, setError, reload } = usePaymentsLive();
+  const {
+    payments,
+    loading,
+    error,
+    setError,
+    reload,
+    upsertPayment,
+  } = usePaymentsLive();
   const [busy, setBusy] = useState(false);
 
   const [approveTarget, setApproveTarget] = useState<Payment | null>(null);
@@ -63,9 +70,9 @@ export default function OpenPage() {
     if (!approveTarget) return;
     setBusy(true);
     try {
-      await approvePayment(approveTarget.id);
+      const updated = await approvePayment(approveTarget.id);
+      upsertPayment(updated);
       setApproveTarget(null);
-      await reload();
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -77,9 +84,9 @@ export default function OpenPage() {
     if (!denyTarget) return;
     setBusy(true);
     try {
-      await denyPayment(denyTarget.id, reason);
+      const updated = await denyPayment(denyTarget.id, reason);
+      upsertPayment(updated);
       setDenyTarget(null);
-      await reload();
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -91,9 +98,9 @@ export default function OpenPage() {
     if (!paidTarget) return;
     setBusy(true);
     try {
-      await markPaymentPaid(paidTarget.id);
+      const updated = await markPaymentPaid(paidTarget.id);
+      upsertPayment(updated);
       setPaidTarget(null);
-      await reload();
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -110,15 +117,15 @@ export default function OpenPage() {
     if (!correctTarget) return;
     setBusy(true);
     try {
-      await correctDeniedPayment({
+      const updated = await correctDeniedPayment({
         paymentId: correctTarget.id,
         party: input.party,
         amount: input.amount,
         dueDate: input.dueDate,
         purpose: input.purpose,
       });
+      upsertPayment(updated);
       setCorrectTarget(null);
-      await reload();
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {

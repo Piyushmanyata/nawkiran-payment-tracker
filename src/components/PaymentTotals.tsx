@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { Payment } from "@/types/database";
 import { computeTotals } from "@/lib/totals";
 import { formatInr } from "@/lib/format";
 
-export function PaymentTotals({ payments }: { payments: Payment[] }) {
+function PaymentTotalsInner({ payments }: { payments: Payment[] }) {
   const t = useMemo(() => computeTotals(payments), [payments]);
 
   const tiles = [
@@ -60,3 +60,5 @@ export function PaymentTotals({ payments }: { payments: Payment[] }) {
     </section>
   );
 }
+
+export const PaymentTotals = memo(PaymentTotalsInner);

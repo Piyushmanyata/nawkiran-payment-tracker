@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import { PaymentsProvider } from "@/components/PaymentsProvider";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { PushNotifications } from "@/components/PushNotifications";
@@ -28,6 +29,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       router.replace("/open");
     }
   }, [loading, configured, session, isLogin, router]);
+
+  // Warm the three main routes so tab switches feel instant.
+  useEffect(() => {
+    if (!session) return;
+    router.prefetch("/open");
+    router.prefetch("/add");
+    router.prefetch("/history");
+  }, [session, router]);
 
   if (loading) {
     return (
@@ -59,29 +68,31 @@ export function AppShell({ children }: { children: ReactNode }) {
   const role = roleLabel(profile?.role);
 
   return (
-    <div className="min-h-full bg-slate-50">
-      <OfflineBanner />
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
-        <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-900">Nawkiran Payments</p>
-            <p className="truncate text-xs text-slate-500">
-              {name}
-              {role ? ` · ${role}` : ""}
-            </p>
+    <PaymentsProvider>
+      <div className="min-h-full bg-slate-50">
+        <OfflineBanner />
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+          <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900">Nawkiran Payments</p>
+              <p className="truncate text-xs text-slate-500">
+                {name}
+                {role ? ` · ${role}` : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="min-h-10 shrink-0 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 active:bg-slate-200"
+            >
+              Log out
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            className="min-h-10 shrink-0 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 active:bg-slate-200"
-          >
-            Log out
-          </button>
-        </div>
-        <PushNotifications />
-      </header>
-      <main className="mx-auto max-w-lg px-4 pb-28 pt-4">{children}</main>
-      <BottomNavigation />
-    </div>
+          <PushNotifications />
+        </header>
+        <main className="mx-auto max-w-lg px-4 pb-28 pt-4">{children}</main>
+        <BottomNavigation />
+      </div>
+    </PaymentsProvider>
   );
 }

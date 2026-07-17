@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { Payment, UserRole } from "@/types/database";
 import { formatDueLabel, formatInr, isOverdue } from "@/lib/format";
 import {
@@ -10,7 +11,7 @@ import {
 import { StatusBadge } from "@/components/StatusBadge";
 import { LoadingButton } from "@/components/LoadingButton";
 
-export function PaymentCard({
+function PaymentCardInner({
   payment,
   role,
   onApprove,
@@ -37,9 +38,7 @@ export function PaymentCard({
     roleCanMarkPaid(role) &&
     Boolean(onMarkPaid);
 
-  const showCorrect =
-    payment.status === "denied" &&
-    Boolean(onCorrect);
+  const showCorrect = payment.status === "denied" && Boolean(onCorrect);
 
   const showDelete =
     (payment.status === "paid" || payment.status === "denied") &&
@@ -51,9 +50,7 @@ export function PaymentCard({
   return (
     <article
       className={`rounded-2xl border bg-white p-4 shadow-sm transition hover:border-slate-300 ${
-        payment.status === "denied"
-          ? "border-red-200"
-          : "border-slate-200"
+        payment.status === "denied" ? "border-red-200" : "border-slate-200"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -132,3 +129,5 @@ export function PaymentCard({
     </article>
   );
 }
+
+export const PaymentCard = memo(PaymentCardInner);
