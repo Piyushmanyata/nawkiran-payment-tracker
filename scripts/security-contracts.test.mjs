@@ -77,6 +77,22 @@ test("payment notification delivery is deferred and bounded", () => {
   assert.match(delivery, /attempt\s*<\s*3/i);
 });
 
+test("Apple push uses a valid VAPID contact and failed tests clean up", () => {
+  const action = readFileSync(
+    join(process.cwd(), "src", "app", "actions", "push.ts"),
+    "utf8"
+  );
+  const delivery = readFileSync(join(process.cwd(), "src", "lib", "push.ts"), "utf8");
+  assert.match(delivery, /https:\/\/nawkiran-payment-tracker\.vercel\.app/i);
+  assert.match(delivery, /web\.push\.apple\.com/i);
+  assert.match(delivery, /subject:\s*vapidSubject\(subscription\.endpoint\)/i);
+  assert.match(delivery, /subject:\s*vapidSubject\(data\.endpoint\)/i);
+  assert.doesNotMatch(delivery, /mailto:admin@nawkiran\.local/i);
+  assert.match(delivery, /mailto:<\(\[\^<>\]\+\)>/i);
+  assert.match(action, /sendTestNotification cleanup/i);
+  assert.match(action, /removePushSubscription\(endpoint\)/i);
+});
+
 test("admin removal preserves events and remains authenticated-only", () => {
   const migration = sql["009_preserve_admin_delete_audit.sql"];
   assert.match(migration, /admin_deleted/i);

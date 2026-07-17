@@ -27,11 +27,34 @@ function vapidConfigured(): boolean {
 function ensureVapid(): boolean {
   if (!vapidConfigured()) return false;
   webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || "mailto:admin@nawkiran.local",
+    vapidSubject(),
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
     process.env.VAPID_PRIVATE_KEY!
   );
   return true;
+}
+
+/** Apple rejects VAPID JWTs whose contact subject is missing or malformed. */
+function vapidSubject(endpoint?: string): string {
+  // APNs is stricter than FCM about the JWT subject; use the canonical HTTPS contact.
+  if (endpoint && new URL(endpoint).hostname === "web.push.apple.com") {
+    return "https://nawkiran-payment-tracker.vercel.app";
+  }
+
+  const configured = process.env.VAPID_SUBJECT?.trim();
+  if (!configured) {
+    return "https://nawkiran-payment-tracker.vercel.app";
+  }
+
+  const withoutMailtoBrackets = configured.replace(/^mailto:<([^<>]+)>$/i, "mailto:$1");
+  if (
+    /^https:\/\/[^\s<>]+$/i.test(withoutMailtoBrackets) ||
+    /^mailto:[^\s<>@]+@[^\s<>@]+$/i.test(withoutMailtoBrackets)
+  ) {
+    return withoutMailtoBrackets;
+  }
+
+  throw new Error("VAPID_SUBJECT must be an https URL or mailto: address");
 }
 
 export function isPushConfigured(): boolean {
@@ -193,6 +216,11 @@ async function sendWithRetry(
         TTL: 60 * 60 * 24,
         urgency: "high",
         timeout: 7_000,
+        vapidDetails: {
+          subject: vapidSubject(subscription.endpoint),
+          publicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+          privateKey: process.env.VAPID_PRIVATE_KEY!,
+        },
       });
       return;
     } catch (error) {
@@ -238,6 +266,15 @@ export async function sendTestPush(endpoint: string): Promise<void> {
       url: "/open",
       tag: "nawkiran-push-test",
     }),
-    { TTL: 60, urgency: "high", timeout: 7_000 }
+    {
+      TTL: 60,
+      urgency: "high",
+      timeout: 7_000,
+      vapidDetails: {
+        subject: vapidSubject(data.endpoint),
+        publicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+        privateKey: process.env.VAPID_PRIVATE_KEY!,
+      },
+    }
   );
 }

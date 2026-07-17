@@ -63,7 +63,17 @@ export async function sendTestNotification(
     return { success: true };
   } catch (err) {
     console.error("sendTestNotification", err);
-    return { success: false, error: "Test notification failed" };
+    // The browser unsubscribes after a failed test; remove the matching server row too.
+    await removePushSubscription(endpoint).catch((cleanupError) => {
+      console.error("sendTestNotification cleanup", cleanupError);
+    });
+    return {
+      success: false,
+      error:
+        err instanceof Error && /VAPID_SUBJECT/i.test(err.message)
+          ? err.message
+          : "Test notification failed",
+    };
   }
 }
 
