@@ -1,10 +1,12 @@
 "use server";
 
+import { after } from "next/server";
 import {
   buildPushPayload,
   isPushConfigured,
   removePushSubscription,
   savePushSubscription,
+  sendTestPush,
   sendPaymentPush,
   type PushEvent,
   type SerializedPushSubscription,
@@ -52,6 +54,19 @@ export async function unsubscribeUser(
   }
 }
 
+export async function sendTestNotification(
+  endpoint: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!endpoint) return { success: false, error: "Missing endpoint" };
+    await sendTestPush(endpoint);
+    return { success: true };
+  } catch (err) {
+    console.error("sendTestNotification", err);
+    return { success: false, error: "Test notification failed" };
+  }
+}
+
 /**
  * Fire-and-forget friendly: notify role targets after a payment lifecycle change.
  * Safe to ignore failures — payment already succeeded.
@@ -59,10 +74,10 @@ export async function unsubscribeUser(
 export async function notifyPaymentEvent(
   paymentId: string,
   event: PushEvent
-): Promise<{ success: boolean; sent?: number; error?: string }> {
+): Promise<{ success: boolean; queued?: boolean; error?: string }> {
   try {
     if (!isPushConfigured()) {
-      return { success: true, sent: 0 };
+      return { success: true, queued: false };
     }
 
     const supabase = await createClient();
@@ -86,8 +101,24 @@ export async function notifyPaymentEvent(
 
     const payment = mapPayment(data as Record<string, unknown>);
     const payload = buildPushPayload(event, payment);
-    const result = await sendPaymentPush(paymentId, event, payload);
-    return { success: true, sent: result.sent };
+    after(async () => {
+      try {
+        const result = await sendPaymentPush(paymentId, event, {
+          ...payload,
+          tag: `${paymentId}:${event}:${payment.version}`,
+        });
+        if (result.failed > 0) {
+          console.error("notifyPaymentEvent delivery failures", {
+            event,
+            failed: result.failed,
+            sent: result.sent,
+          });
+        }
+      } catch (error) {
+        console.error("notifyPaymentEvent delivery", error);
+      }
+    });
+    return { success: true, queued: true };
   } catch (err) {
     console.error("notifyPaymentEvent", err);
     return {

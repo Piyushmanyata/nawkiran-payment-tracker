@@ -73,7 +73,10 @@ export default function OpenPage() {
     setBusy(true);
     try {
       const updated = await approvePayment(approveTarget.id);
-      upsertPayment(updated);
+      upsertPayment({
+        ...updated,
+        approver_name: profile?.full_name ?? updated.approver_name,
+      });
       setApproveTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
@@ -87,7 +90,10 @@ export default function OpenPage() {
     setBusy(true);
     try {
       const updated = await denyPayment(denyTarget.id, reason);
-      upsertPayment(updated);
+      upsertPayment({
+        ...updated,
+        denier_name: profile?.full_name ?? updated.denier_name,
+      });
       setDenyTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
@@ -101,7 +107,10 @@ export default function OpenPage() {
     setBusy(true);
     try {
       const updated = await markPaymentPaid(paidTarget.id);
-      upsertPayment(updated);
+      upsertPayment({
+        ...updated,
+        payer_name: profile?.full_name ?? updated.payer_name,
+      });
       setPaidTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
@@ -126,7 +135,11 @@ export default function OpenPage() {
         dueDate: input.dueDate,
         purpose: input.purpose,
       });
-      upsertPayment(updated);
+      upsertPayment({
+        ...updated,
+        approver_name: null,
+        denier_name: null,
+      });
       setCorrectTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));

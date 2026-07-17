@@ -42,6 +42,9 @@ export interface Payment {
   client_request_id: string;
   /** Joined display name when available */
   requester_name?: string | null;
+  approver_name?: string | null;
+  denier_name?: string | null;
+  payer_name?: string | null;
 }
 
 export interface PaymentEvent {

@@ -34,7 +34,7 @@ export async function fetchMyProfile(
 }
 
 /**
- * One query: payments + requester names via FK embed (one RTT).
+ * One query: payments + lifecycle actor names via FK embeds (one RTT).
  * Falls back to parallel queries if embed is unavailable.
  */
 export async function fetchPayments(): Promise<Payment[]> {
@@ -43,7 +43,7 @@ export async function fetchPayments(): Promise<Payment[]> {
   const embedded = await supabase
     .from("payments")
     .select(
-      `${PAYMENT_COLUMNS}, requester:profiles!payments_requested_by_fkey(full_name)`
+      `${PAYMENT_COLUMNS}, requester:profiles!payments_requested_by_fkey(full_name), approver:profiles!payments_approved_by_fkey(full_name), denier:profiles!payments_denied_by_fkey(full_name), payer:profiles!payments_paid_by_fkey(full_name)`
     )
     .order("requested_at", { ascending: false });
 
@@ -52,9 +52,15 @@ export async function fetchPayments(): Promise<Payment[]> {
       const r = row as Record<string, unknown>;
       const payment = mapPayment(r);
       const requester = r.requester as { full_name?: string } | null;
+      const approver = r.approver as { full_name?: string } | null;
+      const denier = r.denier as { full_name?: string } | null;
+      const payer = r.payer as { full_name?: string } | null;
       return {
         ...payment,
         requester_name: requester?.full_name ?? null,
+        approver_name: approver?.full_name ?? null,
+        denier_name: denier?.full_name ?? null,
+        payer_name: payer?.full_name ?? null,
       };
     });
   }
@@ -69,6 +75,7 @@ export async function fetchPayments(): Promise<Payment[]> {
   ]);
 
   if (paymentsRes.error) throw paymentsRes.error;
+  if (profilesRes.error) throw profilesRes.error;
 
   const nameById = new Map(
     (profilesRes.data ?? []).map((p) => [p.id as string, p.full_name as string])
@@ -79,6 +86,13 @@ export async function fetchPayments(): Promise<Payment[]> {
     return {
       ...payment,
       requester_name: nameById.get(payment.requested_by) ?? null,
+      approver_name: payment.approved_by
+        ? (nameById.get(payment.approved_by) ?? null)
+        : null,
+      denier_name: payment.denied_by
+        ? (nameById.get(payment.denied_by) ?? null)
+        : null,
+      payer_name: payment.paid_by ? (nameById.get(payment.paid_by) ?? null) : null,
     };
   });
 }
@@ -102,7 +116,7 @@ export async function createPayment(input: {
   if (error) throw error;
   const payment = mapPayment(data as Record<string, unknown>);
   const event = pushEventForPayment(payment, "created");
-  if (event) firePaymentPush(notifyPaymentEvent, payment.id, event);
+  if (event) await firePaymentPush(notifyPaymentEvent, payment.id, event);
   return payment;
 }
 
@@ -113,7 +127,7 @@ export async function approvePayment(paymentId: string): Promise<Payment> {
   });
   if (error) throw error;
   const payment = mapPayment(data as Record<string, unknown>);
-  firePaymentPush(notifyPaymentEvent, payment.id, "approved");
+  await firePaymentPush(notifyPaymentEvent, payment.id, "approved");
   return payment;
 }
 
@@ -128,7 +142,7 @@ export async function denyPayment(
   });
   if (error) throw error;
   const payment = mapPayment(data as Record<string, unknown>);
-  firePaymentPush(notifyPaymentEvent, payment.id, "denied");
+  await firePaymentPush(notifyPaymentEvent, payment.id, "denied");
   return payment;
 }
 
@@ -140,7 +154,7 @@ export async function markPaymentPaid(paymentId: string): Promise<Payment> {
   });
   if (error) throw error;
   const payment = mapPayment(data as Record<string, unknown>);
-  firePaymentPush(notifyPaymentEvent, payment.id, "paid");
+  await firePaymentPush(notifyPaymentEvent, payment.id, "paid");
   return payment;
 }
 
@@ -171,6 +185,6 @@ export async function correctDeniedPayment(input: {
   });
   if (error) throw error;
   const payment = mapPayment(data as Record<string, unknown>);
-  firePaymentPush(notifyPaymentEvent, payment.id, "pending");
+  await firePaymentPush(notifyPaymentEvent, payment.id, "pending");
   return payment;
 }

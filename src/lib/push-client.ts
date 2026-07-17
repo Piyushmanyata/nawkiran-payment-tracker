@@ -100,13 +100,60 @@ export async function registerPushServiceWorker(): Promise<ServiceWorkerRegistra
   return reg;
 }
 
-/** Best-effort notify after a successful payment RPC. Never throws. */
-export function firePaymentPush(
-  notify: (paymentId: string, event: PushEvent) => Promise<unknown>,
+/** Persist the public key in the worker so endpoint rotation works while closed. */
+export function configurePushServiceWorker(
+  reg: ServiceWorkerRegistration,
+  publicKey: string
+): void {
+  (reg.active ?? navigator.serviceWorker.controller)?.postMessage({
+    type: "nawkiran-push-config",
+    publicKey,
+  });
+}
+
+function subscriptionUsesKey(sub: PushSubscription, publicKey: string): boolean {
+  const current = sub.options.applicationServerKey;
+  if (!current) return false;
+  const actual = new Uint8Array(current);
+  const expected = urlBase64ToUint8Array(publicKey);
+  return actual.length === expected.length && actual.every((byte, i) => byte === expected[i]);
+}
+
+/** Reuse a subscription only when it matches the deployed VAPID key. */
+export async function getPushSubscription(
+  reg: ServiceWorkerRegistration,
+  publicKey: string,
+  create: boolean
+): Promise<PushSubscription | null> {
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && !subscriptionUsesKey(sub, publicKey)) {
+    await sub.unsubscribe();
+    sub = null;
+  }
+  if (!sub && create) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+    });
+  }
+  return sub;
+}
+
+/** Notify after a successful payment RPC; wait for server delivery before navigation. */
+export async function firePaymentPush(
+  notify: (
+    paymentId: string,
+    event: PushEvent
+  ) => Promise<{ success: boolean; error?: string }>,
   paymentId: string,
   event: PushEvent
-): void {
-  void notify(paymentId, event).catch(() => {
-    /* push is optional */
-  });
+): Promise<boolean> {
+  try {
+    const result = await notify(paymentId, event);
+    if (!result.success) console.warn("Payment saved, but push dispatch was not queued");
+    return result.success;
+  } catch {
+    console.warn("Payment saved, but push dispatch was not queued");
+    return false;
+  }
 }

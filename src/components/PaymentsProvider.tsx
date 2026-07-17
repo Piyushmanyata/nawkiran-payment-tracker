@@ -42,8 +42,8 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const requestVersion = useRef(0);
   const hasLoaded = useRef(false);
-  /** Skip echo refetch right after local optimistic mutation. */
-  const suppressUntil = useRef(0);
+  /** Skip only the matching Realtime echo after a local optimistic mutation. */
+  const suppressedPayments = useRef(new Map<string, number>());
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     const version = ++requestVersion.current;
@@ -63,23 +63,32 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const upsertPayment = useCallback((payment: Payment) => {
-    suppressUntil.current = Date.now() + 900;
+    suppressedPayments.current.set(payment.id, Date.now() + 900);
     setPayments((prev) => {
       const i = prev.findIndex((p) => p.id === payment.id);
       if (i === -1) return [payment, ...prev];
       const next = prev.slice();
-      // Keep requester_name if the patch omitted it
+      // Keep joined names when an RPC patch omits them; clear names with cleared IDs.
       next[i] = {
         ...prev[i],
         ...payment,
         requester_name: payment.requester_name ?? prev[i].requester_name,
+        approver_name: payment.approved_by
+          ? (payment.approver_name ?? prev[i].approver_name)
+          : null,
+        denier_name: payment.denied_by
+          ? (payment.denier_name ?? prev[i].denier_name)
+          : null,
+        payer_name: payment.paid_by
+          ? (payment.payer_name ?? prev[i].payer_name)
+          : null,
       };
       return next;
     });
   }, []);
 
   const removePayment = useCallback((id: string) => {
-    suppressUntil.current = Date.now() + 900;
+    suppressedPayments.current.set(id, Date.now() + 900);
     setPayments((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
@@ -89,11 +98,16 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
     const onRow = (
       payload: RealtimePostgresChangesPayload<Record<string, unknown>>
     ): boolean => {
-      if (Date.now() < suppressUntil.current) return true;
-
       const event = payload.eventType;
       const row = (payload.new ?? null) as Record<string, unknown> | null;
       const old = (payload.old ?? null) as Record<string, unknown> | null;
+      const changedId = String(row?.id ?? old?.id ?? "");
+      const suppressedUntil = suppressedPayments.current.get(changedId) ?? 0;
+      if (Date.now() < suppressedUntil) {
+        suppressedPayments.current.delete(changedId);
+        return true;
+      }
+      if (suppressedUntil) suppressedPayments.current.delete(changedId);
 
       if (event === "DELETE" && old?.id) {
         removePayment(String(old.id));
@@ -121,10 +135,14 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
             ...prev[i],
             ...mapped,
             requester_name: prev[i].requester_name ?? mapped.requester_name,
+            approver_name: mapped.approved_by ? prev[i].approver_name : null,
+            denier_name: mapped.denied_by ? prev[i].denier_name : null,
+            payer_name: mapped.paid_by ? prev[i].payer_name : null,
           };
           return next;
         });
-        return true;
+        // Re-fetch once so FK-joined actor names stay correct on other devices.
+        return false;
       }
 
       return false;
@@ -132,7 +150,6 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
 
     const unsubscribe = subscribePayments({
       onRefresh: () => {
-        if (Date.now() < suppressUntil.current) return;
         void load({ silent: true });
       },
       onRow,

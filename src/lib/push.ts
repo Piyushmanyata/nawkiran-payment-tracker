@@ -115,7 +115,7 @@ export async function removePushSubscription(endpoint: string): Promise<void> {
 export async function sendPaymentPush(
   paymentId: string,
   event: PushEvent,
-  payload: { title: string; body: string; url: string }
+  payload: { title: string; body: string; url: string; tag: string }
 ): Promise<{ sent: number; failed: number }> {
   if (!ensureVapid()) {
     return { sent: 0, failed: 0 };
@@ -145,6 +145,7 @@ export async function sendPaymentPush(
     icon: "/icon-192.png",
     badge: "/badge-72.png",
     url: payload.url,
+    tag: payload.tag,
   });
 
   let sent = 0;
@@ -153,30 +154,85 @@ export async function sendPaymentPush(
   await Promise.all(
     targets.map(async (t) => {
       try {
-        await webpush.sendNotification(
+        await sendWithRetry(
           {
             endpoint: t.endpoint,
             keys: { p256dh: t.p256dh, auth: t.auth },
           },
-          body,
-          // high urgency helps mobile carriers deliver payment alerts promptly
-          { TTL: 60 * 60 * 24, urgency: "high" }
+          body
         );
         sent += 1;
-      } catch (err: unknown) {
+      } catch {
         failed += 1;
-        const statusCode =
-          err && typeof err === "object" && "statusCode" in err
-            ? Number((err as { statusCode: number }).statusCode)
-            : 0;
-        if (statusCode === 404 || statusCode === 410) {
-          await supabase.rpc("delete_stale_push_subscription", {
-            p_endpoint: t.endpoint,
-          });
-        }
       }
     })
   );
 
   return { sent, failed };
+}
+
+function pushStatus(error: unknown): number {
+  return error && typeof error === "object" && "statusCode" in error
+    ? Number((error as { statusCode: number }).statusCode)
+    : 0;
+}
+
+async function sendWithRetry(
+  subscription: SerializedPushSubscription,
+  body: string
+): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await webpush.sendNotification(subscription, body, {
+        TTL: 60 * 60 * 24,
+        urgency: "high",
+        timeout: 7_000,
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      const status = pushStatus(error);
+      const transient = status === 0 || status === 429 || status >= 500;
+      if (!transient || attempt === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
+    }
+  }
+  throw lastError;
+}
+
+/** Send an end-to-end confirmation to the signed-in user's selected device. */
+export async function sendTestPush(endpoint: string): Promise<void> {
+  if (!ensureVapid()) throw new Error("Push is not configured");
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in");
+
+  const { data, error } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .eq("user_id", user.id)
+    .eq("endpoint", endpoint)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Subscription not found");
+
+  await webpush.sendNotification(
+    {
+      endpoint: data.endpoint,
+      keys: { p256dh: data.p256dh, auth: data.auth },
+    },
+    JSON.stringify({
+      title: "Payment alerts enabled",
+      body: "This device is ready to receive Nawkiran payment updates.",
+      icon: "/icon-192.png",
+      badge: "/badge-72.png",
+      url: "/open",
+      tag: "nawkiran-push-test",
+    }),
+    { TTL: 60, urgency: "high", timeout: 7_000 }
+  );
 }

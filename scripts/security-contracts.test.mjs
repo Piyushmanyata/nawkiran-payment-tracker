@@ -13,8 +13,12 @@ const sql = Object.fromEntries(
 
 test("the canonical migration chain is ordered and has no bundled duplicate", () => {
   assert.deepEqual(
-    migrations.map((name) => name.slice(0, 3)),
+    migrations.slice(0, 14).map((name) => name.slice(0, 3)),
     ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "014"]
+  );
+  assert.equal(
+    migrations.filter((name) => name.endsWith("_audit_names_push_hardening.sql")).length,
+    1
   );
 });
 
@@ -30,10 +34,47 @@ test("migrations never provision Auth users or fixed passwords", () => {
 });
 
 test("denied corrections are requester-scoped except for admins", () => {
+  const hardening = migrations.find((name) =>
+    name.endsWith("_audit_names_push_hardening.sql")
+  );
   assert.match(
-    sql["007_correct_denied_payment.sql"],
+    sql[hardening],
     /row\.requested_by\s*<>\s*me\.id\s+and\s+me\.role\s*<>\s*'admin'/i
   );
+});
+
+test("push targets are restricted to the lifecycle actor", () => {
+  const hardening = migrations.find((name) =>
+    name.endsWith("_audit_names_push_hardening.sql")
+  );
+  assert.match(sql[hardening], /actor_id\s*<>\s*me/i);
+  assert.match(sql[hardening], /e\.performed_by,\s*e\.created_at/i);
+  assert.doesNotMatch(sql[hardening], /pay\.status\s*=\s*'(pending|approved|denied|paid)'/i);
+  assert.match(
+    sql[hardening],
+    /drop function if exists public\.delete_stale_push_subscription\(text, uuid, text\)/i
+  );
+  assert.doesNotMatch(sql[hardening], /create function public\.delete_stale_push_subscription/i);
+  assert.doesNotMatch(sql[hardening], /using \(user_id = auth\.uid\(\)\)/i);
+});
+
+test("mobile push rotation works without an open app window", () => {
+  const worker = readFileSync(join(process.cwd(), "public", "sw.js"), "utf8");
+  assert.match(worker, /pushsubscriptionchange/i);
+  assert.match(worker, /pushManager\.subscribe/i);
+  assert.match(worker, /\/api\/push\/subscription/i);
+  assert.match(worker, /credentials:\s*"include"/i);
+});
+
+test("payment notification delivery is deferred and bounded", () => {
+  const action = readFileSync(
+    join(process.cwd(), "src", "app", "actions", "push.ts"),
+    "utf8"
+  );
+  const delivery = readFileSync(join(process.cwd(), "src", "lib", "push.ts"), "utf8");
+  assert.match(action, /after\s*\(\s*async/i);
+  assert.match(delivery, /timeout:\s*7_000/i);
+  assert.match(delivery, /attempt\s*<\s*3/i);
 });
 
 test("admin removal preserves events and remains authenticated-only", () => {

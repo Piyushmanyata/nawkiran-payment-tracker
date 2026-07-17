@@ -61,6 +61,10 @@ export function AddPaymentForm() {
       upsertPayment({
         ...payment,
         requester_name: profile?.full_name ?? payment.requester_name,
+        approver_name:
+          payment.approved_by === profile?.id
+            ? (profile?.full_name ?? payment.approver_name)
+            : payment.approver_name,
       });
       requestId.current = null;
       setSuccess(autoApprove ? "Added and approved" : "Sent for approval");

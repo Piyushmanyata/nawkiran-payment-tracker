@@ -1,6 +1,8 @@
 /* Nawkiran Payments — free Web Push service worker (no third-party SDK). */
 
-const CACHE_NAME = "nawkiran-payments-cache-v2";
+const CACHE_NAME = "nawkiran-payments-cache-v3";
+const PUSH_CONFIG_CACHE = "nawkiran-push-config-v1";
+const PUSH_CONFIG_KEY = "/__nawkiran_push_config__";
 const STATIC_ASSETS = ["/favicon.ico", "/icon-192.png", "/badge-72.png"];
 
 self.addEventListener("install", (event) => {
@@ -13,7 +15,11 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.map((key) => (key !== CACHE_NAME ? caches.delete(key) : undefined)))
+      Promise.all(
+        keys.map((key) =>
+          key !== CACHE_NAME && key !== PUSH_CONFIG_CACHE ? caches.delete(key) : undefined
+        )
+      )
     )
   );
   self.clients.claim();
@@ -120,16 +126,62 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "nawkiran-push-config") return;
+  const publicKey = String(event.data.publicKey || "").trim();
+  if (!publicKey) return;
+  event.waitUntil(
+    caches
+      .open(PUSH_CONFIG_CACHE)
+      .then((cache) => cache.put(PUSH_CONFIG_KEY, new Response(publicKey)))
+  );
+});
+
+function pushKeyBytes(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+}
+
+async function reportRotatedSubscription(subscription, oldEndpoint) {
+  const body = JSON.stringify({ subscription: subscription.toJSON(), oldEndpoint });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch("/api/push/subscription", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body,
+    }).catch(() => null);
+    if (response?.ok) return;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error("Could not persist rotated push subscription");
+}
+
 /**
  * Browser rotated the push endpoint (common on mobile). Ask open clients to
  * re-subscribe so the server gets the new keys. Without this, push silently dies.
  */
 self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
-      for (const client of list) {
-        client.postMessage({ type: "nawkiran-push-resubscribe" });
-      }
-    })
+    caches
+      .match(PUSH_CONFIG_KEY, { cacheName: PUSH_CONFIG_CACHE })
+      .then((response) => response?.text())
+      .then(async (publicKey) => {
+        if (!publicKey) throw new Error("Missing push configuration");
+        const subscription = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: pushKeyBytes(publicKey),
+        });
+        await reportRotatedSubscription(subscription, event.oldSubscription?.endpoint ?? null);
+      })
+      .catch(() =>
+        clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+          for (const client of list) {
+            client.postMessage({ type: "nawkiran-push-resubscribe" });
+          }
+        })
+      )
   );
 });

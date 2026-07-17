@@ -1,13 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { subscribeUser, unsubscribeUser } from "@/app/actions/push";
 import {
+  sendTestNotification,
+  subscribeUser,
+  unsubscribeUser,
+} from "@/app/actions/push";
+import {
+  configurePushServiceWorker,
   getDeviceInfo,
+  getPushSubscription,
   isPushBrowserSupported,
   registerPushServiceWorker,
   serializePushSubscription,
-  urlBase64ToUint8Array,
 } from "@/lib/push-client";
 
 type Status =
@@ -70,11 +75,21 @@ export function PushNotifications() {
 
     try {
       const reg = await registerPushServiceWorker();
-      const sub = await reg.pushManager.getSubscription();
+      configurePushServiceWorker(reg, publicKey);
+      const sub = await getPushSubscription(
+        reg,
+        publicKey,
+        Notification.permission === "granted"
+      );
       if (sub) {
         // Re-upsert so a wiped DB / rotated endpoint still receives pushes
-        void saveSubscription(sub);
-        setStatus("on");
+        const error = await saveSubscription(sub);
+        if (error) {
+          setHint(error);
+          setStatus("off");
+        } else {
+          setStatus("on");
+        }
       } else if (Notification.permission === "granted") {
         // Permission already granted but no sub (SW update, cleared storage)
         setStatus("off");
@@ -93,17 +108,11 @@ export function PushNotifications() {
       if (Notification.permission !== "granted") return;
 
       const reg = await registerPushServiceWorker();
-      let sub = await reg.pushManager.getSubscription();
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(
-            publicKey
-          ) as BufferSource,
-        });
-      }
-      await saveSubscription(sub);
-      setStatus("on");
+      configurePushServiceWorker(reg, publicKey);
+      const sub = await getPushSubscription(reg, publicKey, true);
+      if (!sub) return;
+      const error = await saveSubscription(sub);
+      if (!error) setStatus("on");
     } catch {
       /* optional path */
     }
@@ -181,6 +190,7 @@ export function PushNotifications() {
 
       // Register SW before permission/subscribe — ready alone can race on mobile
       const reg = await registerPushServiceWorker();
+      configurePushServiceWorker(reg, publicKey);
 
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
@@ -188,15 +198,8 @@ export function PushNotifications() {
         return;
       }
 
-      let sub = await reg.pushManager.getSubscription();
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(
-            publicKey
-          ) as BufferSource,
-        });
-      }
+      const sub = await getPushSubscription(reg, publicKey, true);
+      if (!sub) throw new Error("Could not create a push subscription");
 
       const err = await saveSubscription(sub);
       if (err) {
@@ -205,7 +208,14 @@ export function PushNotifications() {
         return;
       }
 
-      setStatus("on");
+      const test = await sendTestNotification(sub.endpoint);
+      if (test.success) {
+        setStatus("on");
+        setHint("Test alert sent — this device is ready.");
+      } else {
+        setStatus("off");
+        setHint("The test alert failed. Tap Enable to retry.");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not enable alerts";
       // iOS often throws until installed as PWA

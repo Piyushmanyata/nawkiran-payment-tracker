@@ -79,7 +79,11 @@ export default function HistoryPage() {
         dueDate: input.dueDate,
         purpose: input.purpose,
       });
-      upsertPayment(updated);
+      upsertPayment({
+        ...updated,
+        approver_name: null,
+        denier_name: null,
+      });
       setCorrectTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));

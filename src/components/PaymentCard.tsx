@@ -46,6 +46,12 @@ function PaymentCardInner({
     Boolean(onDelete);
 
   const overdue = isOverdue(payment.status, payment.due_date);
+  const auditRows = [
+    { label: "Requested by", name: payment.requester_name },
+    { label: "Approved by", name: payment.approver_name },
+    { label: "Denied by", name: payment.denier_name },
+    { label: "Marked paid by", name: payment.payer_name },
+  ].filter((row): row is { label: string; name: string } => Boolean(row.name));
 
   return (
     <article
@@ -79,10 +85,15 @@ function PaymentCardInner({
         <p className="mt-2 line-clamp-3 text-sm text-slate-700">{payment.purpose}</p>
       ) : null}
 
-      {payment.requester_name ? (
-        <p className="mt-2 text-xs text-slate-500">
-          Requested by {payment.requester_name}
-        </p>
+      {auditRows.length > 0 ? (
+        <dl className="mt-2 grid gap-0.5 text-xs text-slate-500">
+          {auditRows.map((row) => (
+            <div key={row.label} className="flex gap-1">
+              <dt>{row.label}</dt>
+              <dd className="font-semibold text-slate-600">{row.name}</dd>
+            </div>
+          ))}
+        </dl>
       ) : null}
 
       {payment.status === "denied" && payment.denial_reason ? (
