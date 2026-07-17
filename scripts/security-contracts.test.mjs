@@ -14,7 +14,7 @@ const sql = Object.fromEntries(
 test("the canonical migration chain is ordered and has no bundled duplicate", () => {
   assert.deepEqual(
     migrations.map((name) => name.slice(0, 3)),
-    ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012"]
+    ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013"]
   );
 });
 

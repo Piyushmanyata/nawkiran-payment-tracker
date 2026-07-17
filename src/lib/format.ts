@@ -1,14 +1,16 @@
 import type { PaymentStatus } from "@/types/database";
 
+const inrFormatter = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 2,
+});
+
 /** Format amount as Indian Rupees with grouping. */
 export function formatInr(amount: number | string): string {
   const n = typeof amount === "string" ? Number(amount) : amount;
   if (!Number.isFinite(n)) return "₹0";
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(n);
+  return inrFormatter.format(n);
 }
 
 /** Today in local timezone as YYYY-MM-DD. */
