@@ -34,12 +34,46 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...
 ```
 
-Never expose a service-role or secret key to the browser or Vercel public env.
+Optional (free Web Push — no third-party vendor):
+
+```text
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:admin@yourcompany.com
+```
+
+Generate keys once with `npx web-push generate-vapid-keys`, then apply migration
+`012_push_subscriptions.sql` in the Supabase SQL editor.
+
+Never expose a service-role, VAPID private key, or other secret to the browser or
+Vercel **public** env. Put `VAPID_PRIVATE_KEY` only as a server/env secret.
 
 ## Vercel
 
 Import the private GitHub repository, set both public variables for Preview and
 Production, and configure the deployed URL under Supabase Auth URL Configuration.
+
+For push alerts, also set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and
+`VAPID_SUBJECT` (server secret for the private key).
+
+## Push notifications (free)
+
+Uses the standard **Web Push API + VAPID** only (browser push services; no paid plan).
+
+1. Run `012_push_subscriptions.sql` in Supabase.
+2. Set VAPID env vars (local + Vercel).
+3. Each user taps **Enable** under the header after login.
+4. **iPhone:** Share → Add to Home Screen, open the installed icon, then Enable.
+5. Local testing: `npm run dev -- --experimental-https` (push needs a secure context).
+
+| Event | Who is notified |
+|---|---|
+| New pending request | Directors + admins |
+| Approved / auto-approved | Employees, accounts, admins |
+| Denied | Requester |
+| Paid | Requester |
+
+The actor is never notified about their own action.
 
 ## Smoke test
 

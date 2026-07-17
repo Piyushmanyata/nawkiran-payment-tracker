@@ -1,4 +1,6 @@
+import { notifyPaymentEvent } from "@/app/actions/push";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { firePaymentPush, pushEventForPayment } from "@/lib/push-client";
 import type { Payment, Profile } from "@/types/database";
 
 function mapPayment(row: Record<string, unknown>): Payment {
@@ -93,7 +95,10 @@ export async function createPayment(input: {
   });
 
   if (error) throw error;
-  return mapPayment(data as Record<string, unknown>);
+  const payment = mapPayment(data as Record<string, unknown>);
+  const event = pushEventForPayment(payment, "created");
+  if (event) firePaymentPush(notifyPaymentEvent, payment.id, event);
+  return payment;
 }
 
 export async function approvePayment(paymentId: string): Promise<Payment> {
@@ -102,7 +107,9 @@ export async function approvePayment(paymentId: string): Promise<Payment> {
     p_payment_id: paymentId,
   });
   if (error) throw error;
-  return mapPayment(data as Record<string, unknown>);
+  const payment = mapPayment(data as Record<string, unknown>);
+  firePaymentPush(notifyPaymentEvent, payment.id, "approved");
+  return payment;
 }
 
 export async function denyPayment(
@@ -115,7 +122,9 @@ export async function denyPayment(
     p_reason: reason,
   });
   if (error) throw error;
-  return mapPayment(data as Record<string, unknown>);
+  const payment = mapPayment(data as Record<string, unknown>);
+  firePaymentPush(notifyPaymentEvent, payment.id, "denied");
+  return payment;
 }
 
 /** Mark approved payment paid (no mode/UTR — DB defaults). */
@@ -125,7 +134,9 @@ export async function markPaymentPaid(paymentId: string): Promise<Payment> {
     p_payment_id: paymentId,
   });
   if (error) throw error;
-  return mapPayment(data as Record<string, unknown>);
+  const payment = mapPayment(data as Record<string, unknown>);
+  firePaymentPush(notifyPaymentEvent, payment.id, "paid");
+  return payment;
 }
 
 /** Admin only — hides a paid/denied payment while preserving its audit events. */
@@ -154,5 +165,7 @@ export async function correctDeniedPayment(input: {
     p_purpose: input.purpose || null,
   });
   if (error) throw error;
-  return mapPayment(data as Record<string, unknown>);
+  const payment = mapPayment(data as Record<string, unknown>);
+  firePaymentPush(notifyPaymentEvent, payment.id, "pending");
+  return payment;
 }

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { PushNotifications } from "@/components/PushNotifications";
 import { roleLabel } from "@/lib/ui";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -77,6 +78,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             Log out
           </button>
         </div>
+        <PushNotifications />
       </header>
       <main className="mx-auto max-w-lg px-4 pb-28 pt-4">{children}</main>
       <BottomNavigation />
