@@ -1,95 +1,94 @@
 /** Map Supabase / Postgres errors to beginner-friendly messages. */
+
+const RULES: Array<{ test: (t: string) => boolean; message: string }> = [
+  {
+    test: (t) =>
+      t.includes("failed to fetch") ||
+      t.includes("network") ||
+      t.includes("offline"),
+    message: "You are offline. Reconnect and try again.",
+  },
+  {
+    test: (t) => t.includes("duplicate_request") || t.includes("duplicate"),
+    message: "This payment was already submitted.",
+  },
+  {
+    test: (t) => t.includes("already_processed"),
+    message: "This payment has already been processed.",
+  },
+  {
+    test: (t) =>
+      t.includes("jwt") ||
+      t.includes("session") ||
+      t.includes("not authenticated") ||
+      t.includes("not_authenticated") ||
+      t.includes("jwt expired") ||
+      t.includes("invalid login"),
+    message: "Please log in again.",
+  },
+  {
+    test: (t) =>
+      t.includes("not_authorised") ||
+      t.includes("not_authorized") ||
+      t.includes("permission") ||
+      t.includes("row-level security"),
+    message: "You are not authorised for this action.",
+  },
+  {
+    test: (t) => t.includes("invalid_party"),
+    message: "Please enter a valid party or vendor name.",
+  },
+  {
+    test: (t) => t.includes("invalid_amount"),
+    message: "Please enter an amount greater than zero.",
+  },
+  {
+    test: (t) => t.includes("invalid_reason"),
+    message: "Please enter a denial reason.",
+  },
+  {
+    test: (t) => t.includes("invalid_payment_mode"),
+    message: "Please choose a payment mode.",
+  },
+  {
+    test: (t) => t.includes("not_history"),
+    message: "Only paid or denied history items can be deleted.",
+  },
+  {
+    test: (t) =>
+      t.includes("function") &&
+      (t.includes("does not exist") || t.includes("not found")),
+    message: "Payment functions are missing. Run the SQL migrations in Supabase.",
+  },
+  {
+    test: (t) =>
+      t.includes("could not find the table") ||
+      t.includes("pgrst205") ||
+      t.includes("schema cache") ||
+      t.includes("does not exist"),
+    message: "Database is not set up yet. Run the SQL migrations in Supabase.",
+  },
+  {
+    test: (t) => t.includes("not_found"),
+    message: "This payment was not found. Refresh and try again.",
+  },
+];
+
+function rawMessage(error: unknown): string {
+  if (!error) return "";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
+}
+
 export function userMessageFromError(error: unknown): string {
-  if (!error) return "Could not save. Please try again.";
-
-  const raw =
-    typeof error === "string"
-      ? error
-      : error instanceof Error
-        ? error.message
-        : typeof error === "object" && error !== null && "message" in error
-          ? String((error as { message: unknown }).message)
-          : String(error);
-
-  const text = raw.toLowerCase();
-
-  if (
-    text.includes("failed to fetch") ||
-    text.includes("network") ||
-    text.includes("offline")
-  ) {
-    return "You are offline. Reconnect and try again.";
+  const text = rawMessage(error).toLowerCase();
+  if (!text) return "Could not save. Please try again.";
+  for (const rule of RULES) {
+    if (rule.test(text)) return rule.message;
   }
-
-  if (text.includes("duplicate_request") || text.includes("duplicate")) {
-    return "This payment was already submitted.";
-  }
-
-  if (text.includes("already_processed")) {
-    return "This payment has already been processed.";
-  }
-
-  if (
-    text.includes("jwt") ||
-    text.includes("session") ||
-    text.includes("not authenticated") ||
-    text.includes("invalid login")
-  ) {
-    return "Please log in again.";
-  }
-
-  if (
-    text.includes("not_authorised") ||
-    text.includes("not_authorized") ||
-    text.includes("permission") ||
-    text.includes("row-level security")
-  ) {
-    return "You are not authorised for this action.";
-  }
-
-  if (text.includes("invalid_party")) {
-    return "Please enter a valid party or vendor name.";
-  }
-
-  if (text.includes("invalid_amount")) {
-    return "Please enter an amount greater than zero.";
-  }
-
-  if (text.includes("invalid_reason")) {
-    return "Please enter a denial reason.";
-  }
-
-  if (text.includes("invalid_payment_mode")) {
-    return "Please choose a payment mode.";
-  }
-
-  if (text.includes("not_history")) {
-    return "Only paid or denied history items can be deleted.";
-  }
-
-  if (text.includes("not_found")) {
-    return "This payment was not found. Refresh and try again.";
-  }
-
-  if (
-    text.includes("could not find the table") ||
-    text.includes("pgrst205") ||
-    text.includes("schema cache") ||
-    text.includes("does not exist")
-  ) {
-    return "Database is not set up yet. Run the SQL migrations in Supabase.";
-  }
-
-  if (
-    text.includes("function") &&
-    (text.includes("does not exist") || text.includes("not found"))
-  ) {
-    return "Payment functions are missing. Run the SQL migrations in Supabase.";
-  }
-
-  if (text.includes("not_authenticated") || text.includes("jwt expired")) {
-    return "Please log in again.";
-  }
-
   return "Could not save. Please try again.";
 }

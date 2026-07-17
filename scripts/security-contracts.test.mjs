@@ -150,3 +150,19 @@ test("admin removal preserves events and remains authenticated-only", () => {
   assert.match(migration, /revoke all on function public\.admin_delete_payment\(uuid\) from public/i);
   assert.match(migration, /revoke all on function public\.admin_delete_payment\(uuid\) from anon/i);
 });
+
+test("gone push endpoints are purged after terminal delivery failures", () => {
+  const purge = migrations.find((name) =>
+    name.endsWith("_purge_gone_push_endpoints.sql")
+  );
+  assert.ok(purge, "purge_gone_push_endpoints migration missing");
+  assert.match(sql[purge], /create or replace function public\.purge_push_endpoint/i);
+  assert.match(sql[purge], /delete from public\.push_subscriptions/i);
+  assert.match(sql[purge], /revoke all on function public\.purge_push_endpoint\(text\) from public, anon/i);
+  assert.match(sql[purge], /grant execute on function public\.purge_push_endpoint\(text\) to authenticated/i);
+
+  const delivery = readFileSync(join(process.cwd(), "src", "lib", "push.ts"), "utf8");
+  assert.match(delivery, /purge_push_endpoint/i);
+  assert.match(delivery, /status === 404 \|\| status === 410|lastStatus === 404 \|\| lastStatus === 410/);
+  assert.match(delivery, /"gone"/);
+});

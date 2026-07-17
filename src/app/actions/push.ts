@@ -13,11 +13,6 @@ import {
 } from "@/lib/push";
 import { createClient } from "@/utils/supabase/server";
 
-export async function getPushPublicKey(): Promise<string | null> {
-  if (!isPushConfigured()) return null;
-  return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null;
-}
-
 export async function subscribeUser(
   sub: SerializedPushSubscription,
   userAgent?: string | null

@@ -60,12 +60,6 @@ export function isPushConfigured(): boolean {
   return vapidConfigured();
 }
 
-export function publicVapidKey(): string | null {
-  const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? null;
-  if (key && key.startsWith("your_")) return null;
-  return key;
-}
-
 /** Params always shown on payment push: party, amount, who initiated. */
 export type PaymentPushParams = {
   party: string;
@@ -200,14 +194,28 @@ export async function sendPaymentPush(
   await Promise.all(
     targets.map(async (t) => {
       try {
-        await sendWithRetry(
+        const outcome = await sendWithRetry(
           {
             endpoint: t.endpoint,
             keys: { p256dh: t.p256dh, auth: t.auth },
           },
           body
         );
-        sent += 1;
+        if (outcome === "ok") {
+          sent += 1;
+          return;
+        }
+        failed += 1;
+        if (outcome === "gone") {
+          // Drop dead endpoints so later payments skip them.
+          try {
+            await supabase.rpc("purge_push_endpoint", {
+              p_endpoint: t.endpoint,
+            });
+          } catch {
+            /* best-effort cleanup */
+          }
+        }
       } catch {
         failed += 1;
       }
@@ -223,11 +231,12 @@ function pushStatus(error: unknown): number {
     : 0;
 }
 
+/** ok = delivered, gone = 404/410 (purge), fail = other terminal error */
 async function sendWithRetry(
   subscription: SerializedPushSubscription,
   body: string
-): Promise<void> {
-  let lastError: unknown;
+): Promise<"ok" | "gone" | "fail"> {
+  let lastStatus = 0;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       await webpush.sendNotification(subscription, body, {
@@ -240,16 +249,16 @@ async function sendWithRetry(
           privateKey: process.env.VAPID_PRIVATE_KEY!,
         },
       });
-      return;
+      return "ok";
     } catch (error) {
-      lastError = error;
-      const status = pushStatus(error);
-      const transient = status === 0 || status === 429 || status >= 500;
+      lastStatus = pushStatus(error);
+      if (lastStatus === 404 || lastStatus === 410) return "gone";
+      const transient = lastStatus === 0 || lastStatus === 429 || lastStatus >= 500;
       if (!transient || attempt === 2) break;
       await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
     }
   }
-  throw lastError;
+  return "fail";
 }
 
 /** Send an end-to-end confirmation to the signed-in user's selected device. */

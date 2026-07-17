@@ -49,8 +49,7 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   for (let i = 0; i < rawData.length; ++i) {
     outputArray[i] = rawData.charCodeAt(i);
   }
-  // Detach from any SharedArrayBuffer quirks — copy into a fresh ArrayBuffer.
-  return new Uint8Array(outputArray);
+  return outputArray;
 }
 
 export function isPushBrowserSupported(): boolean {
