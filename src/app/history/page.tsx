@@ -4,15 +4,24 @@ import { useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { PaymentCard } from "@/components/PaymentCard";
 import { PaymentTotals } from "@/components/PaymentTotals";
+import { LoadingButton } from "@/components/LoadingButton";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
+import { adminDeletePayment } from "@/lib/payments";
+import { userMessageFromError } from "@/lib/errors";
+import { canDeleteHistory } from "@/lib/roles";
+import { formatInr } from "@/lib/format";
+import type { Payment } from "@/types/database";
 
 type Filter = "all" | "paid" | "denied";
 
 export default function HistoryPage() {
   const { profile } = useAuth();
-  const { payments, loading, error } = usePaymentsLive();
+  const role = profile?.role ?? null;
+  const { payments, loading, error, setError, reload } = usePaymentsLive();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const history = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -21,6 +30,20 @@ export default function HistoryPage() {
       .filter((p) => (filter === "all" ? true : p.status === filter))
       .filter((p) => (q ? p.party.toLowerCase().includes(q) : true));
   }, [payments, query, filter]);
+
+  async function doDelete() {
+    if (!deleteTarget) return;
+    setBusy(true);
+    try {
+      await adminDeletePayment(deleteTarget.id);
+      setDeleteTarget(null);
+      await reload();
+    } catch (err) {
+      setError(userMessageFromError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (loading) {
     return <p className="text-sm text-slate-500">Loading history...</p>;
@@ -31,6 +54,12 @@ export default function HistoryPage() {
       <h1 className="text-xl font-bold text-slate-900">History</h1>
 
       <PaymentTotals payments={payments} />
+
+      {canDeleteHistory(role) ? (
+        <p className="text-xs text-slate-500">
+          As admin you can permanently delete paid or denied items from history.
+        </p>
+      ) : null}
 
       <label className="block">
         <span className="sr-only">Search by party</span>
@@ -81,11 +110,50 @@ export default function HistoryPage() {
             <PaymentCard
               key={p.id}
               payment={p}
-              role={profile?.role ?? null}
+              role={role}
+              onDelete={
+                canDeleteHistory(role) ? setDeleteTarget : undefined
+              }
             />
           ))}
         </div>
       )}
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-title"
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+          >
+            <h2 id="delete-title" className="text-lg font-bold text-slate-900">
+              Delete from history?
+            </h2>
+            <p className="mt-2 text-base text-slate-700">
+              Permanently remove {formatInr(deleteTarget.amount)} for{" "}
+              {deleteTarget.party}? This cannot be undone.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <LoadingButton
+                variant="secondary"
+                disabled={busy}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </LoadingButton>
+              <LoadingButton
+                variant="danger"
+                loading={busy}
+                loadingText="Deleting..."
+                onClick={() => void doDelete()}
+              >
+                Delete
+              </LoadingButton>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

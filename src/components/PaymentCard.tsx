@@ -2,7 +2,11 @@
 
 import type { Payment, UserRole } from "@/types/database";
 import { formatDueLabel, formatInr, statusLabel } from "@/lib/format";
-import { canApprove as roleCanApprove, canMarkPaid as roleCanMarkPaid } from "@/lib/roles";
+import {
+  canApprove as roleCanApprove,
+  canDeleteHistory,
+  canMarkPaid as roleCanMarkPaid,
+} from "@/lib/roles";
 import { StatusBadge } from "@/components/StatusBadge";
 import { LoadingButton } from "@/components/LoadingButton";
 
@@ -12,12 +16,14 @@ export function PaymentCard({
   onApprove,
   onDeny,
   onMarkPaid,
+  onDelete,
 }: {
   payment: Payment;
   role: UserRole | null;
   onApprove?: (p: Payment) => void;
   onDeny?: (p: Payment) => void;
   onMarkPaid?: (p: Payment) => void;
+  onDelete?: (p: Payment) => void;
 }) {
   const showApprove =
     payment.status === "pending" &&
@@ -28,6 +34,11 @@ export function PaymentCard({
     payment.status === "approved" &&
     roleCanMarkPaid(role) &&
     Boolean(onMarkPaid);
+
+  const showDelete =
+    (payment.status === "paid" || payment.status === "denied") &&
+    canDeleteHistory(role) &&
+    Boolean(onDelete);
 
   const secondaryLine =
     payment.status === "approved"
@@ -96,6 +107,14 @@ export function PaymentCard({
         <div className="mt-4">
           <LoadingButton variant="primary" onClick={() => onMarkPaid?.(payment)}>
             Mark Paid
+          </LoadingButton>
+        </div>
+      ) : null}
+
+      {showDelete ? (
+        <div className="mt-4">
+          <LoadingButton variant="danger" onClick={() => onDelete?.(payment)}>
+            Delete from history
           </LoadingButton>
         </div>
       ) : null}

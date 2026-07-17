@@ -15,22 +15,17 @@ Auth UUIDs (already in SQL):
 - Anjali: `285d1e4d-994e-4d6d-a7f6-3340b257441e`
 - Sweeti: `50dfa9c5-4528-49ef-acc2-88ed57b106dd`
 
-## Nawneet (director) — one manual step
+## Nawneet (director)
 
-Email rate-limit blocked API signup. Create him in the dashboard:
+Run `FIX_admin_delete_and_nawneet.sql` — creates Nawneet automatically.
 
-1. Auth → Users → **Add user**
-2. Email: `nawneet@nawkiran.com`
-3. Password: `Nawneet@Pay1` (or your choice)
-4. **Auto Confirm User**: ON
-5. Copy UUID → run:
+| Name | Role | Email | Password |
+|---|---|---|---|
+| Nawneet | director | `nawneet@nawkiran.com` | `Nawneet@Pay1` |
 
-```sql
-insert into public.profiles (id, full_name, role, active)
-values ('PASTE_NAWNEET_UUID', 'Nawneet', 'director', true)
-on conflict (id) do update
-set full_name = excluded.full_name, role = excluded.role, active = true;
-```
+## Admin delete history
+
+Logged in as **admin**, open **History** → **Delete from history** on any paid/denied card (with confirm).
 
 ## Permissions
 

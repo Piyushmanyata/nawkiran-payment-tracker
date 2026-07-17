@@ -63,6 +63,10 @@ export function userMessageFromError(error: unknown): string {
     return "Please choose a payment mode.";
   }
 
+  if (text.includes("not_history")) {
+    return "Only paid or denied history items can be deleted.";
+  }
+
   if (
     text.includes("could not find the table") ||
     text.includes("pgrst205") ||

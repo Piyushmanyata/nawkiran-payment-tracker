@@ -132,3 +132,12 @@ export async function markPaymentPaid(
   if (error) throw error;
   return mapPayment(data as Record<string, unknown>);
 }
+
+/** Admin only — removes a paid/denied history payment and its events. */
+export async function adminDeletePayment(paymentId: string): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.rpc("admin_delete_payment", {
+    p_payment_id: paymentId,
+  });
+  if (error) throw error;
+}

@@ -19,3 +19,8 @@ export function canCreatePayment(role: UserRole | null | undefined): boolean {
     role === "admin"
   );
 }
+
+/** Only admin can permanently remove paid/denied history rows. */
+export function canDeleteHistory(role: UserRole | null | undefined): boolean {
+  return role === "admin";
+}
