@@ -60,65 +60,68 @@ export function isPushConfigured(): boolean {
   return vapidConfigured();
 }
 
-/** Params always shown on payment push: party, amount, who initiated. */
+/** Params for payment push: party, amount, and the actor for THIS event. */
 export type PaymentPushParams = {
   party: string;
   amount: number | string;
-  initiatedBy: string;
+  /** Display name of the person who performed this lifecycle action. */
+  actorName: string;
   denialReason?: string | null;
 };
 
 /**
- * Build title/body for a payment lifecycle event.
- * Body always includes party · amount · by initiator.
+ * Separate notification copy per lifecycle event, with the correct actor label.
  *
- * Workflow:
- *   pending  → director approval
- *   approved → employees can pay
- *   denied   → employees correct
- *   paid     → director informed
+ *   pending  → Requested by …
+ *   approved → Approved by …
+ *   denied   → Denied by …
+ *   paid     → Marked paid by …
  */
 export function buildPushPayload(
   event: PushEvent,
   payment: PaymentPushParams
-): { title: string; body: string; url: string } {
+): { title: string; body: string; url: string; tagPrefix: string } {
   const amount = formatInr(payment.amount);
-  const by = payment.initiatedBy.trim() || "Unknown";
-  const core = `${payment.party} · ${amount} · by ${by}`;
+  const actor = payment.actorName.trim() || "Someone";
+  const money = `${payment.party} · ${amount}`;
 
   switch (event) {
     case "pending":
       return {
-        title: "Approval needed",
-        body: core,
+        title: "New payment request",
+        body: `${money} · Requested by ${actor}`,
         url: "/open",
+        tagPrefix: "req",
       };
     case "approved":
-      // Director/admin initiate (auto-approve) or director approval of a request.
       return {
-        title: "New payment to pay",
-        body: core,
+        title: "Payment approved — ready to pay",
+        body: `${money} · Approved by ${actor}`,
         url: "/open",
+        tagPrefix: "appr",
       };
     case "denied":
       return {
-        title: "Payment denied — correct it",
+        title: "Payment denied",
         body: payment.denialReason
-          ? `${core} — ${payment.denialReason}`
-          : core,
+          ? `${money} · Denied by ${actor} — ${payment.denialReason}`
+          : `${money} · Denied by ${actor}`,
         url: "/open",
+        tagPrefix: "deny",
       };
     case "paid":
       return {
-        title: "Marked paid",
-        body: core,
+        title: "Payment marked paid",
+        body: `${money} · Marked paid by ${actor}`,
         url: "/history",
+        tagPrefix: "paid",
       };
     default:
       return {
         title: "Nawkiran Payments",
-        body: core,
+        body: money,
         url: "/open",
+        tagPrefix: "pay",
       };
   }
 }
@@ -154,7 +157,12 @@ export async function removePushSubscription(endpoint: string): Promise<void> {
 export async function sendPaymentPush(
   paymentId: string,
   event: PushEvent,
-  payload: { title: string; body: string; url: string; tag: string },
+  payload: {
+    title: string;
+    body: string;
+    url: string;
+    tag: string;
+  },
   supabaseClient?: SupabaseClient
 ): Promise<{ sent: number; failed: number }> {
   if (!ensureVapid()) {

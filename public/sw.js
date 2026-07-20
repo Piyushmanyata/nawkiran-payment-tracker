@@ -1,6 +1,6 @@
 /* Nawkiran Payments — free Web Push service worker (no third-party SDK). */
 
-const CACHE_NAME = "nawkiran-payments-cache-v3";
+const CACHE_NAME = "nawkiran-payments-cache-v4";
 const PUSH_CONFIG_CACHE = "nawkiran-push-config-v1";
 const PUSH_CONFIG_KEY = "/__nawkiran_push_config__";
 const STATIC_ASSETS = ["/favicon.ico", "/icon-192.png", "/badge-72.png"];
@@ -81,6 +81,8 @@ self.addEventListener("push", (event) => {
     }
   }
 
+  // Keep each lifecycle event (request / approve / deny / paid) as its own
+  // notification slot via the server-provided tag (nk:req|appr|deny|paid:…).
   const options = {
     body: data.body,
     icon: data.icon || "/icon-192.png",
@@ -89,6 +91,7 @@ self.addEventListener("push", (event) => {
     data: {
       url: data.url || "/open",
       dateOfArrival: Date.now(),
+      tag: data.tag || "nawkiran-payment",
     },
     tag: data.tag || "nawkiran-payment",
     renotify: true,

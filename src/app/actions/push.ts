@@ -80,6 +80,12 @@ export async function sendTestNotification(
  *   approved → employee/accounts
  *   denied   → employee/accounts
  *   paid     → director/admin
+ *
+ * Copy (DB payment_push_context + buildPushPayload):
+ *   pending  → Requested by …
+ *   approved → Approved by …
+ *   denied   → Denied by …
+ *   paid     → Marked paid by …
  */
 export async function notifyPaymentEvent(
   paymentId: string,
@@ -98,35 +104,40 @@ export async function notifyPaymentEvent(
       return { success: false, error: "Not signed in" };
     }
 
-    // Lean select: only push fields + initiator name (one RTT).
-    const { data, error } = await supabase
-      .from("payments")
-      .select(
-        "party, amount, denial_reason, version, requester:profiles!payments_requested_by_fkey(full_name)"
-      )
-      .eq("id", paymentId)
-      .maybeSingle();
+    // One RPC: party/amount + correct lifecycle actor name for this event.
+    const { data, error } = await supabase.rpc("payment_push_context", {
+      p_payment_id: paymentId,
+      p_event: event,
+    });
 
     if (error) throw error;
-    if (!data) return { success: false, error: "Payment not found" };
 
-    const row = data as {
-      party: string;
-      amount: number | string;
-      denial_reason: string | null;
-      version: number | null;
-      requester: { full_name?: string } | { full_name?: string }[] | null;
-    };
-    const requester = Array.isArray(row.requester)
-      ? row.requester[0]
-      : row.requester;
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | {
+          party: string;
+          amount: number | string;
+          denial_reason: string | null;
+          version: number | null;
+          actor_name: string | null;
+        }
+      | null
+      | undefined;
+
+    if (!row?.party) {
+      return { success: false, error: "Payment not found" };
+    }
+
     const version = Number(row.version ?? 1);
     const payload = buildPushPayload(event, {
       party: row.party,
       amount: row.amount,
-      initiatedBy: requester?.full_name?.trim() || "Unknown",
+      actorName: row.actor_name?.trim() || "Someone",
       denialReason: row.denial_reason,
     });
+
+    // Distinct tag per event type so OS keeps notifications separate
+    // (does not replace "requested" with "paid" for the same payment).
+    const tag = `nk:${payload.tagPrefix}:${paymentId}:v${version}`;
 
     after(async () => {
       try {
@@ -134,8 +145,10 @@ export async function notifyPaymentEvent(
           paymentId,
           event,
           {
-            ...payload,
-            tag: `${paymentId}:${event}:${version}`,
+            title: payload.title,
+            body: payload.body,
+            url: payload.url,
+            tag,
           },
           supabase
         );
@@ -146,8 +159,8 @@ export async function notifyPaymentEvent(
             sent: result.sent,
           });
         }
-      } catch (error) {
-        console.error("notifyPaymentEvent delivery", error);
+      } catch (deliveryError) {
+        console.error("notifyPaymentEvent delivery", deliveryError);
       }
     });
     return { success: true, queued: true };

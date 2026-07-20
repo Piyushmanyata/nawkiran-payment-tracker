@@ -106,17 +106,36 @@ test("director auto-approve create notifies employees via approved targets", () 
   assert.match(client, /payment\.status\s*===\s*"approved"\s*\|\|\s*payment\.approved_by/i);
 });
 
-test("push payload always includes party amount and initiator", () => {
+test("push payload labels the correct actor per event", () => {
   const push = readFileSync(join(process.cwd(), "src", "lib", "push.ts"), "utf8");
   const action = readFileSync(
     join(process.cwd(), "src", "app", "actions", "push.ts"),
     "utf8"
   );
   assert.match(push, /export type PaymentPushParams/i);
-  assert.match(push, /initiatedBy/i);
-  assert.match(push, /party} · \$\{amount} · by \$\{by}/);
-  assert.match(action, /profiles!payments_requested_by_fkey\(full_name\)/i);
-  assert.match(action, /initiatedBy:/i);
+  assert.match(push, /actorName/i);
+  assert.match(push, /Requested by \$\{actor\}/);
+  assert.match(push, /Approved by \$\{actor\}/);
+  assert.match(push, /Denied by \$\{actor\}/);
+  assert.match(push, /Marked paid by \$\{actor\}/);
+  assert.match(push, /tagPrefix:\s*"req"/);
+  assert.match(push, /tagPrefix:\s*"appr"/);
+  assert.match(push, /tagPrefix:\s*"deny"/);
+  assert.match(push, /tagPrefix:\s*"paid"/);
+  assert.match(action, /payment_push_context/i);
+  assert.match(action, /actorName:/i);
+  assert.match(action, /tagPrefix/);
+});
+
+test("payment_push_context resolves lifecycle actors", () => {
+  const migration = sql["017_push_actor_context.sql"];
+  assert.ok(migration, "017_push_actor_context migration missing");
+  assert.match(migration, /create or replace function public\.payment_push_context/i);
+  assert.match(migration, /e\.action in \('created', 'resubmitted'\)/i);
+  assert.match(migration, /e\.action = 'approved'/i);
+  assert.match(migration, /when 'paid' then p\.paid_by/i);
+  assert.match(migration, /grant execute on function public\.payment_push_context/i);
+  assert.match(migration, /payment_events_payment_action_id_idx/i);
 });
 
 test("mobile push rotation works without an open app window", () => {
