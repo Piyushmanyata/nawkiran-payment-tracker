@@ -8,15 +8,25 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase";
 import { fetchMyProfile } from "@/lib/payments";
+import {
+  clearAuthCaches,
+  readAuthHint,
+  readProfileCache,
+  writeAuthHint,
+  writeProfileCache,
+} from "@/lib/cache";
 import type { Profile } from "@/types/database";
 
 interface AuthState {
   loading: boolean;
+  ready: boolean;
+  authHint: boolean;
   configured: boolean;
   session: Session | null;
   user: User | null;
@@ -28,29 +38,60 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+const emptySubscribe = () => () => {};
+
+function useWarmProfile(): Profile | null {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => readProfileCache(),
+    () => null
+  );
+}
+
+function useWarmAuthHint(): boolean {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => readAuthHint(),
+    () => false
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const configured = isSupabaseConfigured();
-  // Start not-loading when Supabase env is missing so login can show setup help.
-  const [loading, setLoading] = useState(configured);
+  const warmProfile = useWarmProfile();
+  const warmHint = useWarmAuthHint();
+
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const profileUserId = useRef<string | null>(null);
+  const [authSettled, setAuthSettled] = useState(!configured);
+  const profileUserId = useRef<string | null>(warmProfile?.id ?? null);
+
+  // Instant from disk; live profile overrides once fetched.
+  const displayProfile = profile ?? warmProfile;
+  const authHint = Boolean(session) || warmHint || Boolean(warmProfile);
+  // Only block cold first visit (no cache, auth not settled).
+  const loading = configured && !authSettled && !authHint;
+  const ready = !configured || authSettled || authHint;
 
   const loadProfile = useCallback(
     async (userId?: string | null) => {
       if (!configured) {
         setProfile(null);
         profileUserId.current = null;
+        writeProfileCache(null);
         return;
       }
       try {
         const p = await fetchMyProfile(userId);
         setProfile(p);
         profileUserId.current = p?.id ?? userId ?? null;
+        writeProfileCache(p);
       } catch {
-        setProfile(null);
-        profileUserId.current = null;
+        if (!profileUserId.current) {
+          setProfile(null);
+          writeProfileCache(null);
+        }
       }
     },
     [configured]
@@ -62,8 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = getSupabaseBrowserClient();
     let mounted = true;
 
-    // Single path: onAuthStateChange fires INITIAL_SESSION with local session
-    // (no getSession + getUser double hop). Profile uses user id, not getUser().
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, next) => {
@@ -72,18 +111,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(next?.user ?? null);
 
       if (next?.user) {
-        // Skip profile re-fetch on TOKEN_REFRESHED for the same user.
+        writeAuthHint(true);
         if (profileUserId.current !== next.user.id) {
           void loadProfile(next.user.id).finally(() => {
-            if (mounted) setLoading(false);
+            if (mounted) setAuthSettled(true);
           });
-        } else if (mounted) {
-          setLoading(false);
+        } else {
+          if (mounted) setAuthSettled(true);
+          void loadProfile(next.user.id);
         }
       } else {
         profileUserId.current = null;
         setProfile(null);
-        if (mounted) setLoading(false);
+        clearAuthCaches();
+        if (mounted) setAuthSettled(true);
       }
     });
 
@@ -101,9 +142,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       });
       if (error) throw error;
-      // onAuthStateChange will load profile; still await for callers that need it
+      writeAuthHint(true);
       await loadProfile(data.user?.id);
-      setLoading(false);
+      setAuthSettled(true);
     },
     [loadProfile]
   );
@@ -113,20 +154,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     profileUserId.current = null;
     setProfile(null);
+    clearAuthCaches();
   }, []);
 
   const value = useMemo(
     () => ({
       loading,
+      ready,
+      authHint,
       configured,
       session,
       user,
-      profile,
+      profile: displayProfile,
       refreshProfile: () => loadProfile(user?.id),
       signIn,
       signOut,
     }),
-    [loading, configured, session, user, profile, loadProfile, signIn, signOut]
+    [
+      loading,
+      ready,
+      authHint,
+      configured,
+      session,
+      user,
+      displayProfile,
+      loadProfile,
+      signIn,
+      signOut,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

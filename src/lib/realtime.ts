@@ -1,7 +1,7 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
-const DEBOUNCE_MS = 250;
+const DEBOUNCE_MS = 400;
 
 export type PaymentsRealtimeHandlers = {
   /** Full reload fallback (online / visibility / unhandled events). */
@@ -13,12 +13,14 @@ export type PaymentsRealtimeHandlers = {
 /**
  * Subscribe to payments table changes.
  * Prefer onRow patches; debounce full refresh only when patching is insufficient.
+ * Visibility refresh is cheap only if PaymentsProvider FRESH_MS allows it.
  */
 export function subscribePayments(handlers: PaymentsRealtimeHandlers): () => void {
   const { onRefresh, onRow } = handlers;
   const supabase = getSupabaseBrowserClient();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let alive = true;
+  let lastVisibleRefresh = 0;
 
   const scheduleRefresh = () => {
     if (!alive) return;
@@ -52,7 +54,12 @@ export function subscribePayments(handlers: PaymentsRealtimeHandlers): () => voi
 
   const onOnline = () => scheduleRefresh();
   const onVisible = () => {
-    if (document.visibilityState === "visible") scheduleRefresh();
+    if (document.visibilityState !== "visible") return;
+    // Throttle tab-focus refetches (provider still applies FRESH_MS).
+    const now = Date.now();
+    if (now - lastVisibleRefresh < 15_000) return;
+    lastVisibleRefresh = now;
+    scheduleRefresh();
   };
 
   window.addEventListener("online", onOnline);

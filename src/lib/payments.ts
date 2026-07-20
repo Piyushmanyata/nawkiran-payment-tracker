@@ -36,12 +36,33 @@ export async function fetchMyProfile(
 }
 
 /**
- * Two parallel selects (payments + tiny profiles table).
- * Faster and more reliable than multi-FK embeds on every load.
+ * Prefer one-RTT RPC (list_payments_ui). Falls back to parallel selects
+ * if the function is not deployed yet.
  */
 export async function fetchPayments(): Promise<Payment[]> {
   const supabase = getSupabaseBrowserClient();
 
+  const rpc = await supabase.rpc("list_payments_ui");
+  if (!rpc.error && rpc.data != null) {
+    const rows = Array.isArray(rpc.data)
+      ? rpc.data
+      : typeof rpc.data === "string"
+        ? (JSON.parse(rpc.data) as unknown[])
+        : [];
+    return (rows as Record<string, unknown>[]).map((row) => {
+      const payment = mapPayment(row);
+      return {
+        ...payment,
+        requester_name: (row.requester_name as string | null) ?? null,
+        requester_role: (row.requester_role as UserRole | null) ?? null,
+        approver_name: (row.approver_name as string | null) ?? null,
+        denier_name: (row.denier_name as string | null) ?? null,
+        payer_name: (row.payer_name as string | null) ?? null,
+      };
+    });
+  }
+
+  // Fallback: two parallel selects (pre-021 migration).
   const [paymentsRes, profilesRes] = await Promise.all([
     supabase
       .from("payments")
@@ -176,19 +197,19 @@ export async function purgeOldHistory(
 }
 
 const PURGE_FLAG = "nk_history_purge_at";
-const PURGE_EVERY_MS = 6 * 60 * 60 * 1000; // once per 6 hours per browser tab session
+const PURGE_EVERY_MS = 12 * 60 * 60 * 1000; // once per 12h per browser
 
 /** Fire monthly hard-delete retention at most once every few hours. */
 export async function maybePurgeOldHistory(): Promise<number> {
   try {
     const last = Number(
-      typeof sessionStorage !== "undefined"
-        ? sessionStorage.getItem(PURGE_FLAG) || 0
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem(PURGE_FLAG) || 0
         : 0
     );
     if (Date.now() - last < PURGE_EVERY_MS) return 0;
-    if (typeof sessionStorage !== "undefined") {
-      sessionStorage.setItem(PURGE_FLAG, String(Date.now()));
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(PURGE_FLAG, String(Date.now()));
     }
     return await purgeOldHistory(HISTORY_KEEP_DAYS);
   } catch {

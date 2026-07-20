@@ -108,7 +108,8 @@ export default function HistoryPage() {
     }
   }
 
-  if (loading) {
+    // Stale-while-revalidate: only block when we have nothing to show.
+  if (loading && payments.length === 0) {
     return <PageLoading label="Loading history..." />;
   }
 

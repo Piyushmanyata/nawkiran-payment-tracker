@@ -2,11 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["web-push"],
-  // Keep sibling client navigations warm longer (Open ↔ History ↔ Add).
+  // Aggressive client router cache — Open ↔ History ↔ Add feel instant.
   experimental: {
     staleTimes: {
-      dynamic: 30,
-      static: 180,
+      dynamic: 300,
+      static: 600,
     },
   },
   async headers() {
@@ -19,6 +19,16 @@ const nextConfig: NextConfig = {
           {
             key: "Referrer-Policy",
             value: "strict-origin-when-cross-origin",
+          },
+        ],
+      },
+      {
+        // Long-cache static icons / assets
+        source: "/:path*(icon-192.png|icon-512.png|badge-72.png)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },
