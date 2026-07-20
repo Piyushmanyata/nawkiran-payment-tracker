@@ -119,11 +119,11 @@ export default function HistoryPage() {
           History
         </h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Paid and denied · grouped by week
+          Paid and denied · last 30 days · grouped by week
           {canEdit ? " · denied can be corrected" : ""}
         </p>
         <p className="mt-1 text-xs text-slate-400">
-          Older than 30 days is permanently deleted to save space.
+          Tap a week to expand. Older than 30 days is permanently deleted.
         </p>
       </div>
 

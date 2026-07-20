@@ -22,34 +22,20 @@ function HistoryWeekListInner({
   forceExpandAll?: boolean;
 }) {
   const groups = useMemo(() => groupHistoryByWeek(payments), [payments]);
-  const defaultKey = groups[0]?.key ?? null;
-  /** User toggles only; missing key → default open = newest week. */
-  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  /** Explicit opens only — everything starts collapsed until the user taps. */
+  const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
 
   const isOpen = useCallback(
     (key: string) => {
       if (forceExpandAll) return true;
-      if (Object.prototype.hasOwnProperty.call(overrides, key)) {
-        return overrides[key]!;
-      }
-      return key === defaultKey;
+      return openKeys[key] === true;
     },
-    [forceExpandAll, overrides, defaultKey]
+    [forceExpandAll, openKeys]
   );
 
-  const toggle = useCallback(
-    (key: string) => {
-      setOverrides((prev) => {
-        const currently =
-          forceExpandAll ||
-          (Object.prototype.hasOwnProperty.call(prev, key)
-            ? prev[key]!
-            : key === defaultKey);
-        return { ...prev, [key]: !currently };
-      });
-    },
-    [forceExpandAll, defaultKey]
-  );
+  const toggle = useCallback((key: string) => {
+    setOpenKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
   if (groups.length === 0) return null;
 
