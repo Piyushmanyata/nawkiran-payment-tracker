@@ -8,7 +8,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { fetchPayments } from "@/lib/payments";
@@ -31,38 +30,24 @@ interface PaymentsState {
 
 const PaymentsContext = createContext<PaymentsState | null>(null);
 
-const FRESH_MS = 60_000;
-const emptySubscribe = () => () => {};
-
-function useWarmPayments(): Payment[] | null {
-  return useSyncExternalStore(
-    emptySubscribe,
-    () => readPaymentsCache(),
-    () => null
-  );
-}
+const FRESH_MS = 30_000;
 
 /**
- * Single app-wide payments cache + one Realtime channel.
- * Disk hydrate via useSyncExternalStore → no spinner on reload.
+ * App-wide payments + one Realtime channel.
+ * SSR-safe: empty first paint, then hydrate cache in effect (no hang).
  */
 export function PaymentsProvider({ children }: { children: ReactNode }) {
-  const warm = useWarmPayments();
-  const [live, setLive] = useState<Payment[] | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const requestVersion = useRef(0);
   const lastLoadAt = useRef(0);
-  const liveRef = useRef<Payment[] | null>(null);
-  const warmRef = useRef<Payment[] | null>(null);
-
+  const hasData = useRef(false);
   const suppressedPayments = useRef(new Map<string, number>());
   const profileMeta = useRef(
     new Map<string, { name: string | null; role: UserRole | null }>()
   );
-
-  const payments = useMemo(() => live ?? warm ?? [], [live, warm]);
-  // Block only when neither cache nor network data exists yet.
-  const loading = live === null && warm === null;
 
   const rememberMeta = useCallback((rows: Payment[]) => {
     for (const p of rows) {
@@ -93,40 +78,33 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  useEffect(() => {
-    warmRef.current = warm;
-    liveRef.current = live;
-  }, [warm, live]);
-
-  useEffect(() => {
-    if (warm?.length) rememberMeta(warm);
-  }, [warm, rememberMeta]);
-
   const load = useCallback(
     async (opts?: { silent?: boolean; force?: boolean }) => {
-      const now = performance.now();
       if (
         opts?.silent &&
         !opts.force &&
         lastLoadAt.current &&
-        now - lastLoadAt.current < FRESH_MS
+        performance.now() - lastLoadAt.current < FRESH_MS
       ) {
+        setLoading(false);
         return;
       }
       const version = ++requestVersion.current;
+      if (!opts?.silent && !hasData.current) setLoading(true);
       try {
         const rows = await fetchPayments();
         if (version !== requestVersion.current) return;
-        setLive(rows);
+        setPayments(rows);
         rememberMeta(rows);
         writePaymentsCache(rows);
+        hasData.current = true;
         setError(null);
         lastLoadAt.current = performance.now();
       } catch (err) {
         if (version !== requestVersion.current) return;
-        if (liveRef.current === null && warmRef.current === null) {
-          setError(userMessageFromError(err));
-        }
+        if (!hasData.current) setError(userMessageFromError(err));
+      } finally {
+        if (version === requestVersion.current) setLoading(false);
       }
     },
     [rememberMeta]
@@ -135,32 +113,32 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
   const upsertPayment = useCallback(
     (payment: Payment) => {
       suppressedPayments.current.set(payment.id, performance.now() + 900);
-      setLive((prev) => {
-        const base = prev ?? warmRef.current ?? [];
-        const i = base.findIndex((p) => p.id === payment.id);
+      setPayments((prev) => {
+        const i = prev.findIndex((p) => p.id === payment.id);
         let next: Payment[];
         if (i === -1) {
-          next = [payment, ...base];
+          next = [payment, ...prev];
         } else {
           const merged: Payment = {
-            ...base[i],
+            ...prev[i],
             ...payment,
-            requester_name: payment.requester_name ?? base[i].requester_name,
-            requester_role: payment.requester_role ?? base[i].requester_role,
+            requester_name: payment.requester_name ?? prev[i].requester_name,
+            requester_role: payment.requester_role ?? prev[i].requester_role,
             approver_name: payment.approved_by
-              ? (payment.approver_name ?? base[i].approver_name)
+              ? (payment.approver_name ?? prev[i].approver_name)
               : null,
             denier_name: payment.denied_by
-              ? (payment.denier_name ?? base[i].denier_name)
+              ? (payment.denier_name ?? prev[i].denier_name)
               : null,
             payer_name: payment.paid_by
-              ? (payment.payer_name ?? base[i].payer_name)
+              ? (payment.payer_name ?? prev[i].payer_name)
               : null,
           };
-          next = base.slice();
+          next = prev.slice();
           next[i] = merged;
         }
         writePaymentsCache(next);
+        hasData.current = true;
         return next;
       });
       rememberMeta([payment]);
@@ -170,23 +148,31 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
 
   const removePayment = useCallback((id: string) => {
     suppressedPayments.current.set(id, performance.now() + 900);
-    setLive((prev) => {
-      const base = prev ?? warmRef.current ?? [];
-      const next = base.filter((p) => p.id !== id);
+    setPayments((prev) => {
+      const next = prev.filter((p) => p.id !== id);
       writePaymentsCache(next);
       return next;
     });
   }, []);
 
   useEffect(() => {
-    if (warmRef.current !== null) {
-      lastLoadAt.current = performance.now();
-    }
+    let cancelled = false;
+    // Hydrate disk cache after mount (SSR-safe, async tick).
+    const warm = readPaymentsCache();
+    const hydrate = window.setTimeout(() => {
+      if (cancelled) return;
+      if (warm) {
+        setPayments(warm);
+        rememberMeta(warm);
+        hasData.current = true;
+        lastLoadAt.current = performance.now();
+        setLoading(false);
+      }
+      void load({ silent: Boolean(warm) });
+    }, 0);
 
-    const t = window.setTimeout(
-      () => void load({ silent: warmRef.current !== null }),
-      0
-    );
+    // Absolute safety: never spin longer than 8s.
+    const failSafe = window.setTimeout(() => setLoading(false), 8_000);
 
     const onRow = (
       payload: RealtimePostgresChangesPayload<Record<string, unknown>>
@@ -206,9 +192,7 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
         removePayment(String(old.id));
         return true;
       }
-
       if (!row?.id) return false;
-
       if (row.deleted_at) {
         removePayment(String(row.id));
         return true;
@@ -227,9 +211,8 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
           ? profileMeta.current.get(mapped.paid_by)
           : null;
 
-        setLive((prev) => {
-          const base = prev ?? warmRef.current ?? [];
-          const i = base.findIndex((p) => p.id === mapped.id);
+        setPayments((prev) => {
+          const i = prev.findIndex((p) => p.id === mapped.id);
           let next: Payment[];
           if (i === -1) {
             next = [
@@ -241,52 +224,52 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
                 denier_name: denierMeta?.name ?? null,
                 payer_name: payerMeta?.name ?? null,
               },
-              ...base,
+              ...prev,
             ];
           } else {
-            next = base.slice();
+            next = prev.slice();
             next[i] = {
-              ...base[i],
+              ...prev[i],
               ...mapped,
               requester_name:
-                base[i].requester_name ?? reqMeta?.name ?? mapped.requester_name,
+                prev[i].requester_name ?? reqMeta?.name ?? mapped.requester_name,
               requester_role:
-                base[i].requester_role ?? reqMeta?.role ?? mapped.requester_role,
+                prev[i].requester_role ?? reqMeta?.role ?? mapped.requester_role,
               approver_name: mapped.approved_by
-                ? (base[i].approver_name ??
+                ? (prev[i].approver_name ??
                   approverMeta?.name ??
                   mapped.approver_name)
                 : null,
               denier_name: mapped.denied_by
-                ? (base[i].denier_name ?? denierMeta?.name ?? mapped.denier_name)
+                ? (prev[i].denier_name ?? denierMeta?.name ?? mapped.denier_name)
                 : null,
               payer_name: mapped.paid_by
-                ? (base[i].payer_name ?? payerMeta?.name ?? mapped.payer_name)
+                ? (prev[i].payer_name ?? payerMeta?.name ?? mapped.payer_name)
                 : null,
             };
           }
           writePaymentsCache(next);
+          hasData.current = true;
           return next;
         });
         return true;
       }
-
       return false;
     };
 
     const unsubscribe = subscribePayments({
-      onRefresh: () => {
-        void load({ silent: true });
-      },
+      onRefresh: () => void load({ silent: true }),
       onRow,
     });
 
     return () => {
+      cancelled = true;
       requestVersion.current += 1;
-      window.clearTimeout(t);
+      window.clearTimeout(hydrate);
+      window.clearTimeout(failSafe);
       unsubscribe();
     };
-  }, [load, removePayment]);
+  }, [load, removePayment, rememberMeta]);
 
   const value = useMemo(
     () => ({
@@ -294,7 +277,7 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
       loading,
       error,
       setError,
-      reload: () => load({ silent: true, force: true }),
+      reload: () => load({ silent: false, force: true }),
       upsertPayment,
       removePayment,
     }),

@@ -10,6 +10,53 @@ const PAYMENT_COLUMNS =
 
 type ProfileMeta = { name: string; role: UserRole };
 
+function asRowArray(data: unknown): Record<string, unknown>[] {
+  if (data == null) return [];
+  if (Array.isArray(data)) return data as Record<string, unknown>[];
+  if (typeof data === "string") {
+    try {
+      const parsed = JSON.parse(data) as unknown;
+      return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  // Unexpected object shape — ignore, fall through to dual-select.
+  return [];
+}
+
+function withNames(
+  payment: Payment,
+  row: Record<string, unknown>,
+  byId?: Map<string, ProfileMeta>
+): Payment {
+  if (byId) {
+    const requester = byId.get(payment.requested_by);
+    return {
+      ...payment,
+      requester_name: requester?.name ?? null,
+      requester_role: requester?.role ?? null,
+      approver_name: payment.approved_by
+        ? (byId.get(payment.approved_by)?.name ?? null)
+        : null,
+      denier_name: payment.denied_by
+        ? (byId.get(payment.denied_by)?.name ?? null)
+        : null,
+      payer_name: payment.paid_by
+        ? (byId.get(payment.paid_by)?.name ?? null)
+        : null,
+    };
+  }
+  return {
+    ...payment,
+    requester_name: (row.requester_name as string | null) ?? null,
+    requester_role: (row.requester_role as UserRole | null) ?? null,
+    approver_name: (row.approver_name as string | null) ?? null,
+    denier_name: (row.denier_name as string | null) ?? null,
+    payer_name: (row.payer_name as string | null) ?? null,
+  };
+}
+
 /** Prefer session user id (local) over getUser() network round-trip. */
 export async function fetchMyProfile(
   userId?: string | null
@@ -36,33 +83,28 @@ export async function fetchMyProfile(
 }
 
 /**
- * Prefer one-RTT RPC (list_payments_ui). Falls back to parallel selects
- * if the function is not deployed yet.
+ * Prefer one-RTT RPC. Always falls back to dual select on any RPC failure
+ * so the Open tab never hangs blank.
  */
 export async function fetchPayments(): Promise<Payment[]> {
   const supabase = getSupabaseBrowserClient();
 
-  const rpc = await supabase.rpc("list_payments_ui");
-  if (!rpc.error && rpc.data != null) {
-    const rows = Array.isArray(rpc.data)
-      ? rpc.data
-      : typeof rpc.data === "string"
-        ? (JSON.parse(rpc.data) as unknown[])
-        : [];
-    return (rows as Record<string, unknown>[]).map((row) => {
-      const payment = mapPayment(row);
-      return {
-        ...payment,
-        requester_name: (row.requester_name as string | null) ?? null,
-        requester_role: (row.requester_role as UserRole | null) ?? null,
-        approver_name: (row.approver_name as string | null) ?? null,
-        denier_name: (row.denier_name as string | null) ?? null,
-        payer_name: (row.payer_name as string | null) ?? null,
-      };
-    });
+  try {
+    const rpc = await supabase.rpc("list_payments_ui");
+    if (!rpc.error && rpc.data != null) {
+      const rows = asRowArray(rpc.data);
+      // Empty array is valid; non-empty must map cleanly.
+      if (rows.length === 0 || (rows[0] && rows[0].id != null)) {
+        return rows.map((row) => {
+          const payment = mapPayment(row);
+          return withNames(payment, row);
+        });
+      }
+    }
+  } catch {
+    // fall through
   }
 
-  // Fallback: two parallel selects (pre-021 migration).
   const [paymentsRes, profilesRes] = await Promise.all([
     supabase
       .from("payments")
@@ -83,21 +125,7 @@ export async function fetchPayments(): Promise<Payment[]> {
 
   return (paymentsRes.data ?? []).map((row) => {
     const payment = mapPayment(row as Record<string, unknown>);
-    const requester = byId.get(payment.requested_by);
-    return {
-      ...payment,
-      requester_name: requester?.name ?? null,
-      requester_role: requester?.role ?? null,
-      approver_name: payment.approved_by
-        ? (byId.get(payment.approved_by)?.name ?? null)
-        : null,
-      denier_name: payment.denied_by
-        ? (byId.get(payment.denied_by)?.name ?? null)
-        : null,
-      payer_name: payment.paid_by
-        ? (byId.get(payment.paid_by)?.name ?? null)
-        : null,
-    };
+    return withNames(payment, row as Record<string, unknown>, byId);
   });
 }
 
@@ -181,10 +209,6 @@ export async function adminDeletePayment(paymentId: string): Promise<void> {
 /** History hard-delete retention window (days). UI still groups by week. */
 export const HISTORY_KEEP_DAYS = 30;
 
-/**
- * Hard-delete paid/denied history older than keepDays (default 30 / monthly).
- * Also removes previously soft-deleted history. Returns rows purged.
- */
 export async function purgeOldHistory(
   keepDays = HISTORY_KEEP_DAYS
 ): Promise<number> {
@@ -197,9 +221,8 @@ export async function purgeOldHistory(
 }
 
 const PURGE_FLAG = "nk_history_purge_at";
-const PURGE_EVERY_MS = 12 * 60 * 60 * 1000; // once per 12h per browser
+const PURGE_EVERY_MS = 12 * 60 * 60 * 1000;
 
-/** Fire monthly hard-delete retention at most once every few hours. */
 export async function maybePurgeOldHistory(): Promise<number> {
   try {
     const last = Number(
@@ -217,17 +240,11 @@ export async function maybePurgeOldHistory(): Promise<number> {
   }
 }
 
-/**
- * Edit an unpaid payment (pending / approved / denied).
- * Denied payments are resubmitted as pending.
- * Server rejects employees editing director-requested rows.
- */
 export async function editUnpaidPayment(input: {
   paymentId: string;
   party: string;
   amount: number;
   dueDate?: string | null;
-  /** Prior status — used only for push routing after denied resubmit. */
   priorStatus?: Payment["status"];
 }): Promise<Payment> {
   const supabase = getSupabaseBrowserClient();

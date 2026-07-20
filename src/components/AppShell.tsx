@@ -10,17 +10,13 @@ import { PushNotifications } from "@/components/PushNotifications";
 import { roleLabel } from "@/lib/ui";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { loading, ready, configured, session, profile, authHint, signOut } =
-    useAuth();
+  const { loading, configured, session, profile, signOut } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const isLogin = pathname === "/login";
 
-  // Warm path: last-visit hint or live session → paint app shell immediately.
-  const showApp = Boolean(session) || (authHint && (loading || !session));
-
   useEffect(() => {
-    if (!ready || loading) return;
+    if (loading) return;
     if (!configured && !isLogin) {
       router.replace("/login");
       return;
@@ -32,10 +28,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (session && isLogin) {
       router.replace("/open");
     }
-  }, [ready, loading, configured, session, isLogin, router]);
+  }, [loading, configured, session, isLogin, router]);
 
   useEffect(() => {
-    if (!session && !authHint) return;
+    if (!session) return;
     const run = () => {
       router.prefetch("/open");
       router.prefetch("/add");
@@ -48,10 +44,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     const t = window.setTimeout(run, 0);
     return () => window.clearTimeout(t);
-  }, [session, authHint, router]);
+  }, [session, router]);
 
-  // Cold first visit only (no cache, no session yet).
-  if (!ready || (loading && !authHint && !session)) {
+  // Cold auth only — warm profile/hint path starts loading=false.
+  if (loading) {
     return (
       <div className="flex min-h-full flex-col items-center justify-center gap-3 bg-slate-50 text-slate-600">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
@@ -69,7 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!showApp) {
+  if (!session) {
     return (
       <div className="flex min-h-full items-center justify-center bg-slate-50 text-sm text-slate-600">
         Redirecting…
