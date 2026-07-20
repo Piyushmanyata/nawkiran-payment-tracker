@@ -50,14 +50,14 @@ export default function OpenPage() {
     for (const p of payments) {
       if (p.status === "pending") pendingList.push(p);
       else if (p.status === "approved") outstandingList.push(p);
-      else if (p.status === "denied" && canEdit) correctable.push(p);
+      else if (p.status === "denied" && canEditPayment(role, p)) correctable.push(p);
     }
     return {
       pending: pendingList,
       outstanding: outstandingList,
       correctableDenied: correctable,
     };
-  }, [payments, canEdit]);
+  }, [payments, role]);
 
   const showPending = canApprove(role);
   const showOutstanding =

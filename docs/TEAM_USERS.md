@@ -18,8 +18,8 @@ source control.
 | Add payment | Yes | Yes, auto-approved | Yes | Yes, auto-approved |
 | Approve / deny | No | Yes | No | Yes |
 | Mark paid | Yes | No | Yes | Yes |
-| Correct own denied payment | Yes | Yes | Yes | Yes |
-| Correct any denied payment | No | No | No | Yes |
+| Edit unpaid (pending/approved/denied) | Other staff (not director) | Yes (incl. own) | Other staff (not director) | Yes |
+| Edit director-requested payments | No | Yes | No | Yes |
 | View active history | Yes | Yes | Yes | Yes |
 
 Admin removal is a soft delete: the payment is hidden from the active UI while

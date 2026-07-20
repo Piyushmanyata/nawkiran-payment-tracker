@@ -42,6 +42,8 @@ export interface Payment {
   client_request_id: string;
   /** Joined display name when available */
   requester_name?: string | null;
+  /** Joined role of requester — used to protect director-owned rows */
+  requester_role?: UserRole | null;
   approver_name?: string | null;
   denier_name?: string | null;
   payer_name?: string | null;

@@ -10,14 +10,21 @@ export function canMarkPaid(role: UserRole | null | undefined): boolean {
   return role === "employee" || role === "accounts" || role === "admin";
 }
 
-/** Staff may edit unpaid payments (pending / approved / denied). */
-export function canEditPayment(role: UserRole | null | undefined): boolean {
-  return (
-    role === "employee" ||
-    role === "director" ||
-    role === "accounts" ||
-    role === "admin"
-  );
+/**
+ * Staff may edit unpaid payments.
+ * Employees/accounts may edit each others' — never director-requested ones.
+ * Pass `payment` for the per-row guard; omit for a role-level capability check.
+ */
+export function canEditPayment(
+  role: UserRole | null | undefined,
+  payment?: { requester_role?: UserRole | null } | null
+): boolean {
+  if (!role) return false;
+  if (role === "director" || role === "admin") return true;
+  if (role !== "employee" && role !== "accounts") return false;
+  // Employees can edit each other; director payments are director-only.
+  if (payment?.requester_role === "director") return false;
+  return true;
 }
 
 /** Anyone with a staff role may add a payment request. */

@@ -177,7 +177,9 @@ export default function HistoryPage() {
               payment={p}
               role={role}
               onEdit={
-                p.status === "denied" && canEdit ? setEditTarget : undefined
+                p.status === "denied" && canEditPayment(role, p)
+                  ? setEditTarget
+                  : undefined
               }
               onDelete={canDeleteHistory(role) ? setDeleteTarget : undefined}
             />

@@ -44,7 +44,7 @@ function PaymentCardInner({
     payment.status === "approved" ||
     payment.status === "denied";
 
-  const showEdit = unpaid && roleCanEdit(role) && Boolean(onEdit);
+  const showEdit = unpaid && roleCanEdit(role, payment) && Boolean(onEdit);
   const editLabel =
     payment.status === "denied" ? "Correct & resubmit" : "Edit";
 

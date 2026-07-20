@@ -40,10 +40,10 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Role | Can do |
 |---|---|
-| employee | Add payments; see the team list; mark approved payments paid; correct own denied requests |
-| director | Add auto-approved payments; approve / deny pending requests |
-| accounts | Add payments; see the team list; mark approved payments paid; correct own denied requests |
-| admin | All actions; correct any denied request; remove history from the active UI |
+| employee | Add payments; mark approved paid; edit other staff unpaid rows (not director-requested) |
+| director | Add auto-approved payments; approve / deny; edit any unpaid including own |
+| accounts | Add payments; mark approved paid; edit other staff unpaid rows (not director-requested) |
+| admin | All actions; edit any unpaid; remove history from the active UI |
 
 Admin removal is a soft delete: the payment disappears from the active UI while its event trail remains in the database.
 

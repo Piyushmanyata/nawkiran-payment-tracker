@@ -45,6 +45,19 @@ test("staff can edit unpaid payments via edit_unpaid_payment", () => {
   assert.match(migration, /revoke all on function public\.edit_unpaid_payment/i);
 });
 
+test("employees cannot edit director-requested payments", () => {
+  const migration = sql["016_director_edit_guard_and_speed.sql"];
+  assert.ok(migration, "016_director_edit_guard_and_speed migration missing");
+  assert.match(migration, /me\.role in \('employee', 'accounts'\)/i);
+  assert.match(migration, /requester_role = 'director'/i);
+  assert.match(migration, /raise exception 'NOT_AUTHORISED'/i);
+  assert.match(migration, /payments_active_status_requested_at_idx/i);
+
+  const roles = readFileSync(join(process.cwd(), "src", "lib", "roles.ts"), "utf8");
+  assert.match(roles, /requester_role === "director"/);
+  assert.match(roles, /role === "director" \|\| role === "admin"/);
+});
+
 test("push targets are restricted to the lifecycle actor", () => {
   const hardening = migrations.find((name) =>
     name.endsWith("_audit_names_push_hardening.sql")

@@ -1,7 +1,7 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
-const DEBOUNCE_MS = 80;
+const DEBOUNCE_MS = 250;
 
 export type PaymentsRealtimeHandlers = {
   /** Full reload fallback (online / visibility / unhandled events). */
