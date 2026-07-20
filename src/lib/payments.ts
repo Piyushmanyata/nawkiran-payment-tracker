@@ -157,11 +157,16 @@ export async function adminDeletePayment(paymentId: string): Promise<void> {
   if (error) throw error;
 }
 
+/** History hard-delete retention window (days). UI still groups by week. */
+export const HISTORY_KEEP_DAYS = 30;
+
 /**
- * Hard-delete paid/denied history older than keepDays (default 7).
+ * Hard-delete paid/denied history older than keepDays (default 30 / monthly).
  * Also removes previously soft-deleted history. Returns rows purged.
  */
-export async function purgeOldHistory(keepDays = 7): Promise<number> {
+export async function purgeOldHistory(
+  keepDays = HISTORY_KEEP_DAYS
+): Promise<number> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.rpc("purge_old_payment_history", {
     p_keep_days: keepDays,
@@ -173,7 +178,7 @@ export async function purgeOldHistory(keepDays = 7): Promise<number> {
 const PURGE_FLAG = "nk_history_purge_at";
 const PURGE_EVERY_MS = 6 * 60 * 60 * 1000; // once per 6 hours per browser tab session
 
-/** Fire weekly hard-delete retention at most once every few hours. */
+/** Fire monthly hard-delete retention at most once every few hours. */
 export async function maybePurgeOldHistory(): Promise<number> {
   try {
     const last = Number(
@@ -185,7 +190,7 @@ export async function maybePurgeOldHistory(): Promise<number> {
     if (typeof sessionStorage !== "undefined") {
       sessionStorage.setItem(PURGE_FLAG, String(Date.now()));
     }
-    return await purgeOldHistory(7);
+    return await purgeOldHistory(HISTORY_KEEP_DAYS);
   } catch {
     return 0;
   }

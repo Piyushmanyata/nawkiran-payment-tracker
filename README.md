@@ -45,7 +45,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | accounts | Add payments; mark approved paid; edit other staff unpaid rows (not director-requested) |
 | admin | All actions; edit any unpaid; remove history from the active UI |
 
-History is grouped by week (collapsible). Paid/denied rows older than **7 days** are **hard-deleted** automatically (events included) to save database space.
+History is grouped by week (collapsible). Paid/denied rows older than **30 days** are **hard-deleted** automatically (events included) to save database space.
 
 Admin removal is a soft delete: the payment disappears from the active UI while its event trail remains in the database.
 
