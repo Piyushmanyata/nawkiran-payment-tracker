@@ -43,7 +43,7 @@ export default function HistoryPage() {
   const [busy, setBusy] = useState(false);
   const canEdit = canEditPayment(role);
 
-  // Weekly retention: soft-delete history older than 7 days (throttled).
+  // Weekly retention: hard-delete history older than 7 days (throttled).
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -123,7 +123,7 @@ export default function HistoryPage() {
           {canEdit ? " · denied can be corrected" : ""}
         </p>
         <p className="mt-1 text-xs text-slate-400">
-          Older than 7 days is removed automatically (audit kept).
+          Older than 7 days is permanently deleted to save space.
         </p>
       </div>
 

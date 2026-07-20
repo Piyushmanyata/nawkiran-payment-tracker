@@ -158,8 +158,8 @@ export async function adminDeletePayment(paymentId: string): Promise<void> {
 }
 
 /**
- * Soft-delete paid/denied history older than keepDays (default 7).
- * Returns how many rows were purged. Safe to call often (idempotent).
+ * Hard-delete paid/denied history older than keepDays (default 7).
+ * Also removes previously soft-deleted history. Returns rows purged.
  */
 export async function purgeOldHistory(keepDays = 7): Promise<number> {
   const supabase = getSupabaseBrowserClient();
@@ -173,7 +173,7 @@ export async function purgeOldHistory(keepDays = 7): Promise<number> {
 const PURGE_FLAG = "nk_history_purge_at";
 const PURGE_EVERY_MS = 6 * 60 * 60 * 1000; // once per 6 hours per browser tab session
 
-/** Fire weekly retention purge at most once every few hours. */
+/** Fire weekly hard-delete retention at most once every few hours. */
 export async function maybePurgeOldHistory(): Promise<number> {
   try {
     const last = Number(
