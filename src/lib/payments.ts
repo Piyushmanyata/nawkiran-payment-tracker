@@ -158,6 +158,40 @@ export async function adminDeletePayment(paymentId: string): Promise<void> {
 }
 
 /**
+ * Soft-delete paid/denied history older than keepDays (default 7).
+ * Returns how many rows were purged. Safe to call often (idempotent).
+ */
+export async function purgeOldHistory(keepDays = 7): Promise<number> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("purge_old_payment_history", {
+    p_keep_days: keepDays,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+const PURGE_FLAG = "nk_history_purge_at";
+const PURGE_EVERY_MS = 6 * 60 * 60 * 1000; // once per 6 hours per browser tab session
+
+/** Fire weekly retention purge at most once every few hours. */
+export async function maybePurgeOldHistory(): Promise<number> {
+  try {
+    const last = Number(
+      typeof sessionStorage !== "undefined"
+        ? sessionStorage.getItem(PURGE_FLAG) || 0
+        : 0
+    );
+    if (Date.now() - last < PURGE_EVERY_MS) return 0;
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem(PURGE_FLAG, String(Date.now()));
+    }
+    return await purgeOldHistory(7);
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Edit an unpaid payment (pending / approved / denied).
  * Denied payments are resubmitted as pending.
  * Server rejects employees editing director-requested rows.

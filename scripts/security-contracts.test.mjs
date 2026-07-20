@@ -185,6 +185,33 @@ test("admin removal preserves events and remains authenticated-only", () => {
   assert.match(migration, /revoke all on function public\.admin_delete_payment\(uuid\) from anon/i);
 });
 
+test("weekly history retention soft-deletes old paid and denied rows", () => {
+  const migration = sql["018_history_weekly_retention.sql"];
+  assert.ok(migration, "018_history_weekly_retention migration missing");
+  assert.match(migration, /create or replace function public\.purge_old_payment_history/i);
+  assert.match(migration, /p_keep_days integer default 7/i);
+  assert.match(migration, /status in \('paid', 'denied'\)/i);
+  assert.match(migration, /deleted_at = now\(\)/i);
+  assert.match(migration, /Auto-removed: weekly history retention/i);
+  assert.match(migration, /grant execute on function public\.purge_old_payment_history/i);
+  assert.doesNotMatch(migration, /status in \('pending', 'approved'\)/);
+
+  const historyWeeks = readFileSync(
+    join(process.cwd(), "src", "lib", "history-weeks.ts"),
+    "utf8"
+  );
+  assert.match(historyWeeks, /groupHistoryByWeek/);
+  assert.match(historyWeeks, /This week/);
+  assert.match(historyWeeks, /Last week/);
+
+  const historyPage = readFileSync(
+    join(process.cwd(), "src", "app", "history", "page.tsx"),
+    "utf8"
+  );
+  assert.match(historyPage, /HistoryWeekList/);
+  assert.match(historyPage, /maybePurgeOldHistory/);
+});
+
 test("gone push endpoints are purged after terminal delivery failures", () => {
   const purge = migrations.find((name) =>
     name.endsWith("_purge_gone_push_endpoints.sql")

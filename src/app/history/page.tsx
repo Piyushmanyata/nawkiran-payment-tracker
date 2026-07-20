@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
-import { PaymentCard } from "@/components/PaymentCard";
 import { PaymentTotals } from "@/components/PaymentTotals";
 import { LoadingButton } from "@/components/LoadingButton";
 import { EmptyState } from "@/components/EmptyState";
@@ -10,8 +9,13 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageLoading } from "@/components/PageLoading";
 import { Modal } from "@/components/Modal";
 import { CorrectPaymentDialog } from "@/components/CorrectPaymentDialog";
+import { HistoryWeekList } from "@/components/HistoryWeekList";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
-import { adminDeletePayment, editUnpaidPayment } from "@/lib/payments";
+import {
+  adminDeletePayment,
+  editUnpaidPayment,
+  maybePurgeOldHistory,
+} from "@/lib/payments";
 import { userMessageFromError } from "@/lib/errors";
 import { canDeleteHistory, canEditPayment } from "@/lib/roles";
 import { formatInr } from "@/lib/format";
@@ -39,6 +43,18 @@ export default function HistoryPage() {
   const [busy, setBusy] = useState(false);
   const canEdit = canEditPayment(role);
 
+  // Weekly retention: soft-delete history older than 7 days (throttled).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const n = await maybePurgeOldHistory();
+      if (!cancelled && n > 0) await reload();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reload]);
+
   const history = useMemo(() => {
     const q = query.trim().toLowerCase();
     return payments
@@ -46,6 +62,8 @@ export default function HistoryPage() {
       .filter((p) => (filter === "all" ? true : p.status === filter))
       .filter((p) => (q ? p.party.toLowerCase().includes(q) : true));
   }, [payments, query, filter]);
+
+  const searching = query.trim().length > 0;
 
   async function doDelete() {
     if (!deleteTarget) return;
@@ -101,8 +119,11 @@ export default function HistoryPage() {
           History
         </h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Paid and denied payments
-          {canEdit ? " · denied items can be corrected and resubmitted" : ""}
+          Paid and denied · grouped by week
+          {canEdit ? " · denied can be corrected" : ""}
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          Older than 7 days is removed automatically (audit kept).
         </p>
       </div>
 
@@ -110,7 +131,7 @@ export default function HistoryPage() {
 
       {canDeleteHistory(role) ? (
         <p className="text-xs text-slate-500">
-          As admin you can remove paid or denied items while retaining their audit trail.
+          As admin you can remove items early; the audit trail is retained.
         </p>
       ) : null}
 
@@ -166,25 +187,17 @@ export default function HistoryPage() {
           text={
             query.trim() || filter !== "all"
               ? "No matching history."
-              : "No history yet."
+              : "No history this week yet."
           }
         />
       ) : (
-        <div className="space-y-3">
-          {history.map((p) => (
-            <PaymentCard
-              key={p.id}
-              payment={p}
-              role={role}
-              onEdit={
-                p.status === "denied" && canEditPayment(role, p)
-                  ? setEditTarget
-                  : undefined
-              }
-              onDelete={canDeleteHistory(role) ? setDeleteTarget : undefined}
-            />
-          ))}
-        </div>
+        <HistoryWeekList
+          payments={history}
+          role={role}
+          forceExpandAll={searching}
+          onEdit={setEditTarget}
+          onDelete={setDeleteTarget}
+        />
       )}
 
       <Modal
@@ -196,7 +209,8 @@ export default function HistoryPage() {
       >
         <p className="mt-2 text-base text-slate-700">
           Remove {formatInr(deleteTarget?.amount ?? 0)} for{" "}
-          {deleteTarget?.party} from the active history? Its audit record will be retained.
+          {deleteTarget?.party} from the active history? Its audit record will
+          be retained.
         </p>
         <div className="mt-5 grid grid-cols-2 gap-3">
           <LoadingButton
