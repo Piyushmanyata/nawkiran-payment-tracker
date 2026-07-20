@@ -188,7 +188,7 @@ export default function HistoryPage() {
           text={
             query.trim() || filter !== "all"
               ? "No matching history."
-              : "No history this week yet."
+              : "No paid or denied payments yet."
           }
         />
       ) : (

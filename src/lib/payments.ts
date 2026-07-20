@@ -109,6 +109,7 @@ export async function fetchPayments(): Promise<Payment[]> {
     supabase
       .from("payments")
       .select(PAYMENT_COLUMNS)
+      .is("deleted_at", null)
       .order("requested_at", { ascending: false }),
     supabase.from("profiles").select("id, full_name, role"),
   ]);
@@ -231,10 +232,12 @@ export async function maybePurgeOldHistory(): Promise<number> {
         : 0
     );
     if (Date.now() - last < PURGE_EVERY_MS) return 0;
+    const n = await purgeOldHistory(HISTORY_KEEP_DAYS);
+    // Only stamp after success so a failed purge can retry next visit.
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(PURGE_FLAG, String(Date.now()));
     }
-    return await purgeOldHistory(HISTORY_KEEP_DAYS);
+    return n;
   } catch {
     return 0;
   }

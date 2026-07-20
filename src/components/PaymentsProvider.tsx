@@ -165,10 +165,11 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
         setPayments(warm);
         rememberMeta(warm);
         hasData.current = true;
-        lastLoadAt.current = performance.now();
+        // Do not stamp lastLoadAt — that would skip the silent revalidate below.
         setLoading(false);
       }
-      void load({ silent: Boolean(warm) });
+      // Always revalidate once on mount; FRESH_MS only throttles later silent refresh.
+      void load({ silent: Boolean(warm), force: true });
     }, 0);
 
     // Absolute safety: never spin longer than 8s.
