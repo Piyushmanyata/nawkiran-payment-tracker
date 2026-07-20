@@ -10,6 +10,16 @@ export function canMarkPaid(role: UserRole | null | undefined): boolean {
   return role === "employee" || role === "accounts" || role === "admin";
 }
 
+/** Staff may edit unpaid payments (pending / approved / denied). */
+export function canEditPayment(role: UserRole | null | undefined): boolean {
+  return (
+    role === "employee" ||
+    role === "director" ||
+    role === "accounts" ||
+    role === "admin"
+  );
+}
+
 /** Anyone with a staff role may add a payment request. */
 export function canCreatePayment(role: UserRole | null | undefined): boolean {
   return (

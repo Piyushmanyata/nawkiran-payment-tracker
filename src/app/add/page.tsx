@@ -17,7 +17,7 @@ export default function AddPage() {
         <p className="mt-0.5 text-sm text-slate-500">
           {autoApprove
             ? "Party and amount are required. Your request will be approved automatically."
-            : "Party and amount are required. Due date and purpose are optional."}
+            : "Party and amount are required. Due date is optional."}
         </p>
       </div>
       <AddPaymentForm />

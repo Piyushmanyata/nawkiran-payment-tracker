@@ -33,14 +33,16 @@ test("migrations never provision Auth users or fixed passwords", () => {
   assert.doesNotMatch(allSql, /crypt\s*\(\s*'/);
 });
 
-test("denied corrections are requester-scoped except for admins", () => {
-  const hardening = migrations.find((name) =>
-    name.endsWith("_audit_names_push_hardening.sql")
-  );
-  assert.match(
-    sql[hardening],
-    /row\.requested_by\s*<>\s*me\.id\s+and\s+me\.role\s*<>\s*'admin'/i
-  );
+test("staff can edit unpaid payments via edit_unpaid_payment", () => {
+  const migration = sql["015_edit_unpaid_payment.sql"];
+  assert.ok(migration, "015_edit_unpaid_payment migration missing");
+  assert.match(migration, /create or replace function public\.edit_unpaid_payment/i);
+  assert.match(migration, /me\.role not in \('employee', 'director', 'accounts', 'admin'\)/i);
+  assert.match(migration, /if row\.status = 'paid'/i);
+  assert.match(migration, /event_action := 'edited'/i);
+  assert.match(migration, /event_action := 'resubmitted'/i);
+  assert.match(migration, /grant execute on function public\.edit_unpaid_payment/i);
+  assert.match(migration, /revoke all on function public\.edit_unpaid_payment/i);
 });
 
 test("push targets are restricted to the lifecycle actor", () => {
@@ -166,3 +168,4 @@ test("gone push endpoints are purged after terminal delivery failures", () => {
   assert.match(delivery, /status === 404 \|\| status === 410|lastStatus === 404 \|\| lastStatus === 410/);
   assert.match(delivery, /"gone"/);
 });
+

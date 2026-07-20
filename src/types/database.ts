@@ -56,6 +56,7 @@ export interface PaymentEvent {
     | "denied"
     | "paid"
     | "resubmitted"
+    | "edited"
     | "admin_deleted";
   performed_by: string;
   old_status: PaymentStatus | null;

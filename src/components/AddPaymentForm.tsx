@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type WheelEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
@@ -16,6 +16,10 @@ import {
 } from "@/lib/ui";
 import { LoadingButton } from "@/components/LoadingButton";
 
+function blockNumberWheel(e: WheelEvent<HTMLInputElement>) {
+  e.currentTarget.blur();
+}
+
 export function AddPaymentForm() {
   const router = useRouter();
   const { profile } = useAuth();
@@ -24,7 +28,6 @@ export function AddPaymentForm() {
   const [party, setParty] = useState("");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [purpose, setPurpose] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -55,7 +58,6 @@ export function AddPaymentForm() {
         party: partyClean,
         amount: Math.round(amountNum * 100) / 100,
         dueDate: dueDate || null,
-        purpose: purpose.trim() || null,
         clientRequestId: requestId.current,
       });
       upsertPayment({
@@ -71,7 +73,6 @@ export function AddPaymentForm() {
       setParty("");
       setAmount("");
       setDueDate("");
-      setPurpose("");
       window.setTimeout(() => router.push("/open"), 400);
     } catch (err) {
       setError(userMessageFromError(err));
@@ -108,6 +109,7 @@ export function AddPaymentForm() {
             step="0.01"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            onWheel={blockNumberWheel}
             placeholder="0.00"
             className={`${fieldClass} pl-8`}
           />
@@ -120,19 +122,6 @@ export function AddPaymentForm() {
           type="date"
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
-          className={fieldClass}
-        />
-        <span className={hintClass}>Optional</span>
-      </label>
-
-      <label className="block">
-        <span className={labelClass}>Purpose / note</span>
-        <textarea
-          maxLength={500}
-          rows={3}
-          value={purpose}
-          onChange={(e) => setPurpose(e.target.value)}
-          placeholder="What is this payment for?"
           className={fieldClass}
         />
         <span className={hintClass}>Optional</span>

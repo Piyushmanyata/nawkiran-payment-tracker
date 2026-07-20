@@ -13,13 +13,13 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageLoading } from "@/components/PageLoading";
 import {
   approvePayment,
-  correctDeniedPayment,
   denyPayment,
+  editUnpaidPayment,
   markPaymentPaid,
 } from "@/lib/payments";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { userMessageFromError } from "@/lib/errors";
-import { canApprove, canMarkPaid } from "@/lib/roles";
+import { canApprove, canEditPayment, canMarkPaid } from "@/lib/roles";
 import type { Payment } from "@/types/database";
 
 export default function OpenPage() {
@@ -38,9 +38,11 @@ export default function OpenPage() {
   const [approveTarget, setApproveTarget] = useState<Payment | null>(null);
   const [denyTarget, setDenyTarget] = useState<Payment | null>(null);
   const [paidTarget, setPaidTarget] = useState<Payment | null>(null);
-  const [correctTarget, setCorrectTarget] = useState<Payment | null>(null);
+  const [editTarget, setEditTarget] = useState<Payment | null>(null);
 
-  // Single pass over payments (was 4 separate filters)
+  const canEdit = canEditPayment(role);
+
+  // Single pass over payments
   const { pending, outstanding, correctableDenied } = useMemo(() => {
     const pendingList: Payment[] = [];
     const outstandingList: Payment[] = [];
@@ -48,19 +50,14 @@ export default function OpenPage() {
     for (const p of payments) {
       if (p.status === "pending") pendingList.push(p);
       else if (p.status === "approved") outstandingList.push(p);
-      else if (
-        p.status === "denied" &&
-        (p.requested_by === profile?.id || role === "admin")
-      ) {
-        correctable.push(p);
-      }
+      else if (p.status === "denied" && canEdit) correctable.push(p);
     }
     return {
       pending: pendingList,
       outstanding: outstandingList,
       correctableDenied: correctable,
     };
-  }, [payments, profile?.id, role]);
+  }, [payments, canEdit]);
 
   const showPending = canApprove(role);
   const showOutstanding =
@@ -119,28 +116,28 @@ export default function OpenPage() {
     }
   }
 
-  async function doCorrect(input: {
+  async function doEdit(input: {
     party: string;
     amount: number;
     dueDate: string | null;
-    purpose: string | null;
   }) {
-    if (!correctTarget) return;
+    if (!editTarget) return;
     setBusy(true);
     try {
-      const updated = await correctDeniedPayment({
-        paymentId: correctTarget.id,
+      const prior = editTarget.status;
+      const updated = await editUnpaidPayment({
+        paymentId: editTarget.id,
         party: input.party,
         amount: input.amount,
         dueDate: input.dueDate,
-        purpose: input.purpose,
+        priorStatus: prior,
       });
-      upsertPayment({
-        ...updated,
-        approver_name: null,
-        denier_name: null,
-      });
-      setCorrectTarget(null);
+      upsertPayment(
+        prior === "denied"
+          ? { ...updated, approver_name: null, denier_name: null }
+          : updated
+      );
+      setEditTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -157,7 +154,7 @@ export default function OpenPage() {
       <div>
         <h1 className="text-xl font-bold tracking-tight text-slate-900">Open</h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Pending approvals, corrections, and outstanding payouts
+          Pending approvals, edits, and outstanding payouts
         </p>
       </div>
 
@@ -185,7 +182,7 @@ export default function OpenPage() {
               key={p.id}
               payment={p}
               role={role}
-              onCorrect={setCorrectTarget}
+              onEdit={setEditTarget}
             />
           ))}
         </section>
@@ -207,6 +204,7 @@ export default function OpenPage() {
                 role={role}
                 onApprove={setApproveTarget}
                 onDeny={setDenyTarget}
+                onEdit={canEdit ? setEditTarget : undefined}
               />
             ))
           )}
@@ -223,7 +221,12 @@ export default function OpenPage() {
             <EmptyState text="No payments waiting for approval." />
           ) : (
             pending.map((p) => (
-              <PaymentCard key={p.id} payment={p} role={role} />
+              <PaymentCard
+                key={p.id}
+                payment={p}
+                role={role}
+                onEdit={canEdit ? setEditTarget : undefined}
+              />
             ))
           )}
         </section>
@@ -241,6 +244,7 @@ export default function OpenPage() {
                 payment={p}
                 role={role}
                 onMarkPaid={outstandingMarkPaid ? setPaidTarget : undefined}
+                onEdit={canEdit ? setEditTarget : undefined}
               />
             ))
           )}
@@ -270,11 +274,11 @@ export default function OpenPage() {
         onConfirm={() => void doMarkPaid()}
       />
       <CorrectPaymentDialog
-        open={Boolean(correctTarget)}
-        payment={correctTarget}
+        open={Boolean(editTarget)}
+        payment={editTarget}
         loading={busy}
-        onCancel={() => setCorrectTarget(null)}
-        onConfirm={(input) => void doCorrect(input)}
+        onCancel={() => setEditTarget(null)}
+        onConfirm={(input) => void doEdit(input)}
       />
     </div>
   );

@@ -11,9 +11,9 @@ import { PageLoading } from "@/components/PageLoading";
 import { Modal } from "@/components/Modal";
 import { CorrectPaymentDialog } from "@/components/CorrectPaymentDialog";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
-import { adminDeletePayment, correctDeniedPayment } from "@/lib/payments";
+import { adminDeletePayment, editUnpaidPayment } from "@/lib/payments";
 import { userMessageFromError } from "@/lib/errors";
-import { canDeleteHistory } from "@/lib/roles";
+import { canDeleteHistory, canEditPayment } from "@/lib/roles";
 import { formatInr } from "@/lib/format";
 import { fieldClass } from "@/lib/ui";
 import type { Payment } from "@/types/database";
@@ -35,10 +35,9 @@ export default function HistoryPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
-  const [correctTarget, setCorrectTarget] = useState<Payment | null>(null);
+  const [editTarget, setEditTarget] = useState<Payment | null>(null);
   const [busy, setBusy] = useState(false);
-  const canCorrect = (payment: Payment) =>
-    payment.requested_by === profile?.id || role === "admin";
+  const canEdit = canEditPayment(role);
 
   const history = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -63,28 +62,27 @@ export default function HistoryPage() {
     }
   }
 
-  async function doCorrect(input: {
+  async function doEdit(input: {
     party: string;
     amount: number;
     dueDate: string | null;
-    purpose: string | null;
   }) {
-    if (!correctTarget) return;
+    if (!editTarget) return;
     setBusy(true);
     try {
-      const updated = await correctDeniedPayment({
-        paymentId: correctTarget.id,
+      const updated = await editUnpaidPayment({
+        paymentId: editTarget.id,
         party: input.party,
         amount: input.amount,
         dueDate: input.dueDate,
-        purpose: input.purpose,
+        priorStatus: "denied",
       });
       upsertPayment({
         ...updated,
         approver_name: null,
         denier_name: null,
       });
-      setCorrectTarget(null);
+      setEditTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -103,8 +101,8 @@ export default function HistoryPage() {
           History
         </h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Paid payments
-          {profile ? " · your denied items can be corrected and resubmitted" : " and denied payments"}
+          Paid and denied payments
+          {canEdit ? " · denied items can be corrected and resubmitted" : ""}
         </p>
       </div>
 
@@ -178,10 +176,8 @@ export default function HistoryPage() {
               key={p.id}
               payment={p}
               role={role}
-              onCorrect={
-                p.status === "denied" && canCorrect(p)
-                  ? setCorrectTarget
-                  : undefined
+              onEdit={
+                p.status === "denied" && canEdit ? setEditTarget : undefined
               }
               onDelete={canDeleteHistory(role) ? setDeleteTarget : undefined}
             />
@@ -220,11 +216,11 @@ export default function HistoryPage() {
       </Modal>
 
       <CorrectPaymentDialog
-        open={Boolean(correctTarget)}
-        payment={correctTarget}
+        open={Boolean(editTarget)}
+        payment={editTarget}
         loading={busy}
-        onCancel={() => setCorrectTarget(null)}
-        onConfirm={(input) => void doCorrect(input)}
+        onCancel={() => setEditTarget(null)}
+        onConfirm={(input) => void doEdit(input)}
       />
     </div>
   );

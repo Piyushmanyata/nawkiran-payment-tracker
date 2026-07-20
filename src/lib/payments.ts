@@ -101,7 +101,6 @@ export async function createPayment(input: {
   party: string;
   amount: number;
   dueDate?: string | null;
-  purpose?: string | null;
   clientRequestId: string;
 }): Promise<Payment> {
   const supabase = getSupabaseBrowserClient();
@@ -110,7 +109,7 @@ export async function createPayment(input: {
     p_amount: input.amount,
     p_client_request_id: input.clientRequestId,
     p_due_date: input.dueDate || null,
-    p_purpose: input.purpose || null,
+    p_purpose: null,
   });
 
   if (error) throw error;
@@ -167,24 +166,30 @@ export async function adminDeletePayment(paymentId: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Edit a denied payment and resubmit it as pending. */
-export async function correctDeniedPayment(input: {
+/**
+ * Edit an unpaid payment (pending / approved / denied).
+ * Denied payments are resubmitted as pending.
+ */
+export async function editUnpaidPayment(input: {
   paymentId: string;
   party: string;
   amount: number;
   dueDate?: string | null;
-  purpose?: string | null;
+  /** Prior status — used only for push routing after denied resubmit. */
+  priorStatus?: Payment["status"];
 }): Promise<Payment> {
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.rpc("correct_denied_payment", {
+  const { data, error } = await supabase.rpc("edit_unpaid_payment", {
     p_payment_id: input.paymentId,
     p_party: input.party,
     p_amount: input.amount,
     p_due_date: input.dueDate || null,
-    p_purpose: input.purpose || null,
   });
   if (error) throw error;
   const payment = mapPayment(data as Record<string, unknown>);
-  await firePaymentPush(notifyPaymentEvent, payment.id, "pending");
+  if (input.priorStatus === "denied") {
+    await firePaymentPush(notifyPaymentEvent, payment.id, "pending");
+  }
   return payment;
 }
+

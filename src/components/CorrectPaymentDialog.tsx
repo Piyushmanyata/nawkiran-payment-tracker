@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type WheelEvent } from "react";
 import type { Payment } from "@/types/database";
 import { LoadingButton } from "@/components/LoadingButton";
 import { Modal } from "@/components/Modal";
@@ -10,6 +10,11 @@ import {
   hintClass,
   labelClass,
 } from "@/lib/ui";
+
+/** Stop mouse-wheel from changing focused number inputs. */
+function blockNumberWheel(e: WheelEvent<HTMLInputElement>) {
+  e.currentTarget.blur();
+}
 
 export function CorrectPaymentDialog({
   open,
@@ -26,14 +31,12 @@ export function CorrectPaymentDialog({
     party: string;
     amount: number;
     dueDate: string | null;
-    purpose: string | null;
   }) => void;
 }) {
   if (!open || !payment) return null;
 
-  // key on inner form remounts with fresh fields per payment open.
   return (
-    <CorrectForm
+    <EditForm
       key={payment.id + ":" + (payment.updated_at ?? "")}
       payment={payment}
       loading={loading}
@@ -43,7 +46,7 @@ export function CorrectPaymentDialog({
   );
 }
 
-function CorrectForm({
+function EditForm({
   payment,
   loading,
   onCancel,
@@ -56,13 +59,12 @@ function CorrectForm({
     party: string;
     amount: number;
     dueDate: string | null;
-    purpose: string | null;
   }) => void;
 }) {
+  const denied = payment.status === "denied";
   const [party, setParty] = useState(payment.party);
   const [amount, setAmount] = useState(String(payment.amount));
   const [dueDate, setDueDate] = useState(payment.due_date ?? "");
-  const [purpose, setPurpose] = useState(payment.purpose ?? "");
   const [error, setError] = useState<string | null>(null);
 
   function onSubmit(e: FormEvent) {
@@ -85,26 +87,27 @@ function CorrectForm({
       party: partyClean,
       amount: Math.round(amountNum * 100) / 100,
       dueDate: dueDate || null,
-      purpose: purpose.trim() || null,
     });
   }
 
   return (
     <Modal
       open
-      titleId="correct-title"
-      title="Correct & resubmit"
+      titleId="edit-payment-title"
+      title={denied ? "Correct & resubmit" : "Edit payment"}
       onClose={onCancel}
       disableClose={loading}
     >
-      {payment.denial_reason ? (
+      {denied && payment.denial_reason ? (
         <div className="mt-3 rounded-xl bg-red-50 px-3 py-2.5 text-sm text-red-800">
           <p className="font-semibold">Denied — please fix and resubmit</p>
           <p className="mt-1">{payment.denial_reason}</p>
         </div>
       ) : (
         <p className="mt-2 text-sm text-slate-600">
-          Update the details below and resubmit for approval.
+          {denied
+            ? "Update the details below and resubmit for approval."
+            : "Update details. Changes are allowed until the payment is marked paid."}
         </p>
       )}
 
@@ -134,6 +137,7 @@ function CorrectForm({
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              onWheel={blockNumberWheel}
               className={`${fieldClass} pl-8`}
             />
           </div>
@@ -145,18 +149,6 @@ function CorrectForm({
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
-            className={fieldClass}
-          />
-          <span className={hintClass}>Optional</span>
-        </label>
-
-        <label className="block">
-          <span className={labelClass}>Purpose / note</span>
-          <textarea
-            maxLength={500}
-            rows={3}
-            value={purpose}
-            onChange={(e) => setPurpose(e.target.value)}
             className={fieldClass}
           />
           <span className={hintClass}>Optional</span>
@@ -178,7 +170,7 @@ function CorrectForm({
             loading={loading}
             loadingText="Saving..."
           >
-            Resubmit
+            {denied ? "Resubmit" : "Save"}
           </LoadingButton>
         </div>
       </form>

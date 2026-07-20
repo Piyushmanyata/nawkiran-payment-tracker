@@ -6,6 +6,7 @@ import { formatDueLabel, formatInr, isOverdue } from "@/lib/format";
 import {
   canApprove as roleCanApprove,
   canDeleteHistory,
+  canEditPayment as roleCanEdit,
   canMarkPaid as roleCanMarkPaid,
 } from "@/lib/roles";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -18,7 +19,7 @@ function PaymentCardInner({
   onDeny,
   onMarkPaid,
   onDelete,
-  onCorrect,
+  onEdit,
 }: {
   payment: Payment;
   role: UserRole | null;
@@ -26,7 +27,7 @@ function PaymentCardInner({
   onDeny?: (p: Payment) => void;
   onMarkPaid?: (p: Payment) => void;
   onDelete?: (p: Payment) => void;
-  onCorrect?: (p: Payment) => void;
+  onEdit?: (p: Payment) => void;
 }) {
   const showApprove =
     payment.status === "pending" &&
@@ -38,7 +39,14 @@ function PaymentCardInner({
     roleCanMarkPaid(role) &&
     Boolean(onMarkPaid);
 
-  const showCorrect = payment.status === "denied" && Boolean(onCorrect);
+  const unpaid =
+    payment.status === "pending" ||
+    payment.status === "approved" ||
+    payment.status === "denied";
+
+  const showEdit = unpaid && roleCanEdit(role) && Boolean(onEdit);
+  const editLabel =
+    payment.status === "denied" ? "Correct & resubmit" : "Edit";
 
   const showDelete =
     (payment.status === "paid" || payment.status === "denied") &&
@@ -81,10 +89,6 @@ function PaymentCardInner({
         {formatDueLabel(payment.status, payment.due_date)}
       </p>
 
-      {payment.purpose ? (
-        <p className="mt-2 line-clamp-3 text-sm text-slate-700">{payment.purpose}</p>
-      ) : null}
-
       {auditRows.length > 0 ? (
         <dl className="mt-2 grid gap-0.5 text-xs text-slate-500">
           {auditRows.map((row) => (
@@ -122,16 +126,16 @@ function PaymentCardInner({
         </div>
       ) : null}
 
-      {showCorrect ? (
-        <div className="mt-4">
-          <LoadingButton variant="primary" onClick={() => onCorrect?.(payment)}>
-            Correct & resubmit
+      {showEdit ? (
+        <div className={showApprove || showMarkPaid ? "mt-2" : "mt-4"}>
+          <LoadingButton variant="secondary" onClick={() => onEdit?.(payment)}>
+            {editLabel}
           </LoadingButton>
         </div>
       ) : null}
 
       {showDelete ? (
-        <div className={showCorrect ? "mt-2" : "mt-4"}>
+        <div className={showEdit ? "mt-2" : "mt-4"}>
           <LoadingButton variant="danger" onClick={() => onDelete?.(payment)}>
             Remove from history
           </LoadingButton>
