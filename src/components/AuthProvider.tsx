@@ -173,6 +173,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     markSettled();
   }, [markSettled]);
 
+  const refreshProfile = useCallback(
+    () => loadProfile(user?.id),
+    [loadProfile, user?.id]
+  );
+
   const value = useMemo(
     () => ({
       loading,
@@ -180,11 +185,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user,
       profile,
-      refreshProfile: () => loadProfile(user?.id),
+      refreshProfile,
       signIn,
       signOut,
     }),
-    [loading, configured, session, user, profile, loadProfile, signIn, signOut]
+    [loading, configured, session, user, profile, refreshProfile, signIn, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

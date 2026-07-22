@@ -1,13 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/components/AuthProvider";
 import { PaymentCard } from "@/components/PaymentCard";
 import { PaymentTotals } from "@/components/PaymentTotals";
-import { ApproveDialog } from "@/components/ApproveDialog";
-import { DenyDialog } from "@/components/DenyDialog";
-import { MarkPaidDialog } from "@/components/MarkPaidDialog";
-import { CorrectPaymentDialog } from "@/components/CorrectPaymentDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageLoading } from "@/components/PageLoading";
@@ -21,6 +18,19 @@ import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { userMessageFromError } from "@/lib/errors";
 import { canApprove, canEditPayment, canMarkPaid } from "@/lib/roles";
 import type { Payment } from "@/types/database";
+
+const ApproveDialog = dynamic(() =>
+  import("@/components/ApproveDialog").then((mod) => mod.ApproveDialog)
+);
+const DenyDialog = dynamic(() =>
+  import("@/components/DenyDialog").then((mod) => mod.DenyDialog)
+);
+const MarkPaidDialog = dynamic(() =>
+  import("@/components/MarkPaidDialog").then((mod) => mod.MarkPaidDialog)
+);
+const CorrectPaymentDialog = dynamic(() =>
+  import("@/components/CorrectPaymentDialog").then((mod) => mod.CorrectPaymentDialog)
+);
 
 export default function OpenPage() {
   const { profile } = useAuth();
@@ -189,7 +199,7 @@ export default function OpenPage() {
         </section>
       ) : null}
 
-      {showPending ? (
+      {showPending || employeePending ? (
         <section className="space-y-3">
           <SectionHeading
             title="Waiting for approval"
@@ -203,29 +213,8 @@ export default function OpenPage() {
                 key={p.id}
                 payment={p}
                 role={role}
-                onApprove={setApproveTarget}
-                onDeny={setDenyTarget}
-                onEdit={canEdit ? setEditTarget : undefined}
-              />
-            ))
-          )}
-        </section>
-      ) : null}
-
-      {employeePending ? (
-        <section className="space-y-3">
-          <SectionHeading
-            title="Waiting for approval"
-            count={pending.length}
-          />
-          {pending.length === 0 ? (
-            <EmptyState text="No payments waiting for approval." />
-          ) : (
-            pending.map((p) => (
-              <PaymentCard
-                key={p.id}
-                payment={p}
-                role={role}
+                onApprove={showPending ? setApproveTarget : undefined}
+                onDeny={showPending ? setDenyTarget : undefined}
                 onEdit={canEdit ? setEditTarget : undefined}
               />
             ))

@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/components/AuthProvider";
 import { PaymentTotals } from "@/components/PaymentTotals";
 import { LoadingButton } from "@/components/LoadingButton";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageLoading } from "@/components/PageLoading";
-import { Modal } from "@/components/Modal";
-import { CorrectPaymentDialog } from "@/components/CorrectPaymentDialog";
-import { HistoryWeekList } from "@/components/HistoryWeekList";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import {
   adminDeletePayment,
@@ -22,7 +20,23 @@ import { formatInr } from "@/lib/format";
 import { fieldClass } from "@/lib/ui";
 import type { Payment } from "@/types/database";
 
+const Modal = dynamic(() =>
+  import("@/components/Modal").then((mod) => mod.Modal)
+);
+const CorrectPaymentDialog = dynamic(() =>
+  import("@/components/CorrectPaymentDialog").then((mod) => mod.CorrectPaymentDialog)
+);
+const HistoryWeekList = dynamic(() =>
+  import("@/components/HistoryWeekList").then((mod) => mod.HistoryWeekList)
+);
+
 type Filter = "all" | "paid" | "denied";
+
+const HISTORY_FILTERS = [
+  ["all", "All"],
+  ["paid", "Paid"],
+  ["denied", "Denied"],
+] as const;
 
 export default function HistoryPage() {
   const { profile } = useAuth();
@@ -57,10 +71,12 @@ export default function HistoryPage() {
 
   const history = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return payments
-      .filter((p) => p.status === "paid" || p.status === "denied")
-      .filter((p) => (filter === "all" ? true : p.status === filter))
-      .filter((p) => (q ? p.party.toLowerCase().includes(q) : true));
+    return payments.filter((p) => {
+      if (p.status !== "paid" && p.status !== "denied") return false;
+      if (filter !== "all" && p.status !== filter) return false;
+      if (q && !p.party.toLowerCase().includes(q)) return false;
+      return true;
+    });
   }, [payments, query, filter]);
 
   const searching = query.trim().length > 0;
@@ -147,13 +163,7 @@ export default function HistoryPage() {
       </label>
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="Filter history">
-        {(
-          [
-            ["all", "All"],
-            ["paid", "Paid"],
-            ["denied", "Denied"],
-          ] as const
-        ).map(([value, label]) => {
+        {HISTORY_FILTERS.map(([value, label]) => {
           const active = filter === value;
           return (
             <button

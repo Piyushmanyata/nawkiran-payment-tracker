@@ -272,17 +272,22 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
     };
   }, [load, removePayment, rememberMeta]);
 
+  const reload = useCallback(
+    () => load({ silent: false, force: true }),
+    [load]
+  );
+
   const value = useMemo(
     () => ({
       payments,
       loading,
       error,
       setError,
-      reload: () => load({ silent: false, force: true }),
+      reload,
       upsertPayment,
       removePayment,
     }),
-    [payments, loading, error, load, upsertPayment, removePayment]
+    [payments, loading, error, reload, upsertPayment, removePayment]
   );
 
   return (

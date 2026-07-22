@@ -2,12 +2,17 @@
 
 import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/components/AuthProvider";
 import { PaymentsProvider } from "@/components/PaymentsProvider";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { OfflineBanner } from "@/components/OfflineBanner";
-import { PushNotifications } from "@/components/PushNotifications";
 import { roleLabel } from "@/lib/ui";
+
+const PushNotifications = dynamic(
+  () => import("./PushNotifications").then((mod) => mod.PushNotifications),
+  { ssr: false }
+);
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { loading, configured, session, profile, signOut } = useAuth();
@@ -32,10 +37,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session) return;
+    const prefetch = router.prefetch;
     const run = () => {
-      router.prefetch("/open");
-      router.prefetch("/add");
-      router.prefetch("/history");
+      prefetch("/open");
+      prefetch("/add");
+      prefetch("/history");
     };
     const ric = window.requestIdleCallback?.bind(window);
     if (ric) {
@@ -44,7 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     const t = window.setTimeout(run, 0);
     return () => window.clearTimeout(t);
-  }, [session, router]);
+  }, [session, router.prefetch]);
 
   // Cold auth only — warm profile/hint path starts loading=false.
   if (loading) {

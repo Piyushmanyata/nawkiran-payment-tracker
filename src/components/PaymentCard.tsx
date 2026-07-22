@@ -54,12 +54,6 @@ function PaymentCardInner({
     Boolean(onDelete);
 
   const overdue = isOverdue(payment.status, payment.due_date);
-  const auditRows = [
-    { label: "Requested by", name: payment.requester_name },
-    { label: "Approved by", name: payment.approver_name },
-    { label: "Denied by", name: payment.denier_name },
-    { label: "Marked paid by", name: payment.payer_name },
-  ].filter((row): row is { label: string; name: string } => Boolean(row.name));
 
   return (
     <article
@@ -89,14 +83,43 @@ function PaymentCardInner({
         {formatDueLabel(payment.status, payment.due_date)}
       </p>
 
-      {auditRows.length > 0 ? (
+      {payment.requester_name ||
+      payment.approver_name ||
+      payment.denier_name ||
+      payment.payer_name ? (
         <dl className="mt-2 grid gap-0.5 text-xs text-slate-500">
-          {auditRows.map((row) => (
-            <div key={row.label} className="flex gap-1">
-              <dt>{row.label}</dt>
-              <dd className="font-semibold text-slate-600">{row.name}</dd>
+          {payment.requester_name ? (
+            <div className="flex gap-1">
+              <dt>Requested by</dt>
+              <dd className="font-semibold text-slate-600">
+                {payment.requester_name}
+              </dd>
             </div>
-          ))}
+          ) : null}
+          {payment.approver_name ? (
+            <div className="flex gap-1">
+              <dt>Approved by</dt>
+              <dd className="font-semibold text-slate-600">
+                {payment.approver_name}
+              </dd>
+            </div>
+          ) : null}
+          {payment.denier_name ? (
+            <div className="flex gap-1">
+              <dt>Denied by</dt>
+              <dd className="font-semibold text-slate-600">
+                {payment.denier_name}
+              </dd>
+            </div>
+          ) : null}
+          {payment.payer_name ? (
+            <div className="flex gap-1">
+              <dt>Marked paid by</dt>
+              <dd className="font-semibold text-slate-600">
+                {payment.payer_name}
+              </dd>
+            </div>
+          ) : null}
         </dl>
       ) : null}
 

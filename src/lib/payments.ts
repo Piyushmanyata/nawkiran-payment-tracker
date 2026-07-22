@@ -105,28 +105,44 @@ export async function fetchPayments(): Promise<Payment[]> {
     // fall through
   }
 
-  const [paymentsRes, profilesRes] = await Promise.all([
-    supabase
-      .from("payments")
-      .select(PAYMENT_COLUMNS)
-      .is("deleted_at", null)
-      .order("requested_at", { ascending: false }),
-    supabase.from("profiles").select("id, full_name, role"),
-  ]);
+  const paymentsRes = await supabase
+    .from("payments")
+    .select(PAYMENT_COLUMNS)
+    .is("deleted_at", null)
+    .order("requested_at", { ascending: false });
 
   if (paymentsRes.error) throw paymentsRes.error;
-  if (profilesRes.error) throw profilesRes.error;
+  const paymentRows = (paymentsRes.data ?? []) as Record<string, unknown>[];
 
-  const byId = new Map<string, ProfileMeta>(
-    (profilesRes.data ?? []).map((p) => [
-      p.id as string,
-      { name: p.full_name as string, role: p.role as UserRole },
-    ])
-  );
+  const userIdsSet = new Set<string>();
+  for (const row of paymentRows) {
+    if (typeof row.requested_by === "string" && row.requested_by) userIdsSet.add(row.requested_by);
+    if (typeof row.approved_by === "string" && row.approved_by) userIdsSet.add(row.approved_by);
+    if (typeof row.denied_by === "string" && row.denied_by) userIdsSet.add(row.denied_by);
+    if (typeof row.paid_by === "string" && row.paid_by) userIdsSet.add(row.paid_by);
+  }
+  const userIds = Array.from(userIdsSet);
 
-  return (paymentsRes.data ?? []).map((row) => {
-    const payment = mapPayment(row as Record<string, unknown>);
-    return withNames(payment, row as Record<string, unknown>, byId);
+  let byId = new Map<string, ProfileMeta>();
+  if (userIds.length > 0) {
+    const profilesRes = await supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .in("id", userIds);
+
+    if (profilesRes.error) throw profilesRes.error;
+
+    byId = new Map<string, ProfileMeta>(
+      (profilesRes.data ?? []).map((p) => [
+        p.id as string,
+        { name: p.full_name as string, role: p.role as UserRole },
+      ])
+    );
+  }
+
+  return paymentRows.map((row) => {
+    const payment = mapPayment(row);
+    return withNames(payment, row, byId);
   });
 }
 
