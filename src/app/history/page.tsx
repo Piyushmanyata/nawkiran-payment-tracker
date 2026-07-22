@@ -57,7 +57,7 @@ export default function HistoryPage() {
   const [busy, setBusy] = useState(false);
   const canEdit = canEditPayment(role);
 
-  // Monthly hard-delete retention (30 days); list still grouped by week.
+  // Monthly hard-delete retention (30 days); list grouped by calendar day.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -136,11 +136,11 @@ export default function HistoryPage() {
           History
         </h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Paid and denied · last 30 days · grouped by week
+          Paid and denied · last 30 days · grouped by day
           {canEdit ? " · denied can be corrected" : ""}
         </p>
         <p className="mt-1 text-xs text-slate-400">
-          Tap a week to expand. Older than 30 days is permanently deleted.
+          Today is open; tap other days to expand. Older than 30 days is permanently deleted.
         </p>
       </div>
 

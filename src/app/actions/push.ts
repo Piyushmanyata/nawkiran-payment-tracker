@@ -77,9 +77,10 @@ export async function sendTestNotification(
  *
  * Routing (DB list_push_targets):
  *   pending  → director/admin
- *   approved → employee/accounts
- *   denied   → employee/accounts
+ *   approved → employee/accounts/admin
+ *   denied   → employee/accounts/admin
  *   paid     → director/admin
+ *   (admin is on every event)
  *
  * Copy (DB payment_push_context + buildPushPayload):
  *   pending  → Requested by …

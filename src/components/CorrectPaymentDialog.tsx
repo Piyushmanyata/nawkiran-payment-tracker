@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, type FormEvent, type WheelEvent } from "react";
+import { useMemo, useState, type FormEvent, type WheelEvent } from "react";
 import type { Payment } from "@/types/database";
 import { LoadingButton } from "@/components/LoadingButton";
 import { Modal } from "@/components/Modal";
+import { PartyTagBadges } from "@/components/PartyTagBadges";
+import { detectPartyTags } from "@/lib/party-tag";
 import {
   errorBoxClass,
   fieldClass,
@@ -66,6 +68,7 @@ function EditForm({
   const [amount, setAmount] = useState(String(payment.amount));
   const [dueDate, setDueDate] = useState(payment.due_date ?? "");
   const [error, setError] = useState<string | null>(null);
+  const liveTags = useMemo(() => detectPartyTags(party), [party]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -121,6 +124,13 @@ function EditForm({
             onChange={(e) => setParty(e.target.value)}
             className={fieldClass}
           />
+          {liveTags.length > 0 ? (
+            <div className="mt-1.5">
+              <PartyTagBadges tags={liveTags} />
+            </div>
+          ) : (
+            <span className={hintClass}>Type aptus/APTUS or nkpl to auto-tag</span>
+          )}
         </label>
 
         <label className="block">
@@ -177,3 +187,4 @@ function EditForm({
     </Modal>
   );
 }
+

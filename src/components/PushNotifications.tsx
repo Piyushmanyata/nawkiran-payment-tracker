@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   sendTestNotification,
   subscribeUser,
-  unsubscribeUser,
 } from "@/app/actions/push";
 import {
   configurePushServiceWorker,
@@ -235,45 +234,30 @@ export function PushNotifications() {
     }
   }
 
-  async function disable() {
-    setBusy(true);
-    setHint(null);
-    try {
-      const reg = await registerPushServiceWorker();
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        await unsubscribeUser(sub.endpoint);
-        await sub.unsubscribe();
-      }
-      setStatus("off");
-    } catch (err) {
-      setHint(err instanceof Error ? err.message : "Could not disable alerts");
-    } finally {
-      setBusy(false);
-    }
-  }
 
-  if (status === "loading" || status === "hidden" || status === "unsupported") {
+  // Hide when unsupported, or once push setup finished successfully.
+  if (
+    status === "loading" ||
+    status === "hidden" ||
+    status === "unsupported" ||
+    status === "on"
+  ) {
     return null;
   }
 
   const title =
-    status === "on"
-      ? "Push alerts on"
-      : status === "denied"
-        ? "Alerts blocked in browser"
-        : status === "ios-install"
-          ? "Install app for alerts"
-          : "Get payment alerts";
+    status === "denied"
+      ? "Alerts blocked in browser"
+      : status === "ios-install"
+        ? "Install app for alerts"
+        : "Get payment alerts";
 
   const subtitle =
-    status === "on"
-      ? "You’ll be notified on this device"
-      : status === "denied"
-        ? "Allow notifications in browser settings"
-        : status === "ios-install"
-          ? "Share → Add to Home Screen, then open the icon"
-          : "Free · works when the app is closed";
+    status === "denied"
+      ? "Allow notifications in browser settings"
+      : status === "ios-install"
+        ? "Share → Add to Home Screen, then open the icon"
+        : "Free · works when the app is closed";
 
   return (
     <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-2">
@@ -282,16 +266,7 @@ export function PushNotifications() {
           <p className="text-xs font-semibold text-slate-700">{title}</p>
           <p className="truncate text-[11px] text-slate-500">{subtitle}</p>
         </div>
-        {status === "on" ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void disable()}
-            className="min-h-9 shrink-0 rounded-lg px-3 text-xs font-semibold text-slate-600 transition hover:bg-white active:bg-slate-100 disabled:opacity-50"
-          >
-            Turn off
-          </button>
-        ) : status === "denied" || status === "ios-install" ? null : (
+        {status === "denied" || status === "ios-install" ? null : (
           <button
             type="button"
             disabled={busy}

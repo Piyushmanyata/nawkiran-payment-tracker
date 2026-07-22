@@ -185,7 +185,7 @@ test("admin removal preserves events and remains authenticated-only", () => {
   assert.match(migration, /revoke all on function public\.admin_delete_payment\(uuid\) from anon/i);
 });
 
-test("monthly hard-delete retention; history UI still groups by week", () => {
+test("monthly hard-delete retention; history UI groups by day", () => {
   const soft = sql["018_history_weekly_retention.sql"];
   assert.ok(soft, "018_history_weekly_retention migration missing");
   assert.match(soft, /create or replace function public\.purge_old_payment_history/i);
@@ -209,22 +209,23 @@ test("monthly hard-delete retention; history UI still groups by week", () => {
   );
   assert.match(paymentsLib, /HISTORY_KEEP_DAYS = 30/);
 
-  const historyWeeks = readFileSync(
+  const historyDays = readFileSync(
     join(process.cwd(), "src", "lib", "history-weeks.ts"),
     "utf8"
   );
-  assert.match(historyWeeks, /groupHistoryByWeek/);
-  assert.match(historyWeeks, /This week/);
-  assert.match(historyWeeks, /Last week/);
+  assert.match(historyDays, /groupHistoryByDay/);
+  assert.match(historyDays, /Today/);
+  assert.match(historyDays, /Yesterday/);
+  assert.match(historyDays, /isToday/);
 
   const historyPage = readFileSync(
     join(process.cwd(), "src", "app", "history", "page.tsx"),
     "utf8"
   );
-  assert.match(historyPage, /HistoryWeekList/);
+  assert.match(historyPage, /HistoryWeekList|HistoryDayList/);
   assert.match(historyPage, /maybePurgeOldHistory/);
   assert.match(historyPage, /30 days/);
-  assert.match(historyPage, /grouped by week/i);
+  assert.match(historyPage, /grouped by day/i);
 });
 
 test("gone push endpoints are purged after terminal delivery failures", () => {
@@ -243,3 +244,43 @@ test("gone push endpoints are purged after terminal delivery failures", () => {
   assert.match(delivery, /"gone"/);
 });
 
+test("admin receives all payment push events", () => {
+  const migration = migrations.find((name) =>
+    name.endsWith("_admin_all_push_notifications.sql")
+  );
+  assert.ok(migration, "admin_all_push_notifications migration missing");
+  const body = sql[migration];
+  assert.match(body, /when 'approved' then array\['employee', 'accounts', 'admin'\]/i);
+  assert.match(body, /when 'denied' then array\['employee', 'accounts', 'admin'\]/i);
+  assert.match(body, /when 'pending' then array\['director', 'admin'\]/i);
+  assert.match(body, /when 'paid' then array\['director', 'admin'\]/i);
+  assert.match(body, /s\.user_id\s*<>\s*me/i);
+});
+
+test("party tags detect APTUS and NKPL with typos", () => {
+  const tagLib = readFileSync(
+    join(process.cwd(), "src", "lib", "party-tag.ts"),
+    "utf8"
+  );
+  assert.match(tagLib, /export type PartyTag = "APTUS" \| "NKPL"/);
+  assert.match(tagLib, /detectPartyTags/);
+  assert.match(tagLib, /editDistance/);
+  assert.match(tagLib, /atpus/);
+  assert.match(tagLib, /nklp/);
+  assert.doesNotMatch(tagLib, /ATPUS/);
+
+  const form = readFileSync(
+    join(process.cwd(), "src", "components", "AddPaymentForm.tsx"),
+    "utf8"
+  );
+  assert.match(form, /detectPartyTags/);
+  assert.match(form, /APTUS/);
+  assert.match(form, /NKPL/);
+
+  const pushBar = readFileSync(
+    join(process.cwd(), "src", "components", "PushNotifications.tsx"),
+    "utf8"
+  );
+  assert.match(pushBar, /status === "on"/);
+  assert.match(pushBar, /return null/);
+});

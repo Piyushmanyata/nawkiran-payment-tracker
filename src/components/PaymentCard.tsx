@@ -11,6 +11,7 @@ import {
 } from "@/lib/roles";
 import { StatusBadge } from "@/components/StatusBadge";
 import { LoadingButton } from "@/components/LoadingButton";
+import { PartyTagBadges } from "@/components/PartyTagBadges";
 
 function PaymentCardInner({
   payment,
@@ -63,9 +64,12 @@ function PaymentCardInner({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-bold leading-snug text-slate-900">
-            {payment.party}
-          </h3>
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <h3 className="truncate text-base font-bold leading-snug text-slate-900">
+              {payment.party}
+            </h3>
+            <PartyTagBadges party={payment.party} />
+          </div>
           <div className="mt-1.5">
             <StatusBadge status={payment.status} dueDate={payment.due_date} />
           </div>

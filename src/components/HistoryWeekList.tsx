@@ -3,11 +3,11 @@
 import { memo, useCallback, useMemo, useState } from "react";
 import type { Payment, UserRole } from "@/types/database";
 import { PaymentCard } from "@/components/PaymentCard";
-import { groupHistoryByWeek } from "@/lib/history-weeks";
+import { groupHistoryByDay } from "@/lib/history-weeks";
 import { formatInr } from "@/lib/format";
 import { canDeleteHistory, canEditPayment } from "@/lib/roles";
 
-function HistoryWeekListInner({
+function HistoryDayListInner({
   payments,
   role,
   onEdit,
@@ -21,20 +21,25 @@ function HistoryWeekListInner({
   onDelete?: (p: Payment) => void;
   forceExpandAll?: boolean;
 }) {
-  const groups = useMemo(() => groupHistoryByWeek(payments), [payments]);
-  /** Explicit opens only — everything starts collapsed until the user taps. */
+  const groups = useMemo(() => groupHistoryByDay(payments), [payments]);
+  /** Explicit toggles; today starts open. */
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
 
   const isOpen = useCallback(
-    (key: string) => {
+    (key: string, isToday: boolean) => {
       if (forceExpandAll) return true;
-      return openKeys[key] === true;
+      if (openKeys[key] !== undefined) return openKeys[key] === true;
+      return isToday;
     },
     [forceExpandAll, openKeys]
   );
 
-  const toggle = useCallback((key: string) => {
-    setOpenKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggle = useCallback((key: string, isToday: boolean) => {
+    setOpenKeys((prev) => {
+      const currently =
+        prev[key] !== undefined ? prev[key] === true : isToday;
+      return { ...prev, [key]: !currently };
+    });
   }, []);
 
   if (groups.length === 0) return null;
@@ -42,19 +47,21 @@ function HistoryWeekListInner({
   return (
     <div className="space-y-3">
       {groups.map((g) => {
-        const open = isOpen(g.key);
-        const panelId = `week-panel-${g.key}`;
+        const open = isOpen(g.key, g.isToday);
+        const panelId = `day-panel-${g.key}`;
         return (
           <section
             key={g.key}
-            className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+            className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
+              g.isToday ? "border-blue-200" : "border-slate-200"
+            }`}
           >
             <h2 className="sr-only">{g.label}</h2>
             <button
               type="button"
               aria-expanded={open}
               aria-controls={panelId}
-              onClick={() => toggle(g.key)}
+              onClick={() => toggle(g.key, g.isToday)}
               className="flex w-full min-h-12 items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 active:bg-slate-100"
             >
               <span
@@ -68,6 +75,11 @@ function HistoryWeekListInner({
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-bold text-slate-900">
                   {g.label}
+                  {g.isToday ? (
+                    <span className="ml-2 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                      open
+                    </span>
+                  ) : null}
                 </span>
                 <span className="block text-xs text-slate-500">
                   {g.rangeLabel}
@@ -122,4 +134,6 @@ function ChevronIcon() {
   );
 }
 
-export const HistoryWeekList = memo(HistoryWeekListInner);
+export const HistoryDayList = memo(HistoryDayListInner);
+/** @deprecated alias */
+export const HistoryWeekList = HistoryDayList;

@@ -1,16 +1,17 @@
 import type { Payment } from "@/types/database";
 
-export type HistoryWeekGroup = {
-  /** Stable key: ISO date of the Monday that starts the week (YYYY-MM-DD). */
+export type HistoryDayGroup = {
+  /** Stable key: local calendar day YYYY-MM-DD. */
   key: string;
   label: string;
   rangeLabel: string;
+  isToday: boolean;
   payments: Payment[];
   count: number;
   sum: number;
 };
 
-/** Instant used to place a history row into a week (paid_at / denied_at). */
+/** Instant used to place a history row (paid_at / denied_at). */
 export function historyInstant(p: Payment): Date {
   const raw =
     p.status === "paid"
@@ -23,20 +24,15 @@ export function historyInstant(p: Payment): Date {
   return Number.isNaN(d.getTime()) ? new Date() : d;
 }
 
-function startOfWeekMonday(d: Date): Date {
-  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const day = x.getDay(); // 0 Sun … 6 Sat
-  const diff = day === 0 ? -6 : 1 - day;
-  x.setDate(x.getDate() + diff);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
 function toIsoDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 function formatDay(d: Date): string {
@@ -47,56 +43,65 @@ function formatDay(d: Date): string {
   });
 }
 
+function weekday(d: Date): string {
+  return d.toLocaleDateString("en-IN", { weekday: "short" });
+}
+
 function amountOf(p: Payment): number {
   const n = typeof p.amount === "string" ? Number(p.amount) : p.amount;
   return Number.isFinite(n) ? n : 0;
 }
 
-function weekLabel(monday: Date, now: Date): string {
-  const thisMon = startOfWeekMonday(now);
-  const lastMon = new Date(thisMon);
-  lastMon.setDate(lastMon.getDate() - 7);
-  if (toIsoDate(monday) === toIsoDate(thisMon)) return "This week";
-  if (toIsoDate(monday) === toIsoDate(lastMon)) return "Last week";
-  return `Week of ${formatDay(monday)}`;
+function dayLabel(day: Date, today: Date): string {
+  const key = toIsoDate(day);
+  if (key === toIsoDate(today)) return "Today";
+  const yest = new Date(today);
+  yest.setDate(yest.getDate() - 1);
+  if (key === toIsoDate(yest)) return "Yesterday";
+  return formatDay(day);
 }
 
 /**
- * Group history payments into calendar weeks (Mon–Sun), newest first.
- * Within each week, newest first.
+ * Group history payments by local calendar day, newest first.
+ * Within each day, newest first.
  */
-export function groupHistoryByWeek(
+export function groupHistoryByDay(
   payments: Payment[],
   now: Date = new Date()
-): HistoryWeekGroup[] {
+): HistoryDayGroup[] {
+  const today = startOfLocalDay(now);
   const buckets = new Map<string, Payment[]>();
 
   for (const p of payments) {
-    const monday = startOfWeekMonday(historyInstant(p));
-    const key = toIsoDate(monday);
+    const key = toIsoDate(historyInstant(p));
     const list = buckets.get(key);
     if (list) list.push(p);
     else buckets.set(key, [p]);
   }
 
   const keys = [...buckets.keys()].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  const todayKey = toIsoDate(today);
 
   return keys.map((key) => {
-    const monday = new Date(key + "T00:00:00");
-    const sunday = new Date(monday);
-    sunday.setDate(sunday.getDate() + 6);
+    const day = new Date(key + "T12:00:00");
     const rows = (buckets.get(key) ?? []).slice().sort((a, b) => {
       return historyInstant(b).getTime() - historyInstant(a).getTime();
     });
     let sum = 0;
     for (const p of rows) sum += amountOf(p);
+    const isToday = key === todayKey;
     return {
       key,
-      label: weekLabel(monday, now),
-      rangeLabel: `${formatDay(monday)} – ${formatDay(sunday)}`,
+      label: dayLabel(day, today),
+      rangeLabel: isToday ? formatDay(day) : weekday(day),
+      isToday,
       payments: rows,
       count: rows.length,
       sum,
     };
   });
 }
+
+/** @deprecated use groupHistoryByDay */
+export const groupHistoryByWeek = groupHistoryByDay;
+export type HistoryWeekGroup = HistoryDayGroup;

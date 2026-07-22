@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type WheelEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent, type WheelEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { createPayment } from "@/lib/payments";
 import { userMessageFromError } from "@/lib/errors";
 import { canApprove } from "@/lib/roles";
+import { detectPartyTags } from "@/lib/party-tag";
 import {
   errorBoxClass,
   fieldClass,
@@ -15,10 +16,13 @@ import {
   successBoxClass,
 } from "@/lib/ui";
 import { LoadingButton } from "@/components/LoadingButton";
+import { PartyTagBadges } from "@/components/PartyTagBadges";
 
 function blockNumberWheel(e: WheelEvent<HTMLInputElement>) {
   e.currentTarget.blur();
 }
+
+const QUICK_TAGS = ["APTUS", "NKPL"] as const;
 
 export function AddPaymentForm() {
   const router = useRouter();
@@ -32,6 +36,16 @@ export function AddPaymentForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const requestId = useRef<string | null>(null);
+  const liveTags = useMemo(() => detectPartyTags(party), [party]);
+
+  function applyQuickTag(tag: string) {
+    const t = tag.toLowerCase();
+    if (party.toLowerCase().includes(t)) return;
+    setParty((prev) => {
+      const base = prev.trim();
+      return base ? `${base} ${tag}` : tag;
+    });
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -90,9 +104,34 @@ export function AddPaymentForm() {
           value={party}
           onChange={(e) => setParty(e.target.value)}
           autoComplete="organization"
-          placeholder="e.g. ABC Suppliers"
+          placeholder="e.g. ABC Suppliers, NKPL, APTUS"
           className={fieldClass}
         />
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <span className={hintClass + " !mt-0"}>Auto-tags:</span>
+          {QUICK_TAGS.map((tag) => {
+            const active = liveTags.includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => applyQuickTag(tag)}
+                className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset transition ${
+                  active
+                    ? tag === "APTUS"
+                      ? "bg-violet-100 text-violet-800 ring-violet-200"
+                      : "bg-emerald-100 text-emerald-800 ring-emerald-200"
+                    : "bg-white text-slate-500 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {tag}
+              </button>
+            );
+          })}
+          {liveTags.length > 0 ? (
+            <PartyTagBadges tags={liveTags} className="ml-auto" />
+          ) : null}
+        </div>
       </label>
 
       <label className="block">
@@ -140,3 +179,4 @@ export function AddPaymentForm() {
     </form>
   );
 }
+
