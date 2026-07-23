@@ -1,26 +1,18 @@
 "use client";
 
-import { AddPaymentForm } from "@/components/AddPaymentForm";
-import { useAuth } from "@/components/AuthProvider";
-import { canApprove } from "@/lib/roles";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default function AddPage() {
-  const { profile } = useAuth();
-  const autoApprove = canApprove(profile?.role);
+export default function AddPageRedirect() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/open?action=add");
+  }, [router]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">
-          Add payment
-        </h1>
-        <p className="mt-0.5 text-sm text-slate-500">
-          {autoApprove
-            ? "Party and amount are required. Your request will be approved automatically."
-            : "Party and amount are required. Due date is optional."}
-        </p>
-      </div>
-      <AddPaymentForm />
+    <div className="p-8 text-center text-xs text-slate-500 font-medium">
+      Redirecting to Payments Hub...
     </div>
   );
 }

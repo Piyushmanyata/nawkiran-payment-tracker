@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { PaymentCard } from "@/components/PaymentCard";
 import { PaymentTotals } from "@/components/PaymentTotals";
+import { AddPaymentForm } from "@/components/AddPaymentForm";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageLoading } from "@/components/PageLoading";
@@ -19,20 +21,23 @@ import { userMessageFromError } from "@/lib/errors";
 import { canApprove, canEditPayment, canMarkPaid } from "@/lib/roles";
 import type { Payment } from "@/types/database";
 
-const ApproveDialog = dynamic(() =>
-  import("@/components/ApproveDialog").then((mod) => mod.ApproveDialog)
-);
 const DenyDialog = dynamic(() =>
   import("@/components/DenyDialog").then((mod) => mod.DenyDialog)
-);
-const MarkPaidDialog = dynamic(() =>
-  import("@/components/MarkPaidDialog").then((mod) => mod.MarkPaidDialog)
 );
 const CorrectPaymentDialog = dynamic(() =>
   import("@/components/CorrectPaymentDialog").then((mod) => mod.CorrectPaymentDialog)
 );
+const HistoryWeekList = dynamic(() =>
+  import("@/components/HistoryWeekList").then((mod) => mod.HistoryWeekList)
+);
+
+type FilterMode = "all" | "pending" | "approved" | "history";
 
 export default function OpenPage() {
+  const searchParams = useSearchParams();
+  const actionParam = searchParams.get("action");
+  const filterParam = searchParams.get("filter") as FilterMode | null;
+
   const { profile } = useAuth();
   const role = profile?.role ?? null;
   const {
@@ -43,50 +48,71 @@ export default function OpenPage() {
     reload,
     upsertPayment,
   } = usePaymentsLive();
-  const [busy, setBusy] = useState(false);
 
-  const [approveTarget, setApproveTarget] = useState<Payment | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [showAddDrawer, setShowAddDrawer] = useState(actionParam === "add");
+  const [activeFilter, setActiveFilter] = useState<FilterMode>(filterParam || "all");
+
   const [denyTarget, setDenyTarget] = useState<Payment | null>(null);
-  const [paidTarget, setPaidTarget] = useState<Payment | null>(null);
   const [editTarget, setEditTarget] = useState<Payment | null>(null);
 
   const canEdit = canEditPayment(role);
+  const userCanApprove = canApprove(role);
+  const userCanMarkPaid = canMarkPaid(role);
 
-  // Single pass over payments
-  const { pending, outstanding, correctableDenied } = useMemo(() => {
-    const pendingList: Payment[] = [];
-    const outstandingList: Payment[] = [];
-    const correctable: Payment[] = [];
-    for (const p of payments) {
-      if (p.status === "pending") pendingList.push(p);
-      else if (p.status === "approved") outstandingList.push(p);
-      else if (p.status === "denied" && canEditPayment(role, p)) correctable.push(p);
-    }
-    return {
-      pending: pendingList,
-      outstanding: outstandingList,
-      correctableDenied: correctable,
-    };
-  }, [payments, role]);
+  // Filtered Payments Stream for Single Page Hub
+  const filteredPayments = useMemo(() => {
+    return payments.filter((p) => {
+      if (activeFilter === "pending") return p.status === "pending";
+      if (activeFilter === "approved") return p.status === "approved";
+      if (activeFilter === "history") return p.status === "paid" || p.status === "denied";
+      return true; // "all"
+    });
+  }, [payments, activeFilter]);
 
-  const showPending = canApprove(role);
-  const showOutstanding =
-    canMarkPaid(role) || canApprove(role) || role === "accounts";
-  const outstandingMarkPaid = canMarkPaid(role);
-  const employeePending = role === "employee";
-
-  async function doApprove() {
-    if (!approveTarget) return;
+  // 1-Tap Direct Optimistic Approval
+  async function handleDirectApprove(p: Payment) {
     setBusy(true);
+    // Optimistic UI update
+    upsertPayment({
+      ...p,
+      status: "approved",
+      approved_by: profile?.id ?? null,
+      approver_name: profile?.full_name ?? "Director",
+    });
     try {
-      const updated = await approvePayment(approveTarget.id);
+      const updated = await approvePayment(p.id);
       upsertPayment({
         ...updated,
         approver_name: profile?.full_name ?? updated.approver_name,
       });
-      setApproveTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
+      void reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 1-Tap Direct Optimistic Mark Paid
+  async function handleDirectMarkPaid(p: Payment) {
+    setBusy(true);
+    // Optimistic UI update
+    upsertPayment({
+      ...p,
+      status: "paid",
+      paid_by: profile?.id ?? null,
+      payer_name: profile?.full_name ?? "Accounts",
+    });
+    try {
+      const updated = await markPaymentPaid(p.id);
+      upsertPayment({
+        ...updated,
+        payer_name: profile?.full_name ?? updated.payer_name,
+      });
+    } catch (err) {
+      setError(userMessageFromError(err));
+      void reload();
     } finally {
       setBusy(false);
     }
@@ -102,23 +128,6 @@ export default function OpenPage() {
         denier_name: profile?.full_name ?? updated.denier_name,
       });
       setDenyTarget(null);
-    } catch (err) {
-      setError(userMessageFromError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function doMarkPaid() {
-    if (!paidTarget) return;
-    setBusy(true);
-    try {
-      const updated = await markPaymentPaid(paidTarget.id);
-      upsertPayment({
-        ...updated,
-        payer_name: profile?.full_name ?? updated.payer_name,
-      });
-      setPaidTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -155,21 +164,18 @@ export default function OpenPage() {
     }
   }
 
-    // Stale-while-revalidate: only block when we have nothing to show.
   if (loading && payments.length === 0) {
     return <PageLoading label="Loading payments..." />;
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">Open</h1>
-        <p className="mt-0.5 text-sm text-slate-500">
-          Pending approvals, edits, and outstanding payouts
-        </p>
-      </div>
-
-      <PaymentTotals payments={payments} />
+    <div className="space-y-4">
+      {/* 1. TOP 2 STAT BARS (Pending for Approval & Pending for Payment) */}
+      <PaymentTotals
+        payments={payments}
+        activeFilter={activeFilter}
+        onSelectFilter={(f) => setActiveFilter(f as FilterMode)}
+      />
 
       {error ? (
         <ErrorBanner
@@ -181,87 +187,114 @@ export default function OpenPage() {
         />
       ) : null}
 
-      {correctableDenied.length > 0 ? (
-        <section className="space-y-3">
-          <SectionHeading title="Needs correction" count={correctableDenied.length} />
-          <p className="text-sm text-slate-600">
-            These payments were denied. Fix the details using the denial reason,
-            then resubmit for approval.
-          </p>
-          {correctableDenied.map((p) => (
+      {/* 2. SINGLE PAGE CONTROL BAR (+ Request Payment & Filters) */}
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <div className="flex gap-1 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveFilter("all")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+              activeFilter === "all"
+                ? "bg-slate-900 text-white"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            All Queue
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveFilter("pending")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+              activeFilter === "pending"
+                ? "bg-amber-600 text-white"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            Approval
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveFilter("approved")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+              activeFilter === "approved"
+                ? "bg-blue-600 text-white"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            Payout
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveFilter("history")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+              activeFilter === "history"
+                ? "bg-emerald-600 text-white"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            History
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowAddDrawer(!showAddDrawer)}
+          className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs shrink-0 flex items-center gap-1"
+        >
+          <span>+ Add Request</span>
+        </button>
+      </div>
+
+      {/* INLINE ADD REQUEST DRAWER */}
+      {showAddDrawer && (
+        <div className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-blue-600">
+              New Payment Request
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowAddDrawer(false)}
+              className="text-xs font-bold text-slate-400 hover:text-slate-600"
+            >
+              ✕ Close
+            </button>
+          </div>
+          <AddPaymentForm />
+        </div>
+      )}
+
+      {/* 3. UNIFIED EXPRESS STREAM */}
+      <section className="space-y-3">
+        {filteredPayments.length === 0 ? (
+          <EmptyState text="No payments found for this view." />
+        ) : activeFilter === "history" ? (
+          <HistoryWeekList
+            payments={filteredPayments}
+            role={role}
+            onEdit={canEdit ? setEditTarget : undefined}
+          />
+        ) : (
+          filteredPayments.map((p) => (
             <PaymentCard
               key={p.id}
               payment={p}
               role={role}
-              onEdit={setEditTarget}
+              onApprove={userCanApprove ? handleDirectApprove : undefined}
+              onDeny={userCanApprove ? setDenyTarget : undefined}
+              onMarkPaid={userCanMarkPaid ? handleDirectMarkPaid : undefined}
+              onEdit={canEdit ? setEditTarget : undefined}
             />
-          ))}
-        </section>
-      ) : null}
+          ))
+        )}
+      </section>
 
-      {showPending || employeePending ? (
-        <section className="space-y-3">
-          <SectionHeading
-            title="Waiting for approval"
-            count={pending.length}
-          />
-          {pending.length === 0 ? (
-            <EmptyState text="Nothing waiting for approval." />
-          ) : (
-            pending.map((p) => (
-              <PaymentCard
-                key={p.id}
-                payment={p}
-                role={role}
-                onApprove={showPending ? setApproveTarget : undefined}
-                onDeny={showPending ? setDenyTarget : undefined}
-                onEdit={canEdit ? setEditTarget : undefined}
-              />
-            ))
-          )}
-        </section>
-      ) : null}
 
-      {showOutstanding ? (
-        <section className="space-y-3">
-          <SectionHeading title="Outstanding" count={outstanding.length} />
-          {outstanding.length === 0 ? (
-            <EmptyState text="No outstanding payments." />
-          ) : (
-            outstanding.map((p) => (
-              <PaymentCard
-                key={p.id}
-                payment={p}
-                role={role}
-                onMarkPaid={outstandingMarkPaid ? setPaidTarget : undefined}
-                onEdit={canEdit ? setEditTarget : undefined}
-              />
-            ))
-          )}
-        </section>
-      ) : null}
-
-      <ApproveDialog
-        open={Boolean(approveTarget)}
-        party={approveTarget?.party ?? ""}
-        amount={approveTarget?.amount ?? 0}
-        loading={busy}
-        onCancel={() => setApproveTarget(null)}
-        onConfirm={() => void doApprove()}
-      />
       <DenyDialog
         open={Boolean(denyTarget)}
         loading={busy}
         onCancel={() => setDenyTarget(null)}
         onConfirm={(reason) => void doDeny(reason)}
-      />
-      <MarkPaidDialog
-        open={Boolean(paidTarget)}
-        party={paidTarget?.party ?? ""}
-        amount={paidTarget?.amount ?? 0}
-        loading={busy}
-        onCancel={() => setPaidTarget(null)}
-        onConfirm={() => void doMarkPaid()}
       />
       <CorrectPaymentDialog
         open={Boolean(editTarget)}
@@ -270,19 +303,6 @@ export default function OpenPage() {
         onCancel={() => setEditTarget(null)}
         onConfirm={(input) => void doEdit(input)}
       />
-    </div>
-  );
-}
-
-function SectionHeading({ title, count }: { title: string; count: number }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        {title}
-      </h2>
-      <span className="text-xs font-medium tabular-nums text-slate-400">
-        {count}
-      </span>
     </div>
   );
 }

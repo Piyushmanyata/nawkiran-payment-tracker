@@ -9,7 +9,6 @@ import {
   canEditPayment as roleCanEdit,
   canMarkPaid as roleCanMarkPaid,
 } from "@/lib/roles";
-import { StatusBadge } from "@/components/StatusBadge";
 import { LoadingButton } from "@/components/LoadingButton";
 import { PartyTagBadges } from "@/components/PartyTagBadges";
 
@@ -58,10 +57,15 @@ function PaymentCardInner({
 
   return (
     <article
-      className={`rounded-2xl border bg-white p-4 shadow-sm transition hover:border-slate-300 ${
-        payment.status === "denied" ? "border-red-200" : "border-slate-200"
+      className={`rounded-2xl border bg-white p-4 shadow-xs transition hover:border-slate-300 ${
+        payment.status === "denied"
+          ? "border-rose-200 bg-rose-50/10"
+          : payment.status === "paid"
+          ? "border-slate-200 bg-slate-50/20"
+          : "border-slate-200"
       }`}
     >
+      {/* Top Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -70,74 +74,118 @@ function PaymentCardInner({
             </h3>
             <PartyTagBadges party={payment.party} />
           </div>
-          <div className="mt-1.5">
-            <StatusBadge status={payment.status} dueDate={payment.due_date} />
-          </div>
+          <p
+            className={`mt-1 text-xs ${
+              overdue ? "font-semibold text-amber-800" : "text-slate-500"
+            }`}
+          >
+            {formatDueLabel(payment.status, payment.due_date)}
+            {payment.requester_name ? ` · Req by ${payment.requester_name}` : ""}
+          </p>
         </div>
-        <p className="shrink-0 text-lg font-bold tabular-nums text-slate-900">
-          {formatInr(payment.amount)}
-        </p>
+
+        <div className="text-right shrink-0">
+          <p className="text-lg font-black tabular-nums text-slate-900">
+            {formatInr(payment.amount)}
+          </p>
+          <span
+            className={`inline-block mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+              payment.status === "pending"
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : payment.status === "approved"
+                ? "bg-blue-50 text-blue-800 border-blue-200"
+                : payment.status === "denied"
+                ? "bg-rose-50 text-rose-800 border-rose-200"
+                : "bg-emerald-50 text-emerald-800 border-emerald-200"
+            }`}
+          >
+            {payment.status === "pending"
+              ? "Pending Approval"
+              : payment.status === "approved"
+              ? "Pending Payment"
+              : payment.status === "denied"
+              ? "Denied"
+              : "Paid"}
+          </span>
+        </div>
       </div>
 
-      <p
-        className={`mt-3 text-sm ${
-          overdue ? "font-semibold text-amber-800" : "text-slate-600"
-        }`}
-      >
-        {formatDueLabel(payment.status, payment.due_date)}
-      </p>
+      {/* EXPRESS FLOW 3-STEP VISUAL STEPPER */}
+      <div className="mt-3 py-2 px-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+        {/* Step 1: Requested */}
+        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+          <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px]">
+            ✓
+          </span>
+          <span>1. Requested</span>
+        </div>
 
-      {payment.requester_name ||
-      payment.approver_name ||
-      payment.denier_name ||
-      payment.payer_name ? (
-        <dl className="mt-2 grid gap-0.5 text-xs text-slate-500">
-          {payment.requester_name ? (
-            <div className="flex gap-1">
-              <dt>Requested by</dt>
-              <dd className="font-semibold text-slate-600">
-                {payment.requester_name}
-              </dd>
-            </div>
-          ) : null}
-          {payment.approver_name ? (
-            <div className="flex gap-1">
-              <dt>Approved by</dt>
-              <dd className="font-semibold text-slate-600">
-                {payment.approver_name}
-              </dd>
-            </div>
-          ) : null}
-          {payment.denier_name ? (
-            <div className="flex gap-1">
-              <dt>Denied by</dt>
-              <dd className="font-semibold text-slate-600">
-                {payment.denier_name}
-              </dd>
-            </div>
-          ) : null}
-          {payment.payer_name ? (
-            <div className="flex gap-1">
-              <dt>Marked paid by</dt>
-              <dd className="font-semibold text-slate-600">
-                {payment.payer_name}
-              </dd>
-            </div>
-          ) : null}
-        </dl>
-      ) : null}
+        {/* Line 1 */}
+        <div className="h-[2px] flex-1 mx-2 bg-slate-200 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${
+              payment.status === "approved" || payment.status === "paid"
+                ? "bg-emerald-500"
+                : payment.status === "denied"
+                ? "bg-rose-400"
+                : "bg-amber-400"
+            }`}
+          ></div>
+        </div>
+
+        {/* Step 2: Approved */}
+        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+          <span
+            className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
+              payment.status === "approved" || payment.status === "paid"
+                ? "bg-emerald-600 text-white"
+                : payment.status === "denied"
+                ? "bg-rose-500 text-white"
+                : "bg-amber-500 text-white"
+            }`}
+          >
+            {payment.status === "approved" || payment.status === "paid"
+              ? "✓"
+              : payment.status === "denied"
+              ? "✕"
+              : "2"}
+          </span>
+          <span>2. {payment.status === "denied" ? "Denied" : "Approved"}</span>
+        </div>
+
+        {/* Line 2 */}
+        <div className="h-[2px] flex-1 mx-2 bg-slate-200 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${payment.status === "paid" ? "bg-emerald-500" : "bg-slate-200"}`}
+          ></div>
+        </div>
+
+        {/* Step 3: Paid */}
+        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+          <span
+            className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
+              payment.status === "paid" ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-500"
+            }`}
+          >
+            {payment.status === "paid" ? "✓" : "3"}
+          </span>
+          <span className={payment.status === "paid" ? "text-emerald-700" : "text-slate-400"}>
+            3. Paid
+          </span>
+        </div>
+      </div>
 
       {payment.status === "denied" && payment.denial_reason ? (
-        <p className="mt-2 rounded-lg bg-red-50 px-2.5 py-1.5 text-sm text-red-700">
+        <p className="mt-2.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs text-rose-700 border border-rose-100 font-medium">
           <span className="font-semibold">Denial reason: </span>
           {payment.denial_reason}
         </p>
       ) : null}
 
       {showApprove ? (
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="mt-3.5 grid grid-cols-2 gap-2">
           <LoadingButton variant="primary" onClick={() => onApprove?.(payment)}>
-            Approve
+            ✓ Approve
           </LoadingButton>
           <LoadingButton variant="danger" onClick={() => onDeny?.(payment)}>
             Deny
@@ -146,15 +194,15 @@ function PaymentCardInner({
       ) : null}
 
       {showMarkPaid ? (
-        <div className="mt-4">
+        <div className="mt-3.5">
           <LoadingButton variant="primary" onClick={() => onMarkPaid?.(payment)}>
-            Mark Paid
+            ✓ Mark Paid
           </LoadingButton>
         </div>
       ) : null}
 
       {showEdit ? (
-        <div className={showApprove || showMarkPaid ? "mt-2" : "mt-4"}>
+        <div className={showApprove || showMarkPaid ? "mt-2" : "mt-3.5"}>
           <LoadingButton variant="secondary" onClick={() => onEdit?.(payment)}>
             {editLabel}
           </LoadingButton>
@@ -162,7 +210,7 @@ function PaymentCardInner({
       ) : null}
 
       {showDelete ? (
-        <div className={showEdit ? "mt-2" : "mt-4"}>
+        <div className={showEdit ? "mt-2" : "mt-3.5"}>
           <LoadingButton variant="danger" onClick={() => onDelete?.(payment)}>
             Remove from history
           </LoadingButton>

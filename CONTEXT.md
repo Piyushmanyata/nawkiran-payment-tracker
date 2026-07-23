@@ -21,7 +21,7 @@ A Payment Request rejected by a Director with a reason. Visible only to the requ
 _Avoid_: Cancelled payment, rejected ticket
 
 **Paid Request**:
-An Approved Request where payout execution is completed by an Employee with mode and reference.
+An Approved Request where payout execution is completed by an Employee or staff.
 _Avoid_: Settled claim, closed transaction
 
 ## Rules & Notification Targets
@@ -30,3 +30,8 @@ _Avoid_: Settled claim, closed transaction
 - **Approved**: Visible to All active staff. Push target: All Employees + Requester + Admins (excluding acting Director).
 - **Denied**: Visible to Requester + Directors + Admins. Push target: Requester + Admins.
 - **Paid**: Visible to All active staff. Push target: Directors + Requester + Admins.
+
+## UI Architecture
+
+- **Single-Page Express Hub**: Condensed primary workflow at `/open` featuring 2 top stat bars ("Pending for Approval" and "Pending for Payment"), an inline payment request drawer, Express Stepper payment cards (`1. Requested → 2. Approved → 3. Paid`), and integrated history.
+- **Primary Navigation**: 2 main tabs: `Payments` (`/open`) and `To-do` (`/todo`).

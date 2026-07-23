@@ -8,19 +8,10 @@ import { getSupabaseBrowserClient } from "@/lib/supabase";
 const tabs = [
   {
     href: "/open",
-    label: "Open",
+    label: "Payments",
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h10M4 17h7" />
-      </svg>
-    ),
-  },
-  {
-    href: "/add",
-    label: "Add",
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
       </svg>
     ),
   },
@@ -31,16 +22,6 @@ const tabs = [
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 11l3 3L22 4" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-      </svg>
-    ),
-  },
-  {
-    href: "/history",
-    label: "History",
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 2" />
-        <circle cx="12" cy="12" r="8" />
       </svg>
     ),
   },
@@ -92,7 +73,8 @@ export function BottomNavigation() {
       <ul className="mx-auto flex max-w-lg">
         {tabs.map((tab) => {
           const active =
-            pathname === tab.href || pathname.startsWith(tab.href + "/");
+            pathname === tab.href ||
+            (tab.href === "/open" && (pathname === "/" || pathname === "/add" || pathname === "/history"));
           const showBadge = tab.href === "/todo" && openTodoCount > 0;
           return (
             <li key={tab.href} className="flex-1">
@@ -100,12 +82,12 @@ export function BottomNavigation() {
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
                 className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-semibold transition ${
-                  active ? "text-blue-600" : "text-slate-500 hover:text-slate-700"
+                  active ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-700"
                 }`}
               >
                 <span
                   className={`relative rounded-full p-1 ${
-                    active ? "bg-blue-50" : ""
+                    active ? "bg-blue-50 text-blue-600" : ""
                   }`}
                 >
                   {tab.icon}
