@@ -150,8 +150,10 @@ function PaymentCardInner({
               ? "✕"
               : "2"}
           </span>
-          <span>2. Approved</span>
+          <span>2. {payment.status === "denied" ? "Denied" : "Approved"}</span>
         </div>
+
+
 
 
         {/* Line 2 */}

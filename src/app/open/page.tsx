@@ -19,7 +19,8 @@ import {
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { userMessageFromError } from "@/lib/errors";
 import { canApprove, canEditPayment, canMarkPaid } from "@/lib/roles";
-import type { Payment } from "@/types/database";
+import type { EditPaymentInput, Payment } from "@/types/database";
+
 
 const ApproveDialog = dynamic(() =>
   import("@/components/ApproveDialog").then((mod) => mod.ApproveDialog)
@@ -143,11 +144,7 @@ export default function OpenPage() {
     }
   }
 
-  async function doEdit(input: {
-    party: string;
-    amount: number;
-    dueDate: string | null;
-  }) {
+  async function doEdit(input: EditPaymentInput) {
     if (!editTarget) return;
     setBusy(true);
     try {
@@ -171,6 +168,7 @@ export default function OpenPage() {
       setBusy(false);
     }
   }
+
 
   if (loading && payments.length === 0) {
     return <PageLoading label="Loading payments..." />;
@@ -218,8 +216,9 @@ export default function OpenPage() {
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
-            Approval
+            Pending Approval
           </button>
+
           <button
             type="button"
             onClick={() => setActiveFilter("approved")}

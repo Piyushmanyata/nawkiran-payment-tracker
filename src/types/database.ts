@@ -91,3 +91,10 @@ export interface Todo {
   /** Present only on create/update RPC responses */
   newly_assigned?: string[];
 }
+
+export interface EditPaymentInput {
+  party: string;
+  amount: number;
+  dueDate: string | null;
+}
+

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, type FormEvent, type WheelEvent } from "react";
-import type { Payment } from "@/types/database";
+import type { EditPaymentInput, Payment } from "@/types/database";
+
 import { LoadingButton } from "@/components/LoadingButton";
 import { Modal } from "@/components/Modal";
 import { PartyTagBadges } from "@/components/PartyTagBadges";
@@ -29,11 +30,8 @@ export function CorrectPaymentDialog({
   payment: Payment | null;
   loading: boolean;
   onCancel: () => void;
-  onConfirm: (input: {
-    party: string;
-    amount: number;
-    dueDate: string | null;
-  }) => void;
+  onConfirm: (input: EditPaymentInput) => void;
+
 }) {
   if (!open || !payment) return null;
 
