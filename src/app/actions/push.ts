@@ -9,6 +9,7 @@ import {
   sendTestPush,
   sendPaymentPush,
   sendTodoPush,
+  sendSelfTodoOverduePush,
   type PushEvent,
   type SerializedPushSubscription,
 } from "@/lib/push";
@@ -58,7 +59,6 @@ export async function sendTestNotification(
     return { success: true };
   } catch (err) {
     console.error("sendTestNotification", err);
-    // The browser unsubscribes after a failed test; remove the matching server row too.
     await removePushSubscription(endpoint).catch((cleanupError) => {
       console.error("sendTestNotification cleanup", cleanupError);
     });
@@ -74,20 +74,7 @@ export async function sendTestNotification(
 
 /**
  * Fire-and-forget: notify role targets after a payment lifecycle change.
- * Safe to ignore failures — payment already succeeded.
- *
- * Routing (DB list_push_targets):
- *   pending  → director/admin
- *   approved → employee/accounts/admin
- *   denied   → employee/accounts/admin
- *   paid     → director/admin
- *   (admin is on every event)
- *
- * Copy (DB payment_push_context + buildPushPayload):
- *   pending  → Requested by …
- *   approved → Approved by …
- *   denied   → Denied by …
- *   paid     → Marked paid by …
+ * Safe to ignore failures - payment already succeeded.
  */
 export async function notifyPaymentEvent(
   paymentId: string,
@@ -106,7 +93,6 @@ export async function notifyPaymentEvent(
       return { success: false, error: "Not signed in" };
     }
 
-    // One RPC: party/amount + correct lifecycle actor name for this event.
     const { data, error } = await supabase.rpc("payment_push_context", {
       p_payment_id: paymentId,
       p_event: event,
@@ -137,8 +123,6 @@ export async function notifyPaymentEvent(
       denialReason: row.denial_reason,
     });
 
-    // Distinct tag per event type so OS keeps notifications separate
-    // (does not replace "requested" with "paid" for the same payment).
     const tag = `nk:${payload.tagPrefix}:${paymentId}:v${version}`;
 
     after(async () => {
@@ -183,6 +167,7 @@ export async function notifyTodoAssigned(
 ): Promise<{ success: boolean; queued?: boolean; error?: string }> {
   try {
     if (!isPushConfigured()) return { success: true, queued: false };
+    if (!todoId) return { success: false, error: "Missing todo" };
     const ids = userIds.filter(Boolean);
     if (ids.length === 0) return { success: true, queued: false };
 
@@ -195,7 +180,9 @@ export async function notifyTodoAssigned(
     const cleanTitle = title.trim() || "To-do";
     after(async () => {
       try {
+        // RPC only returns targets for users who are assignees of this todo.
         await sendTodoPush(
+          todoId,
           ids,
           {
             title: "To-do assigned to you",
@@ -212,6 +199,47 @@ export async function notifyTodoAssigned(
     return { success: true, queued: true };
   } catch (err) {
     console.error("notifyTodoAssigned", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Notify failed",
+    };
+  }
+}
+
+/** Overdue digest to the signed-in user only (self devices). */
+export async function notifyMyOverdueTodos(): Promise<{
+  success: boolean;
+  queued?: boolean;
+  count?: number;
+  error?: string;
+}> {
+  try {
+    if (!isPushConfigured()) return { success: true, queued: false, count: 0 };
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not signed in" };
+
+    const { data, error } = await supabase.rpc("list_my_overdue_todo_titles");
+    if (error) throw error;
+
+    const titles = Array.isArray(data)
+      ? (data as string[]).map((t) => String(t).trim()).filter(Boolean)
+      : [];
+    if (titles.length === 0) return { success: true, queued: false, count: 0 };
+
+    after(async () => {
+      try {
+        await sendSelfTodoOverduePush(titles, supabase);
+      } catch (deliveryError) {
+        console.error("notifyMyOverdueTodos delivery", deliveryError);
+      }
+    });
+    return { success: true, queued: true, count: titles.length };
+  } catch (err) {
+    console.error("notifyMyOverdueTodos", err);
     return {
       success: false,
       error: err instanceof Error ? err.message : "Notify failed",

@@ -308,3 +308,15 @@ test("team to-dos: RPCs, freeze done, admin delete, 30-day purge", () => {
   assert.match(roles, /canDeleteTodo/);
   assert.match(roles, /role === "director" \|\| role === "admin"/);
 });
+
+test("todo assign push requires todo assignee membership", () => {
+  const migration = sql["024_todo_push_harden_and_overdue.sql"];
+  assert.ok(migration, "024_todo_push_harden_and_overdue migration missing");
+  assert.match(migration, /drop function if exists public\.list_todo_push_targets\(uuid\[\]\)/i);
+  assert.match(migration, /list_todo_push_targets\(\s*p_todo_id uuid/i);
+  assert.match(migration, /from public\.todo_assignees ta/i);
+  assert.match(migration, /list_my_overdue_todo_titles/i);
+  assert.match(migration, /due_date < \(timezone\('Asia\/Kolkata'/i);
+  assert.match(migration, /grant execute on function public\.list_todo_push_targets\(uuid, uuid\[\]\)/i);
+  assert.match(migration, /grant execute on function public\.list_my_overdue_todo_titles\(\)/i);
+});

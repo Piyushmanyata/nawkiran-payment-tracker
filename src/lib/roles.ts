@@ -50,7 +50,7 @@ export function canEditTodo(
 ): boolean {
   if (!role) return false;
   if (role === "director" || role === "admin") return true;
-  if (!todo || !userId) return role === "employee" || role === "accounts";
+  if (!todo || !userId) return false;
   return todo.created_by === userId;
 }
 

@@ -314,8 +314,9 @@ export async function sendTestPush(endpoint: string): Promise<void> {
   );
 }
 
-/** Send assign notifications to specific profile ids. */
+/** Send assign push only for users who are assignees of this todo. */
 export async function sendTodoPush(
+  todoId: string,
   userIds: string[],
   payload: {
     title: string;
@@ -325,12 +326,13 @@ export async function sendTodoPush(
   },
   supabaseClient?: SupabaseClient
 ): Promise<{ sent: number; failed: number }> {
-  if (!ensureVapid() || userIds.length === 0) {
+  if (!ensureVapid() || !todoId || userIds.length === 0) {
     return { sent: 0, failed: 0 };
   }
 
   const supabase = supabaseClient ?? (await createClient());
   const { data, error } = await supabase.rpc("list_todo_push_targets", {
+    p_todo_id: todoId,
     p_user_ids: userIds,
   });
   if (error) throw error;
@@ -384,3 +386,81 @@ export async function sendTodoPush(
   );
   return { sent, failed };
 }
+
+/** Send one overdue digest to the signed-in user's devices only. */
+export async function sendSelfTodoOverduePush(
+  titles: string[],
+  supabaseClient?: SupabaseClient
+): Promise<{ sent: number; failed: number }> {
+  if (!ensureVapid() || titles.length === 0) {
+    return { sent: 0, failed: 0 };
+  }
+
+  const supabase = supabaseClient ?? (await createClient());
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in");
+
+  const { data, error } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .eq("user_id", user.id);
+  if (error) throw error;
+
+  const targets = (data ?? []) as Array<{
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+  }>;
+  if (targets.length === 0) return { sent: 0, failed: 0 };
+
+  const preview =
+    titles.length === 1
+      ? titles[0]
+      : `${titles[0]} (+${titles.length - 1} more)`;
+  const body = JSON.stringify({
+    title:
+      titles.length === 1
+        ? "Overdue to-do"
+        : `${titles.length} overdue to-dos`,
+    body: preview,
+    icon: "/icon-192.png",
+    badge: "/badge-72.png",
+    url: "/todo",
+    tag: "nk:todo-overdue",
+  });
+
+  let sent = 0;
+  let failed = 0;
+  await Promise.all(
+    targets.map(async (t) => {
+      try {
+        const outcome = await sendWithRetry(
+          {
+            endpoint: t.endpoint,
+            keys: { p256dh: t.p256dh, auth: t.auth },
+          },
+          body
+        );
+        if (outcome === "ok") sent += 1;
+        else {
+          failed += 1;
+          if (outcome === "gone") {
+            try {
+              await supabase.rpc("purge_push_endpoint", {
+                p_endpoint: t.endpoint,
+              });
+            } catch {
+              /* best-effort */
+            }
+          }
+        }
+      } catch {
+        failed += 1;
+      }
+    })
+  );
+  return { sent, failed };
+}
+

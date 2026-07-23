@@ -17,6 +17,7 @@ import {
   fetchActiveProfiles,
   fetchTodos,
   isMineTodo,
+  maybeNotifyOverdueTodos,
   maybePurgeOldTodos,
   sortDoneTodos,
   sortOpenTodos,
@@ -92,6 +93,7 @@ export default function TodoPage() {
     let cancelled = false;
     void (async () => {
       const n = await maybePurgeOldTodos();
+      void maybeNotifyOverdueTodos();
       if (!cancelled && n > 0) await reload();
     })();
     return () => {
