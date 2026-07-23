@@ -15,6 +15,8 @@ import {
   approvePayment,
   denyPayment,
   editUnpaidPayment,
+  isHistoryPayment,
+  isOpenPayment,
   markPaymentPaid,
   maybePurgeOldHistory,
 } from "@/lib/payments";
@@ -108,8 +110,8 @@ export default function OpenPage() {
       let matchesStatus = false;
       if (activeFilter === "pending") matchesStatus = item.status === "pending";
       else if (activeFilter === "approved") matchesStatus = item.status === "approved";
-      else if (activeFilter === "history") matchesStatus = item.status === "paid" || item.status === "denied";
-      else matchesStatus = item.status === "pending" || item.status === "approved";
+      else if (activeFilter === "history") matchesStatus = isHistoryPayment(item);
+      else matchesStatus = isOpenPayment(item);
 
       if (!matchesStatus) return false;
       return matchesSearch(item, q);
@@ -118,9 +120,9 @@ export default function OpenPage() {
 
   const matchingHistoryCount = useMemo(() => {
     const q = searchQuery.trim();
-    if (!q || activeFilter !== "all") return 0;
+    if (!q || activeFilter === "history") return 0;
     return payments.filter(
-      (item) => (item.status === "paid" || item.status === "denied") && matchesSearch(item, q)
+      (item) => isHistoryPayment(item) && matchesSearch(item, q)
     ).length;
   }, [payments, searchQuery, activeFilter]);
 

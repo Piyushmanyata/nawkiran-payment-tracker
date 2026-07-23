@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
       static: 600,
     },
   },
+  async redirects() {
+    return [
+      {
+        source: "/history",
+        destination: "/open?filter=history",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

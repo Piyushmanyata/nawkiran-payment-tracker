@@ -8,6 +8,14 @@ import type { Payment, PaymentMode, Profile, UserRole } from "@/types/database";
 const PAYMENT_COLUMNS =
   "id, party, amount, due_date, purpose, status, requested_by, requested_at, approved_by, approved_at, denied_by, denied_at, denial_reason, paid_by, paid_at, payment_mode, payment_reference, updated_at, version, client_request_id";
 
+export function isOpenPayment(payment: { status: string }): boolean {
+  return payment.status === "pending" || payment.status === "approved";
+}
+
+export function isHistoryPayment(payment: { status: string }): boolean {
+  return payment.status === "paid" || payment.status === "denied";
+}
+
 type ProfileMeta = { name: string; role: UserRole };
 
 function asRowArray(data: unknown): Record<string, unknown>[] {
