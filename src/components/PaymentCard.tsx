@@ -11,51 +11,8 @@ import {
 } from "@/lib/roles";
 import { LoadingButton } from "@/components/LoadingButton";
 import { PartyTagBadges } from "@/components/PartyTagBadges";
-
-const STATUS_CONFIG: Record<
-  Payment["status"],
-  {
-    containerClass: string;
-    badgeClass: string;
-    badgeLabel: string;
-    line1Class: string;
-    step2IconClass: string;
-    step2IconText: string;
-  }
-> = {
-  pending: {
-    containerClass: "border-slate-200",
-    badgeClass: "bg-amber-50 text-amber-800 border-amber-200",
-    badgeLabel: "Pending Request",
-    line1Class: "bg-amber-400",
-    step2IconClass: "bg-amber-500 text-white",
-    step2IconText: "2",
-  },
-  approved: {
-    containerClass: "border-slate-200",
-    badgeClass: "bg-blue-50 text-blue-800 border-blue-200",
-    badgeLabel: "Approved Request",
-    line1Class: "bg-emerald-500",
-    step2IconClass: "bg-emerald-600 text-white",
-    step2IconText: "✓",
-  },
-  denied: {
-    containerClass: "border-rose-200 bg-rose-50/10",
-    badgeClass: "bg-rose-50 text-rose-800 border-rose-200",
-    badgeLabel: "Denied Request",
-    line1Class: "bg-rose-400",
-    step2IconClass: "bg-rose-500 text-white",
-    step2IconText: "✕",
-  },
-  paid: {
-    containerClass: "border-slate-200 bg-slate-50/20",
-    badgeClass: "bg-emerald-50 text-emerald-800 border-emerald-200",
-    badgeLabel: "Paid Request",
-    line1Class: "bg-emerald-500",
-    step2IconClass: "bg-emerald-600 text-white",
-    step2IconText: "✓",
-  },
-};
+import { PAYMENT_STATUS_UI } from "@/lib/ui";
+import { getPaymentActions } from "@/lib/roles";
 
 function PaymentCardInner({
   payment,
@@ -76,32 +33,17 @@ function PaymentCardInner({
   onDelete?: (p: Payment) => void;
   onEdit?: (p: Payment) => void;
 }) {
-  const showApprove =
-    payment.status === "pending" &&
-    roleCanApprove(role) &&
-    Boolean(onApprove && onDeny);
+  const { showApprove, showMarkPaid, showEdit, showDelete } = getPaymentActions(
+    payment,
+    role,
+    { onApprove, onDeny, onMarkPaid, onEdit, onDelete }
+  );
 
-  const showMarkPaid =
-    payment.status === "approved" &&
-    roleCanMarkPaid(role) &&
-    Boolean(onMarkPaid);
-
-  const unpaid =
-    payment.status === "pending" ||
-    payment.status === "approved" ||
-    payment.status === "denied";
-
-  const showEdit = unpaid && roleCanEdit(role, payment) && Boolean(onEdit);
   const editLabel =
     payment.status === "denied" ? "Correct & resubmit" : "Edit";
 
-  const showDelete =
-    (payment.status === "paid" || payment.status === "denied") &&
-    canDeleteHistory(role) &&
-    Boolean(onDelete);
-
   const overdue = isOverdue(payment.status, payment.due_date);
-  const config = STATUS_CONFIG[payment.status];
+  const config = PAYMENT_STATUS_UI[payment.status];
 
   return (
     <article

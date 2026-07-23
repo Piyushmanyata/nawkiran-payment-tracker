@@ -149,7 +149,7 @@ export function PaymentDetailDrawer({
                 <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-100">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-900">
-                      1. Payment Requested
+                      1. Requested
                     </span>
                     {relativeReq && (
                       <span className="text-[11px] font-semibold text-slate-400">
@@ -160,7 +160,7 @@ export function PaymentDetailDrawer({
                   <div className="mt-1 text-xs text-slate-600 space-y-0.5">
                     <p>
                       <span className="font-semibold text-slate-700">Requested by: </span>
-                      {payment.requester_name || "Employee / Staff"}
+                      {payment.requester_name || "Staff Requester"}
                     </p>
                     <p className="text-[11px] text-slate-500">
                       {formatDateTime(payment.requested_at)}
@@ -197,7 +197,7 @@ export function PaymentDetailDrawer({
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-900">
-                      2. Director Approval
+                      2. Approved
                     </span>
                     <span
                       className={`text-[11px] font-bold ${
@@ -276,7 +276,7 @@ export function PaymentDetailDrawer({
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-900">
-                      3. Payout Execution
+                      3. Paid
                     </span>
                     <span
                       className={`text-[11px] font-bold ${

@@ -211,7 +211,7 @@ export default function OpenPage() {
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
-            All Queue
+            All Requests
           </button>
           <button
             type="button"
@@ -222,7 +222,7 @@ export default function OpenPage() {
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
-            Pending Request
+            Pending
           </button>
 
           <button
