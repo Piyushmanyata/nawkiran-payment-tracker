@@ -102,7 +102,7 @@ function PaymentCardInner({
             {payment.status === "pending"
               ? "Pending Approval"
               : payment.status === "approved"
-              ? "Pending Payment"
+              ? "Approved"
               : payment.status === "denied"
               ? "Denied"
               : "Paid"}
@@ -150,8 +150,9 @@ function PaymentCardInner({
               ? "✕"
               : "2"}
           </span>
-          <span>2. {payment.status === "denied" ? "Denied" : "Approved"}</span>
+          <span>2. Approved</span>
         </div>
+
 
         {/* Line 2 */}
         <div className="h-[2px] flex-1 mx-2 bg-slate-200 rounded-full overflow-hidden">

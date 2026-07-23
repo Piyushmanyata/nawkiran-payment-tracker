@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { PaymentCard } from "@/components/PaymentCard";
-import { PaymentTotals } from "@/components/PaymentTotals";
+import { PaymentTotals, type PaymentFilterMode } from "@/components/PaymentTotals";
 import { AddPaymentForm } from "@/components/AddPaymentForm";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
@@ -21,6 +21,12 @@ import { userMessageFromError } from "@/lib/errors";
 import { canApprove, canEditPayment, canMarkPaid } from "@/lib/roles";
 import type { Payment } from "@/types/database";
 
+const ApproveDialog = dynamic(() =>
+  import("@/components/ApproveDialog").then((mod) => mod.ApproveDialog)
+);
+const MarkPaidDialog = dynamic(() =>
+  import("@/components/MarkPaidDialog").then((mod) => mod.MarkPaidDialog)
+);
 const DenyDialog = dynamic(() =>
   import("@/components/DenyDialog").then((mod) => mod.DenyDialog)
 );
@@ -31,12 +37,10 @@ const HistoryWeekList = dynamic(() =>
   import("@/components/HistoryWeekList").then((mod) => mod.HistoryWeekList)
 );
 
-type FilterMode = "all" | "pending" | "approved" | "history";
-
 export default function OpenPage() {
   const searchParams = useSearchParams();
   const actionParam = searchParams.get("action");
-  const filterParam = searchParams.get("filter") as FilterMode | null;
+  const filterParam = searchParams.get("filter") as PaymentFilterMode | null;
 
   const { profile } = useAuth();
   const role = profile?.role ?? null;
@@ -51,8 +55,10 @@ export default function OpenPage() {
 
   const [busy, setBusy] = useState(false);
   const [showAddDrawer, setShowAddDrawer] = useState(actionParam === "add");
-  const [activeFilter, setActiveFilter] = useState<FilterMode>(filterParam || "all");
+  const [activeFilter, setActiveFilter] = useState<PaymentFilterMode>(filterParam || "all");
 
+  const [approveTarget, setApproveTarget] = useState<Payment | null>(null);
+  const [markPaidTarget, setMarkPaidTarget] = useState<Payment | null>(null);
   const [denyTarget, setDenyTarget] = useState<Payment | null>(null);
   const [editTarget, setEditTarget] = useState<Payment | null>(null);
 
@@ -62,30 +68,31 @@ export default function OpenPage() {
 
   // Filtered Payments Stream for Single Page Hub
   const filteredPayments = useMemo(() => {
-    return payments.filter((p) => {
-      if (activeFilter === "pending") return p.status === "pending";
-      if (activeFilter === "approved") return p.status === "approved";
-      if (activeFilter === "history") return p.status === "paid" || p.status === "denied";
+    return payments.filter((item) => {
+      if (activeFilter === "pending") return item.status === "pending";
+      if (activeFilter === "approved") return item.status === "approved";
+      if (activeFilter === "history") return item.status === "paid" || item.status === "denied";
       return true; // "all"
     });
   }, [payments, activeFilter]);
 
-  // 1-Tap Direct Optimistic Approval
-  async function handleDirectApprove(p: Payment) {
+  async function doApprove() {
+    if (!approveTarget) return;
     setBusy(true);
-    // Optimistic UI update
+    const target = approveTarget;
     upsertPayment({
-      ...p,
+      ...target,
       status: "approved",
       approved_by: profile?.id ?? null,
       approver_name: profile?.full_name ?? "Director",
     });
     try {
-      const updated = await approvePayment(p.id);
+      const updated = await approvePayment(target.id);
       upsertPayment({
         ...updated,
         approver_name: profile?.full_name ?? updated.approver_name,
       });
+      setApproveTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
       void reload();
@@ -94,22 +101,23 @@ export default function OpenPage() {
     }
   }
 
-  // 1-Tap Direct Optimistic Mark Paid
-  async function handleDirectMarkPaid(p: Payment) {
+  async function doMarkPaid() {
+    if (!markPaidTarget) return;
     setBusy(true);
-    // Optimistic UI update
+    const target = markPaidTarget;
     upsertPayment({
-      ...p,
+      ...target,
       status: "paid",
       paid_by: profile?.id ?? null,
       payer_name: profile?.full_name ?? "Accounts",
     });
     try {
-      const updated = await markPaymentPaid(p.id);
+      const updated = await markPaymentPaid(target.id);
       upsertPayment({
         ...updated,
         payer_name: profile?.full_name ?? updated.payer_name,
       });
+      setMarkPaidTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
       void reload();
@@ -174,7 +182,7 @@ export default function OpenPage() {
       <PaymentTotals
         payments={payments}
         activeFilter={activeFilter}
-        onSelectFilter={(f) => setActiveFilter(f as FilterMode)}
+        onSelectFilter={(filterMode) => setActiveFilter(filterMode)}
       />
 
       {error ? (
@@ -187,7 +195,7 @@ export default function OpenPage() {
         />
       ) : null}
 
-      {/* 2. SINGLE PAGE CONTROL BAR (+ Request Payment & Filters) */}
+      {/* 2. SINGLE PAGE CONTROL BAR (+ Payment Request & Filters) */}
       <div className="flex items-center justify-between gap-2 pt-1">
         <div className="flex gap-1 overflow-x-auto">
           <button
@@ -221,7 +229,7 @@ export default function OpenPage() {
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
-            Payout
+            Approved
           </button>
           <button
             type="button"
@@ -241,7 +249,7 @@ export default function OpenPage() {
           onClick={() => setShowAddDrawer(!showAddDrawer)}
           className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs shrink-0 flex items-center gap-1"
         >
-          <span>+ Add Request</span>
+          <span>+ Payment Request</span>
         </button>
       </div>
 
@@ -275,21 +283,36 @@ export default function OpenPage() {
             onEdit={canEdit ? setEditTarget : undefined}
           />
         ) : (
-          filteredPayments.map((p) => (
+          filteredPayments.map((payment) => (
             <PaymentCard
-              key={p.id}
-              payment={p}
+              key={payment.id}
+              payment={payment}
               role={role}
-              onApprove={userCanApprove ? handleDirectApprove : undefined}
+              onApprove={userCanApprove ? setApproveTarget : undefined}
               onDeny={userCanApprove ? setDenyTarget : undefined}
-              onMarkPaid={userCanMarkPaid ? handleDirectMarkPaid : undefined}
+              onMarkPaid={userCanMarkPaid ? setMarkPaidTarget : undefined}
               onEdit={canEdit ? setEditTarget : undefined}
             />
           ))
         )}
       </section>
 
-
+      <ApproveDialog
+        open={Boolean(approveTarget)}
+        party={approveTarget?.party ?? ""}
+        amount={approveTarget?.amount ?? 0}
+        loading={busy}
+        onCancel={() => setApproveTarget(null)}
+        onConfirm={() => void doApprove()}
+      />
+      <MarkPaidDialog
+        open={Boolean(markPaidTarget)}
+        party={markPaidTarget?.party ?? ""}
+        amount={markPaidTarget?.amount ?? 0}
+        loading={busy}
+        onCancel={() => setMarkPaidTarget(null)}
+        onConfirm={() => void doMarkPaid()}
+      />
       <DenyDialog
         open={Boolean(denyTarget)}
         loading={busy}
@@ -306,3 +329,4 @@ export default function OpenPage() {
     </div>
   );
 }
+
