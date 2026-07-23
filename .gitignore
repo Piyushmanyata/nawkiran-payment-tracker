@@ -45,4 +45,7 @@ next-env.d.ts
 # local Supabase CLI link state
 /supabase/.temp/
 
+# agent artifacts
+.agents/
+
 .vercel

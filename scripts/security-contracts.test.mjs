@@ -268,6 +268,8 @@ test("party tags detect APTUS and NKPL with typos", () => {
   assert.match(tagLib, /atpus/);
   assert.match(tagLib, /nklp/);
   assert.doesNotMatch(tagLib, /ATPUS/);
+  assert.match(tagLib, /EXACT\[whole\]/);
+  assert.doesNotMatch(tagLib, /for \([^)]*slice[^)]*\)/);
 
   const form = readFileSync(
     join(process.cwd(), "src", "components", "AddPaymentForm.tsx"),

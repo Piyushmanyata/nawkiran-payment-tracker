@@ -92,18 +92,14 @@ export function detectPartyTags(party: string): PartyTag[] {
   }
   const whole = normalizeToken(party);
   if (whole) {
-    for (const { tag, base } of CANONICAL) {
-      if (whole.includes(base)) found.add(tag);
+    if (EXACT[whole]) {
+      found.add(EXACT[whole]);
     }
     for (const { tag, base, maxDist } of CANONICAL) {
-      const len = base.length;
-      if (whole.length < len - 1) continue;
-      for (let i = 0; i <= whole.length - (len - 1); i++) {
-        for (let L = len - 1; L <= len + 1; L++) {
-          if (i + L > whole.length) continue;
-          const slice = whole.slice(i, i + L);
-          if (editDistance(slice, base) <= maxDist) found.add(tag);
-        }
+      if (whole.includes(base)) {
+        found.add(tag);
+      } else if (whole.length <= 8 && Math.abs(whole.length - base.length) <= 2) {
+        if (editDistance(whole, base) <= maxDist) found.add(tag);
       }
     }
   }
