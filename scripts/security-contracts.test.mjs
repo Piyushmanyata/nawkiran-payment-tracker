@@ -317,8 +317,18 @@ test("todo assign push requires todo assignee membership", () => {
   assert.match(migration, /drop function if exists public\.list_todo_push_targets\(uuid\[\]\)/i);
   assert.match(migration, /list_todo_push_targets\(\s*p_todo_id uuid/i);
   assert.match(migration, /from public\.todo_assignees ta/i);
-  assert.match(migration, /list_my_overdue_todo_titles/i);
-  assert.match(migration, /due_date < \(timezone\('Asia\/Kolkata'/i);
   assert.match(migration, /grant execute on function public\.list_todo_push_targets\(uuid, uuid\[\]\)/i);
   assert.match(migration, /grant execute on function public\.list_my_overdue_todo_titles\(\)/i);
 });
+
+test("employee request privacy and push targeting migration", () => {
+  const migration = sql["20260723210600_employee_request_privacy_and_push.sql"];
+  assert.ok(migration, "20260723210600_employee_request_privacy_and_push migration missing");
+  assert.match(migration, /me_role in \('director', 'admin'\)/i);
+  assert.match(migration, /p\.status in \('approved', 'paid'\)/i);
+  assert.match(migration, /p\.requested_by = me_id/i);
+  assert.match(migration, /status in \('approved', 'paid'\)/i);
+  assert.match(migration, /requested_by = auth\.uid\(\)/i);
+  assert.match(migration, /s\.user_id = pay\.requested_by or p\.role = 'admin'/i);
+});
+

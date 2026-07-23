@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { Profile, Todo, TodoPriority } from "@/types/database";
 import { LoadingButton } from "@/components/LoadingButton";
 import {
@@ -39,12 +39,14 @@ export function TodoForm({
     initial?.assignees.map((a) => a.id) ?? []
   );
 
-  useEffect(() => {
+  const [prevInitial, setPrevInitial] = useState(initial);
+  if (initial !== prevInitial) {
+    setPrevInitial(initial);
     setTitle(initial?.title ?? "");
     setDueDate(initial?.due_date ?? "");
     setPriority(initial?.priority ?? "normal");
     setAssigneeIds(initial?.assignees.map((a) => a.id) ?? []);
-  }, [initial]);
+  }
 
   function toggleAssignee(id: string) {
     setAssigneeIds((prev) =>
