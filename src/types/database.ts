@@ -98,3 +98,9 @@ export interface EditPaymentInput {
   dueDate: string | null;
 }
 
+export interface PaymentActionTarget {
+  party: string;
+  amount: number | string;
+}
+
+

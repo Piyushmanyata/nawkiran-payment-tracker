@@ -74,7 +74,7 @@ export function BottomNavigation() {
         {tabs.map((tab) => {
           const active =
             pathname === tab.href ||
-            (tab.href === "/open" && (pathname === "/" || pathname === "/add" || pathname === "/history"));
+            (tab.href === "/open" && pathname === "/");
           const showBadge = tab.href === "/todo" && openTodoCount > 0;
           return (
             <li key={tab.href} className="flex-1">

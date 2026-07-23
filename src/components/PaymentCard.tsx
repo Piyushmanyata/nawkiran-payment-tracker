@@ -12,6 +12,51 @@ import {
 import { LoadingButton } from "@/components/LoadingButton";
 import { PartyTagBadges } from "@/components/PartyTagBadges";
 
+const STATUS_CONFIG: Record<
+  Payment["status"],
+  {
+    containerClass: string;
+    badgeClass: string;
+    badgeLabel: string;
+    line1Class: string;
+    step2IconClass: string;
+    step2IconText: string;
+  }
+> = {
+  pending: {
+    containerClass: "border-slate-200",
+    badgeClass: "bg-amber-50 text-amber-800 border-amber-200",
+    badgeLabel: "Pending Request",
+    line1Class: "bg-amber-400",
+    step2IconClass: "bg-amber-500 text-white",
+    step2IconText: "2",
+  },
+  approved: {
+    containerClass: "border-slate-200",
+    badgeClass: "bg-blue-50 text-blue-800 border-blue-200",
+    badgeLabel: "Approved Request",
+    line1Class: "bg-emerald-500",
+    step2IconClass: "bg-emerald-600 text-white",
+    step2IconText: "✓",
+  },
+  denied: {
+    containerClass: "border-rose-200 bg-rose-50/10",
+    badgeClass: "bg-rose-50 text-rose-800 border-rose-200",
+    badgeLabel: "Denied Request",
+    line1Class: "bg-rose-400",
+    step2IconClass: "bg-rose-500 text-white",
+    step2IconText: "✕",
+  },
+  paid: {
+    containerClass: "border-slate-200 bg-slate-50/20",
+    badgeClass: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    badgeLabel: "Paid Request",
+    line1Class: "bg-emerald-500",
+    step2IconClass: "bg-emerald-600 text-white",
+    step2IconText: "✓",
+  },
+};
+
 function PaymentCardInner({
   payment,
   role,
@@ -54,16 +99,11 @@ function PaymentCardInner({
     Boolean(onDelete);
 
   const overdue = isOverdue(payment.status, payment.due_date);
+  const config = STATUS_CONFIG[payment.status];
 
   return (
     <article
-      className={`rounded-2xl border bg-white p-4 shadow-xs transition hover:border-slate-300 ${
-        payment.status === "denied"
-          ? "border-rose-200 bg-rose-50/10"
-          : payment.status === "paid"
-          ? "border-slate-200 bg-slate-50/20"
-          : "border-slate-200"
-      }`}
+      className={`rounded-2xl border bg-white p-4 shadow-xs transition hover:border-slate-300 ${config.containerClass}`}
     >
       {/* Top Header */}
       <div className="flex items-start justify-between gap-3">
@@ -89,23 +129,9 @@ function PaymentCardInner({
             {formatInr(payment.amount)}
           </p>
           <span
-            className={`inline-block mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-              payment.status === "pending"
-                ? "bg-amber-50 text-amber-800 border-amber-200"
-                : payment.status === "approved"
-                ? "bg-blue-50 text-blue-800 border-blue-200"
-                : payment.status === "denied"
-                ? "bg-rose-50 text-rose-800 border-rose-200"
-                : "bg-emerald-50 text-emerald-800 border-emerald-200"
-            }`}
+            className={`inline-block mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${config.badgeClass}`}
           >
-            {payment.status === "pending"
-              ? "Pending Approval"
-              : payment.status === "approved"
-              ? "Approved"
-              : payment.status === "denied"
-              ? "Denied"
-              : "Paid"}
+            {config.badgeLabel}
           </span>
         </div>
       </div>
@@ -122,38 +148,18 @@ function PaymentCardInner({
 
         {/* Line 1 */}
         <div className="h-[2px] flex-1 mx-2 bg-slate-200 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${
-              payment.status === "approved" || payment.status === "paid"
-                ? "bg-emerald-500"
-                : payment.status === "denied"
-                ? "bg-rose-400"
-                : "bg-amber-400"
-            }`}
-          ></div>
+          <div className={`h-full ${config.line1Class}`}></div>
         </div>
 
         {/* Step 2: Approved */}
         <div className="flex items-center gap-1.5 font-bold text-slate-800">
           <span
-            className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
-              payment.status === "approved" || payment.status === "paid"
-                ? "bg-emerald-600 text-white"
-                : payment.status === "denied"
-                ? "bg-rose-500 text-white"
-                : "bg-amber-500 text-white"
-            }`}
+            className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${config.step2IconClass}`}
           >
-            {payment.status === "approved" || payment.status === "paid"
-              ? "✓"
-              : payment.status === "denied"
-              ? "✕"
-              : "2"}
+            {config.step2IconText}
           </span>
-          <span>2. {payment.status === "denied" ? "Denied" : "Approved"}</span>
+          <span>2. Approved</span>
         </div>
-
-
 
 
         {/* Line 2 */}

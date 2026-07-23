@@ -190,7 +190,7 @@ begin
     and s.user_id <> me
     and (
       (event_clean = 'pending' and p.role in ('director', 'admin'))
-      or (event_clean = 'approved' and p.role in ('employee', 'accounts', 'admin'))
+      or (event_clean = 'approved' and (p.role in ('employee', 'accounts', 'admin') or s.user_id = pay.requested_by))
       or (event_clean = 'denied' and (s.user_id = pay.requested_by or p.role = 'admin'))
       or (event_clean = 'paid' and (p.role in ('director', 'admin') or s.user_id = pay.requested_by))
     );

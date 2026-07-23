@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type FormEvent, type WheelEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
@@ -9,18 +9,16 @@ import { userMessageFromError } from "@/lib/errors";
 import { canApprove } from "@/lib/roles";
 import { detectPartyTags } from "@/lib/party-tag";
 import {
+  blockNumberWheel,
   errorBoxClass,
   fieldClass,
   hintClass,
   labelClass,
+  roundAmount,
   successBoxClass,
 } from "@/lib/ui";
 import { LoadingButton } from "@/components/LoadingButton";
 import { PartyTagBadges } from "@/components/PartyTagBadges";
-
-function blockNumberWheel(e: WheelEvent<HTMLInputElement>) {
-  e.currentTarget.blur();
-}
 
 const QUICK_TAGS = ["APTUS", "NKPL"] as const;
 
@@ -70,7 +68,7 @@ export function AddPaymentForm() {
       requestId.current ??= crypto.randomUUID();
       const payment = await createPayment({
         party: partyClean,
-        amount: Math.round(amountNum * 100) / 100,
+        amount: roundAmount(amountNum),
         dueDate: dueDate || null,
         clientRequestId: requestId.current,
       });

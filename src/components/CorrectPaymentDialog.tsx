@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent, type WheelEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import type { EditPaymentInput, Payment } from "@/types/database";
 
 import { LoadingButton } from "@/components/LoadingButton";
@@ -8,16 +8,13 @@ import { Modal } from "@/components/Modal";
 import { PartyTagBadges } from "@/components/PartyTagBadges";
 import { detectPartyTags } from "@/lib/party-tag";
 import {
+  blockNumberWheel,
   errorBoxClass,
   fieldClass,
   hintClass,
   labelClass,
+  roundAmount,
 } from "@/lib/ui";
-
-/** Stop mouse-wheel from changing focused number inputs. */
-function blockNumberWheel(e: WheelEvent<HTMLInputElement>) {
-  e.currentTarget.blur();
-}
 
 export function CorrectPaymentDialog({
   open,
@@ -86,7 +83,7 @@ function EditForm({
     setError(null);
     onConfirm({
       party: partyClean,
-      amount: Math.round(amountNum * 100) / 100,
+      amount: roundAmount(amountNum),
       dueDate: dueDate || null,
     });
   }

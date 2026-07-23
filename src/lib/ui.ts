@@ -16,3 +16,12 @@ export function roleLabel(role: string | null | undefined): string {
   if (!role) return "";
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
+
+export function blockNumberWheel(e: React.WheelEvent<HTMLInputElement>) {
+  (e.currentTarget as HTMLInputElement).blur();
+}
+
+export function roundAmount(amount: number): number {
+  return Math.round(amount * 100) / 100;
+}
+

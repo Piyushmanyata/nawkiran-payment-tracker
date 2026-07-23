@@ -19,7 +19,7 @@ import {
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { userMessageFromError } from "@/lib/errors";
 import { canApprove, canEditPayment, canMarkPaid } from "@/lib/roles";
-import type { EditPaymentInput, Payment } from "@/types/database";
+import type { EditPaymentInput, Payment, PaymentMode } from "@/types/database";
 
 
 const ApproveDialog = dynamic(() =>
@@ -102,7 +102,7 @@ export default function OpenPage() {
     }
   }
 
-  async function doMarkPaid() {
+  async function doMarkPaid(paymentMode?: PaymentMode, reference?: string) {
     if (!markPaidTarget) return;
     setBusy(true);
     const target = markPaidTarget;
@@ -111,9 +111,11 @@ export default function OpenPage() {
       status: "paid",
       paid_by: profile?.id ?? null,
       payer_name: profile?.full_name ?? "Accounts",
+      payment_mode: paymentMode ?? "NEFT",
+      payment_reference: reference ?? null,
     });
     try {
-      const updated = await markPaymentPaid(target.id);
+      const updated = await markPaymentPaid(target.id, paymentMode, reference);
       upsertPayment({
         ...updated,
         payer_name: profile?.full_name ?? updated.payer_name,
@@ -216,7 +218,7 @@ export default function OpenPage() {
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
-            Pending Approval
+            Pending Request
           </button>
 
           <button
@@ -298,19 +300,17 @@ export default function OpenPage() {
 
       <ApproveDialog
         open={Boolean(approveTarget)}
-        party={approveTarget?.party ?? ""}
-        amount={approveTarget?.amount ?? 0}
+        target={approveTarget}
         loading={busy}
         onCancel={() => setApproveTarget(null)}
         onConfirm={() => void doApprove()}
       />
       <MarkPaidDialog
         open={Boolean(markPaidTarget)}
-        party={markPaidTarget?.party ?? ""}
-        amount={markPaidTarget?.amount ?? 0}
+        target={markPaidTarget}
         loading={busy}
         onCancel={() => setMarkPaidTarget(null)}
-        onConfirm={() => void doMarkPaid()}
+        onConfirm={(mode, ref) => void doMarkPaid(mode, ref)}
       />
       <DenyDialog
         open={Boolean(denyTarget)}

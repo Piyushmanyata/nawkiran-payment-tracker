@@ -7,7 +7,7 @@ import { groupHistoryByDay } from "@/lib/history-weeks";
 import { formatInr } from "@/lib/format";
 import { canDeleteHistory, canEditPayment } from "@/lib/roles";
 
-function HistoryDayListInner({
+function HistoryWeekListInner({
   payments,
   role,
   onEdit,
@@ -134,6 +134,5 @@ function ChevronIcon() {
   );
 }
 
-export const HistoryDayList = memo(HistoryDayListInner);
-/** @deprecated alias */
-export const HistoryWeekList = HistoryDayList;
+export const HistoryWeekList = memo(HistoryWeekListInner);
+export const HistoryDayList = HistoryWeekList;

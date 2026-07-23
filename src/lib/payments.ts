@@ -2,7 +2,7 @@ import { notifyPaymentEvent } from "@/app/actions/push";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { mapPayment } from "@/lib/map-payment";
 import { firePaymentPush, pushEventForPayment } from "@/lib/push-client";
-import type { Payment, Profile, UserRole } from "@/types/database";
+import type { Payment, PaymentMode, Profile, UserRole } from "@/types/database";
 
 /** Only columns the UI uses — smaller payloads than select("*"). */
 const PAYMENT_COLUMNS =
@@ -202,11 +202,17 @@ export async function denyPayment(
   return payment;
 }
 
-/** Mark approved payment paid (no mode/UTR — DB defaults). */
-export async function markPaymentPaid(paymentId: string): Promise<Payment> {
+/** Mark approved payment paid with optional payment mode and reference (UTR). */
+export async function markPaymentPaid(
+  paymentId: string,
+  paymentMode?: PaymentMode | string | null,
+  paymentReference?: string | null
+): Promise<Payment> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.rpc("mark_payment_paid", {
     p_payment_id: paymentId,
+    p_payment_mode: paymentMode || "NEFT",
+    p_payment_reference: paymentReference || null,
   });
   if (error) throw error;
   const payment = mapPayment(data as Record<string, unknown>);
