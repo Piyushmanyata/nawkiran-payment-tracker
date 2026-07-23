@@ -5,12 +5,7 @@ import type { Payment, UserRole } from "@/types/database";
 import { formatDateTime, formatDueLabel, formatInr, formatRelativeTime, isOverdue } from "@/lib/format";
 import { PartyTagBadges } from "@/components/PartyTagBadges";
 import { LoadingButton } from "@/components/LoadingButton";
-import {
-  canApprove as roleCanApprove,
-  canDeleteHistory,
-  canEditPayment as roleCanEdit,
-  canMarkPaid as roleCanMarkPaid,
-} from "@/lib/roles";
+import { getPaymentActions } from "@/lib/roles";
 
 const STATUS_BADGE: Record<
   Payment["status"],
@@ -18,19 +13,19 @@ const STATUS_BADGE: Record<
 > = {
   pending: {
     class: "bg-amber-500/10 text-amber-800 border-amber-300/60",
-    label: "Pending Approval",
+    label: "Pending Request",
   },
   approved: {
     class: "bg-indigo-500/10 text-indigo-800 border-indigo-300/60",
-    label: "Approved for Payment",
+    label: "Approved Request",
   },
   denied: {
     class: "bg-rose-500/10 text-rose-800 border-rose-300/60",
-    label: "Request Denied",
+    label: "Denied Request",
   },
   paid: {
     class: "bg-emerald-500/10 text-emerald-800 border-emerald-300/60",
-    label: "Paid & Settled",
+    label: "Paid Request",
   },
 };
 
@@ -69,26 +64,11 @@ export function PaymentDetailDrawer({
 
   if (!payment) return null;
 
-  const showApprove =
-    payment.status === "pending" &&
-    roleCanApprove(role) &&
-    Boolean(onApprove && onDeny);
-
-  const showMarkPaid =
-    payment.status === "approved" &&
-    roleCanMarkPaid(role) &&
-    Boolean(onMarkPaid);
-
-  const unpaid =
-    payment.status === "pending" ||
-    payment.status === "approved" ||
-    payment.status === "denied";
-
-  const showEdit = unpaid && roleCanEdit(role, payment) && Boolean(onEdit);
-  const showDelete =
-    (payment.status === "paid" || payment.status === "denied") &&
-    canDeleteHistory(role) &&
-    Boolean(onDelete);
+  const { showApprove, showMarkPaid, showEdit, showDelete } = getPaymentActions(
+    payment,
+    role,
+    { onApprove, onDeny, onMarkPaid, onEdit, onDelete }
+  );
 
   const overdue = isOverdue(payment.status, payment.due_date);
   const badge = STATUS_BADGE[payment.status];

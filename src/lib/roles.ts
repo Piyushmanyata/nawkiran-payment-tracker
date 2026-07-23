@@ -58,3 +58,42 @@ export function canEditTodo(
 export function canDeleteTodo(role: UserRole | null | undefined): boolean {
   return role === "admin";
 }
+
+/** Computed action availability for payment cards and detail view. */
+export function getPaymentActions(
+  payment: { status: string; requester_role?: UserRole | null },
+  role: UserRole | null,
+  handlers: {
+    onApprove?: unknown;
+    onDeny?: unknown;
+    onMarkPaid?: unknown;
+    onEdit?: unknown;
+    onDelete?: unknown;
+  }
+) {
+  const showApprove =
+    payment.status === "pending" &&
+    canApprove(role) &&
+    Boolean(handlers.onApprove && handlers.onDeny);
+
+  const showMarkPaid =
+    payment.status === "approved" &&
+    canMarkPaid(role) &&
+    Boolean(handlers.onMarkPaid);
+
+  const unpaid =
+    payment.status === "pending" ||
+    payment.status === "approved" ||
+    payment.status === "denied";
+
+  const showEdit =
+    unpaid && canEditPayment(role, payment) && Boolean(handlers.onEdit);
+
+  const showDelete =
+    (payment.status === "paid" || payment.status === "denied") &&
+    canDeleteHistory(role) &&
+    Boolean(handlers.onDelete);
+
+  return { showApprove, showMarkPaid, showEdit, showDelete };
+}
+

@@ -133,7 +133,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <PushNotifications />
         </header>
-        <main className="mx-auto max-w-7xl px-4 md:px-8 pb-28 pt-4 md:pt-6">{children}</main>
+        <main className="mx-auto max-w-7xl px-4 md:px-8 pb-28 md:pb-8 pt-4 md:pt-6">{children}</main>
         <BottomNavigation />
       </div>
     </PaymentsProvider>
