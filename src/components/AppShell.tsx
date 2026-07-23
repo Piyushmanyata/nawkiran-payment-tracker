@@ -3,6 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { PaymentsProvider } from "@/components/PaymentsProvider";
 import { BottomNavigation } from "@/components/BottomNavigation";
@@ -99,7 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
               {/* Desktop Nav */}
               <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
-                <a
+                <Link
                   href="/open"
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
                     pathname === "/open" || pathname === "/"
@@ -108,8 +109,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                   }`}
                 >
                   Payments
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/todo"
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
                     pathname === "/todo"
@@ -118,7 +119,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   }`}
                 >
                   To-do
-                </a>
+                </Link>
               </nav>
             </div>
 
