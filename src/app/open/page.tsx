@@ -77,7 +77,8 @@ export default function OpenPage() {
       if (activeFilter === "pending") return item.status === "pending";
       if (activeFilter === "approved") return item.status === "approved";
       if (activeFilter === "history") return item.status === "paid" || item.status === "denied";
-      return true; // "all"
+      // "all" requests tab shows open requests (pending & approved); paid/denied requests are kept in History.
+      return item.status === "pending" || item.status === "approved";
     });
   }, [payments, activeFilter]);
 
