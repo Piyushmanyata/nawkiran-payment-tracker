@@ -37,4 +37,9 @@ _Avoid_: Settled claim, closed transaction
 - **Payment Audit Details**: Interactive detail view opened by tapping any payment card, displaying actor names (requester, approver, denier, payer), exact ISO timestamps, denial reasons, and payment modes/UTRs.
 - **Responsive Affordance**: Mobile bottom sheet drawer (< 768px) and desktop slide-over side panel / split-view (≥ 768px).
 - **Responsive Shell Layout**: Full-width desktop dashboard (`max-w-7xl`) with responsive multi-column layout on desktop, and single-column touch view (`max-w-lg`) with bottom navigation bar on mobile.
-- **Primary Navigation**: 2 main tabs: `Payments` (`/open`) and `To-do` (`/todo`).
+- **Primary Navigation**: 2 main tabs: `Payments` (`/open`) and `To-do` (`/todo`). The standalone `History` tab is removed from top and bottom navigation bars.
+- **Payments Hub Filters**: Primary filter chips on `/open` are `Open Requests` (default, displaying `pending` + `approved`), `Pending`, `Approved`, and `History`.
+- **History Search**: Historical payments (`paid` / `denied`) are searchable under the `History` filter on `/open`. Searching on `Open Requests` displays an inline notice if matching historical records exist.
+- **Retention & Immutability**: Historical payment records are retained for a rolling 30-day window (`HISTORY_KEEP_DAYS = 30`) and purged automatically. Manual deletion is disabled for Employees, Directors, and automated Agents, while Admins retain manual delete capability with a confirmation dialog.
+
+

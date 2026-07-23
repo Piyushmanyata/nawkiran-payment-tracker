@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
@@ -15,6 +15,7 @@ import {
   denyPayment,
   editUnpaidPayment,
   markPaymentPaid,
+  maybePurgeOldHistory,
 } from "@/lib/payments";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { userMessageFromError } from "@/lib/errors";
@@ -60,6 +61,7 @@ export default function OpenPage() {
   const [busy, setBusy] = useState(false);
   const [showAddDrawer, setShowAddDrawer] = useState(actionParam === "add");
   const [activeFilter, setActiveFilter] = useState<PaymentFilterMode>(filterParam || "all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [detailTarget, setDetailTarget] = useState<Payment | null>(null);
   const [approveTarget, setApproveTarget] = useState<Payment | null>(null);
@@ -71,16 +73,46 @@ export default function OpenPage() {
   const userCanApprove = canApprove(role);
   const userCanMarkPaid = canMarkPaid(role);
 
+  useEffect(() => {
+    void maybePurgeOldHistory();
+  }, []);
+
+  const matchesSearch = (item: Payment, q: string) => {
+    if (!q) return true;
+    const term = q.toLowerCase();
+    return (
+      item.party.toLowerCase().includes(term) ||
+      String(item.amount).includes(term) ||
+      (item.purpose && item.purpose.toLowerCase().includes(term)) ||
+      (item.payment_reference && item.payment_reference.toLowerCase().includes(term)) ||
+      (item.payment_mode && item.payment_mode.toLowerCase().includes(term)) ||
+      (item.requester_name && item.requester_name.toLowerCase().includes(term)) ||
+      (item.denial_reason && item.denial_reason.toLowerCase().includes(term))
+    );
+  };
+
   // Filtered Payments Stream for Single Page Hub
   const filteredPayments = useMemo(() => {
+    const q = searchQuery.trim();
     return payments.filter((item) => {
-      if (activeFilter === "pending") return item.status === "pending";
-      if (activeFilter === "approved") return item.status === "approved";
-      if (activeFilter === "history") return item.status === "paid" || item.status === "denied";
-      // "all" requests tab shows open requests (pending & approved); paid/denied requests are kept in History.
-      return item.status === "pending" || item.status === "approved";
+      let matchesStatus = false;
+      if (activeFilter === "pending") matchesStatus = item.status === "pending";
+      else if (activeFilter === "approved") matchesStatus = item.status === "approved";
+      else if (activeFilter === "history") matchesStatus = item.status === "paid" || item.status === "denied";
+      else matchesStatus = item.status === "pending" || item.status === "approved";
+
+      if (!matchesStatus) return false;
+      return matchesSearch(item, q);
     });
-  }, [payments, activeFilter]);
+  }, [payments, activeFilter, searchQuery]);
+
+  const matchingHistoryCount = useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q || activeFilter === "history") return 0;
+    return payments.filter(
+      (item) => (item.status === "paid" || item.status === "denied") && matchesSearch(item, q)
+    ).length;
+  }, [payments, searchQuery, activeFilter]);
 
   async function doApprove() {
     if (!approveTarget) return;
@@ -200,8 +232,60 @@ export default function OpenPage() {
         />
       ) : null}
 
-      {/* 2. SINGLE PAGE CONTROL BAR (+ Payment Request & Filters) */}
-      <div className="flex items-center justify-between gap-2 pt-1">
+      {/* SEARCH BAR & CONTROL BAR */}
+      <div className="space-y-2 pt-1">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          <div className="relative flex-1 min-w-[200px]">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search requests or history..."
+              className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <svg
+              className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-2 text-xs font-bold text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowAddDrawer(!showAddDrawer)}
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs shrink-0 flex items-center justify-center gap-1.5"
+          >
+            <span>+ Payment Request</span>
+          </button>
+        </div>
+
+        {matchingHistoryCount > 0 ? (
+          <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-2.5 flex items-center justify-between text-xs text-blue-900 font-medium">
+            <span>
+              Found <strong className="font-bold">{matchingHistoryCount}</strong> matching record{matchingHistoryCount === 1 ? "" : "s"} in History
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveFilter("history")}
+              className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-xs hover:bg-blue-700 transition"
+            >
+              View in History →
+            </button>
+          </div>
+        ) : null}
+
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           <button
             type="button"
@@ -212,7 +296,7 @@ export default function OpenPage() {
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
-            All Requests
+            Open Requests
           </button>
           <button
             type="button"
@@ -249,14 +333,6 @@ export default function OpenPage() {
             History
           </button>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setShowAddDrawer(!showAddDrawer)}
-          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs shrink-0 flex items-center gap-1.5"
-        >
-          <span>+ Payment Request</span>
-        </button>
       </div>
 
       {/* INLINE ADD REQUEST DRAWER */}

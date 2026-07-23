@@ -42,7 +42,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       prefetch("/open");
       prefetch("/add");
       prefetch("/todo");
-      prefetch("/history");
     };
     const ric = window.requestIdleCallback?.bind(window);
     if (ric) {
@@ -109,16 +108,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                   }`}
                 >
                   Payments
-                </a>
-                <a
-                  href="/history"
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    pathname === "/history"
-                      ? "bg-white text-blue-600 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  History
                 </a>
                 <a
                   href="/todo"
