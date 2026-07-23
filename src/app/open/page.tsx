@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageLoading } from "@/components/PageLoading";
 import {
+  adminDeletePayment,
   approvePayment,
   denyPayment,
   editUnpaidPayment,
@@ -19,10 +20,14 @@ import {
 } from "@/lib/payments";
 import { usePaymentsLive } from "@/hooks/usePaymentsLive";
 import { userMessageFromError } from "@/lib/errors";
-import { canApprove, canEditPayment, canMarkPaid } from "@/lib/roles";
+import { canApprove, canDeleteHistory, canEditPayment, canMarkPaid } from "@/lib/roles";
+import { formatInr } from "@/lib/format";
+import { LoadingButton } from "@/components/LoadingButton";
 import type { EditPaymentInput, Payment, PaymentMode } from "@/types/database";
 
-
+const Modal = dynamic(() =>
+  import("@/components/Modal").then((mod) => mod.Modal)
+);
 const ApproveDialog = dynamic(() =>
   import("@/components/ApproveDialog").then((mod) => mod.ApproveDialog)
 );
@@ -56,6 +61,7 @@ export default function OpenPage() {
     setError,
     reload,
     upsertPayment,
+    removePayment,
   } = usePaymentsLive();
 
   const [busy, setBusy] = useState(false);
@@ -68,14 +74,18 @@ export default function OpenPage() {
   const [markPaidTarget, setMarkPaidTarget] = useState<Payment | null>(null);
   const [denyTarget, setDenyTarget] = useState<Payment | null>(null);
   const [editTarget, setEditTarget] = useState<Payment | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
 
   const canEdit = canEditPayment(role);
   const userCanApprove = canApprove(role);
   const userCanMarkPaid = canMarkPaid(role);
+  const userCanDelete = canDeleteHistory(role);
 
   useEffect(() => {
-    void maybePurgeOldHistory();
-  }, []);
+    if (role) {
+      void maybePurgeOldHistory();
+    }
+  }, [role]);
 
   const matchesSearch = (item: Payment, q: string) => {
     if (!q) return true;
@@ -108,7 +118,7 @@ export default function OpenPage() {
 
   const matchingHistoryCount = useMemo(() => {
     const q = searchQuery.trim();
-    if (!q || activeFilter === "history") return 0;
+    if (!q || activeFilter !== "all") return 0;
     return payments.filter(
       (item) => (item.status === "paid" || item.status === "denied") && matchesSearch(item, q)
     ).length;
@@ -201,6 +211,21 @@ export default function OpenPage() {
           : updated
       );
       setEditTarget(null);
+    } catch (err) {
+      setError(userMessageFromError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doDelete() {
+    if (!deleteTarget) return;
+    setBusy(true);
+    try {
+      const id = deleteTarget.id;
+      await adminDeletePayment(id);
+      removePayment(id);
+      setDeleteTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -364,6 +389,7 @@ export default function OpenPage() {
             role={role}
             onSelect={setDetailTarget}
             onEdit={canEdit ? setEditTarget : undefined}
+            onDelete={userCanDelete ? setDeleteTarget : undefined}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
@@ -392,6 +418,7 @@ export default function OpenPage() {
         onDeny={userCanApprove ? setDenyTarget : undefined}
         onMarkPaid={userCanMarkPaid ? setMarkPaidTarget : undefined}
         onEdit={canEdit ? setEditTarget : undefined}
+        onDelete={userCanDelete ? setDeleteTarget : undefined}
       />
 
       <ApproveDialog
@@ -421,6 +448,37 @@ export default function OpenPage() {
         onCancel={() => setEditTarget(null)}
         onConfirm={(input) => void doEdit(input)}
       />
+
+      <Modal
+        open={Boolean(deleteTarget)}
+        titleId="delete-title"
+        title="Remove from history?"
+        onClose={() => setDeleteTarget(null)}
+        disableClose={busy}
+      >
+        <p className="mt-2 text-base text-slate-700">
+          Remove {formatInr(deleteTarget?.amount ?? 0)} for{" "}
+          {deleteTarget?.party} from the active history? Its audit record will
+          be retained.
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <LoadingButton
+            variant="secondary"
+            disabled={busy}
+            onClick={() => setDeleteTarget(null)}
+          >
+            Cancel
+          </LoadingButton>
+          <LoadingButton
+            variant="danger"
+            loading={busy}
+            loadingText="Removing..."
+            onClick={() => void doDelete()}
+          >
+            Remove
+          </LoadingButton>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -113,7 +113,7 @@ export function buildPushPayload(
       return {
         title: "Payment marked paid",
         body: `${money} · Marked paid by ${actor}`,
-        url: "/history",
+        url: "/open?filter=history",
         tagPrefix: "paid",
       };
     default:
