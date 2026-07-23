@@ -118,7 +118,7 @@ export function buildPushPayload(
       };
     default:
       return {
-        title: "Nawkiran Payments",
+        title: "Nawkiran",
         body: money,
         url: "/open",
         tagPrefix: "pay",

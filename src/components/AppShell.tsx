@@ -91,7 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 md:px-8 py-3">
             <div className="flex items-center gap-6 min-w-0">
               <div className="min-w-0">
-                <p className="text-base font-extrabold text-slate-900 tracking-tight">Nawkiran Payments</p>
+                <p className="text-base font-extrabold text-slate-900 tracking-tight">Nawkiran</p>
                 <p className="truncate text-xs text-slate-500 font-medium">
                   {name}
                   {role ? ` · ${role}` : ""}

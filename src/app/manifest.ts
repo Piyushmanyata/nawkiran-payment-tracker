@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Nawkiran Payments",
+    name: "Nawkiran",
     short_name: "Nawkiran",
     description: "Phone-first payment tracker for Nawkiran",
     start_url: "/open?source=pwa",

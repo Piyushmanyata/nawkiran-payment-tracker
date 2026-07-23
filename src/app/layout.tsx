@@ -6,12 +6,12 @@ import "./globals.css";
 // System font stack only — zero network font latency.
 
 export const metadata: Metadata = {
-  title: "Nawkiran Payments",
+  title: "Nawkiran",
   description: "Simple phone-first payment tracker for Nawkiran",
-  applicationName: "Nawkiran Payments",
+  applicationName: "Nawkiran",
   appleWebApp: {
     capable: true,
-    title: "Nawkiran Payments",
+    title: "Nawkiran",
     statusBarStyle: "default",
   },
   icons: {

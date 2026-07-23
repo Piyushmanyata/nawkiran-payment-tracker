@@ -59,7 +59,7 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   let data = {
-    title: "Nawkiran Payments",
+    title: "Nawkiran",
     body: "You have a payment update",
     icon: "/icon-192.png",
     badge: "/badge-72.png",
