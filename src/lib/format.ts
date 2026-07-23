@@ -74,3 +74,53 @@ export function statusLabel(status: PaymentStatus): string {
       return status;
   }
 }
+
+/** Open to-do with due date strictly before today. */
+export function isTodoOverdue(
+  status: "open" | "done",
+  dueDate: string | null | undefined
+): boolean {
+  if (status !== "open" || !dueDate) return false;
+  return dueDate < todayLocalIso();
+}
+
+export function formatTodoDueLabel(
+  status: "open" | "done",
+  dueDate: string | null | undefined
+): string {
+  if (!dueDate) return "No due date";
+  if (isTodoOverdue(status, dueDate)) {
+    const due = new Date(dueDate + "T00:00:00");
+    const today = new Date(todayLocalIso() + "T00:00:00");
+    const days = Math.round(
+      (today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (days === 1) return "Due: Overdue by 1 day";
+    return `Due: Overdue by ${days} days`;
+  }
+  try {
+    const d = new Date(dueDate + "T00:00:00");
+    const label = d.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    return `Due: ${label}`;
+  } catch {
+    return `Due: ${dueDate}`;
+  }
+}
+
+export function formatWhen(iso: string | null | undefined): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}

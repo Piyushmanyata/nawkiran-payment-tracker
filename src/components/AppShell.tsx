@@ -41,6 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const run = () => {
       prefetch("/open");
       prefetch("/add");
+      prefetch("/todo");
       prefetch("/history");
     };
     const ric = window.requestIdleCallback?.bind(window);
@@ -111,3 +112,4 @@ export function AppShell({ children }: { children: ReactNode }) {
     </PaymentsProvider>
   );
 }
+

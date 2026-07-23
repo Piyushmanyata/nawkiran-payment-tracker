@@ -284,3 +284,27 @@ test("party tags detect APTUS and NKPL with typos", () => {
   assert.match(pushBar, /status === "on"/);
   assert.match(pushBar, /return null/);
 });
+
+test("team to-dos: RPCs, freeze done, admin delete, 30-day purge", () => {
+  const migration = sql["023_todos.sql"];
+  assert.ok(migration, "023_todos migration missing");
+  assert.match(migration, /create table public\.todos/i);
+  assert.match(migration, /create table public\.todo_assignees/i);
+  assert.match(migration, /create or replace function public\.create_todo/i);
+  assert.match(migration, /create or replace function public\.update_todo/i);
+  assert.match(migration, /create or replace function public\.complete_todo/i);
+  assert.match(migration, /create or replace function public\.delete_todo/i);
+  assert.match(migration, /create or replace function public\.purge_old_todos/i);
+  assert.match(migration, /me\.role not in \('director', 'admin'\)/i);
+  assert.match(migration, /me\.role <> 'admin'/i);
+  assert.match(migration, /TODO_FROZEN|status <> 'open'/i);
+  assert.match(migration, /status = 'done'/i);
+  assert.match(migration, /grant execute on function public\.create_todo/i);
+  assert.match(migration, /revoke all on function public\.create_todo/i);
+  assert.match(migration, /alter publication supabase_realtime\s+add table public\.todos/i);
+
+  const roles = readFileSync(join(process.cwd(), "src", "lib", "roles.ts"), "utf8");
+  assert.match(roles, /canEditTodo/);
+  assert.match(roles, /canDeleteTodo/);
+  assert.match(roles, /role === "director" \|\| role === "admin"/);
+});

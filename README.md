@@ -72,4 +72,4 @@ supabase/migrations/  schema, functions, RLS
 
 ## Plan
 
-See [`docs/SETUP.md`](docs/SETUP.md) for the full setup and [`supabase/README.md`](supabase/README.md) for database conventions.
+See [docs/SETUP.md](docs/SETUP.md) for the full setup, [supabase/README.md](supabase/README.md) for database conventions, and [docs/domain-todos.md](docs/domain-todos.md) for the team To-do domain model.

@@ -8,6 +8,7 @@ import {
   savePushSubscription,
   sendTestPush,
   sendPaymentPush,
+  sendTodoPush,
   type PushEvent,
   type SerializedPushSubscription,
 } from "@/lib/push";
@@ -167,6 +168,50 @@ export async function notifyPaymentEvent(
     return { success: true, queued: true };
   } catch (err) {
     console.error("notifyPaymentEvent", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Notify failed",
+    };
+  }
+}
+
+/** Notify newly assigned people after create/update to-do. */
+export async function notifyTodoAssigned(
+  todoId: string,
+  title: string,
+  userIds: string[]
+): Promise<{ success: boolean; queued?: boolean; error?: string }> {
+  try {
+    if (!isPushConfigured()) return { success: true, queued: false };
+    const ids = userIds.filter(Boolean);
+    if (ids.length === 0) return { success: true, queued: false };
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not signed in" };
+
+    const cleanTitle = title.trim() || "To-do";
+    after(async () => {
+      try {
+        await sendTodoPush(
+          ids,
+          {
+            title: "To-do assigned to you",
+            body: cleanTitle,
+            url: "/todo",
+            tag: `nk:todo:${todoId}`,
+          },
+          supabase
+        );
+      } catch (deliveryError) {
+        console.error("notifyTodoAssigned delivery", deliveryError);
+      }
+    });
+    return { success: true, queued: true };
+  } catch (err) {
+    console.error("notifyTodoAssigned", err);
     return {
       success: false,
       error: err instanceof Error ? err.message : "Notify failed",

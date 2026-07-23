@@ -69,6 +69,18 @@ const RULES: Array<{ test: (t: string) => boolean; message: string }> = [
     message: "Database is not set up yet. Run the SQL migrations in Supabase.",
   },
   {
+    test: (t) => t.includes("invalid_title"),
+    message: "Please enter a to-do (1–200 characters).",
+  },
+  {
+    test: (t) => t.includes("invalid_priority"),
+    message: "Priority must be Normal or Urgent.",
+  },
+  {
+    test: (t) => t.includes("todo_frozen") || t.includes("already_done"),
+    message: "This to-do is done and cannot be changed.",
+  },
+  {
     test: (t) => t.includes("not_found"),
     message: "This payment was not found. Refresh and try again.",
   },
@@ -92,3 +104,4 @@ export function userMessageFromError(error: unknown): string {
   }
   return "Could not save. Please try again.";
 }
+

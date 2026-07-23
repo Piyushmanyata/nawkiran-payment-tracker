@@ -41,3 +41,20 @@ export function canCreatePayment(role: UserRole | null | undefined): boolean {
 export function canDeleteHistory(role: UserRole | null | undefined): boolean {
   return role === "admin";
 }
+
+/** Open to-do: initiator, director, or admin may edit. */
+export function canEditTodo(
+  role: UserRole | null | undefined,
+  todo?: { created_by: string } | null,
+  userId?: string | null
+): boolean {
+  if (!role) return false;
+  if (role === "director" || role === "admin") return true;
+  if (!todo || !userId) return role === "employee" || role === "accounts";
+  return todo.created_by === userId;
+}
+
+/** Admin-only hard delete for to-dos. */
+export function canDeleteTodo(role: UserRole | null | undefined): boolean {
+  return role === "admin";
+}

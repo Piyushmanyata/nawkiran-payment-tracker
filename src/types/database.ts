@@ -11,6 +11,9 @@ export type PaymentMode =
   | "Cash"
   | "Other";
 
+export type TodoStatus = "open" | "done";
+export type TodoPriority = "normal" | "urgent";
+
 export interface Profile {
   id: string;
   full_name: string;
@@ -42,7 +45,7 @@ export interface Payment {
   client_request_id: string;
   /** Joined display name when available */
   requester_name?: string | null;
-  /** Joined role of requester — used to protect director-owned rows */
+  /** Joined role of requester - used to protect director-owned rows */
   requester_role?: UserRole | null;
   approver_name?: string | null;
   denier_name?: string | null;
@@ -65,4 +68,26 @@ export interface PaymentEvent {
   new_status: PaymentStatus;
   note: string | null;
   created_at: string;
+}
+
+export interface TodoAssignee {
+  id: string;
+  full_name: string;
+}
+
+export interface Todo {
+  id: string;
+  title: string;
+  priority: TodoPriority;
+  due_date: string | null;
+  status: TodoStatus;
+  created_by: string;
+  created_at: string;
+  completed_by: string | null;
+  completed_at: string | null;
+  creator_name?: string | null;
+  completer_name?: string | null;
+  assignees: TodoAssignee[];
+  /** Present only on create/update RPC responses */
+  newly_assigned?: string[];
 }

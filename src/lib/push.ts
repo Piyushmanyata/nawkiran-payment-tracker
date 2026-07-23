@@ -313,3 +313,74 @@ export async function sendTestPush(endpoint: string): Promise<void> {
     }
   );
 }
+
+/** Send assign notifications to specific profile ids. */
+export async function sendTodoPush(
+  userIds: string[],
+  payload: {
+    title: string;
+    body: string;
+    url: string;
+    tag: string;
+  },
+  supabaseClient?: SupabaseClient
+): Promise<{ sent: number; failed: number }> {
+  if (!ensureVapid() || userIds.length === 0) {
+    return { sent: 0, failed: 0 };
+  }
+
+  const supabase = supabaseClient ?? (await createClient());
+  const { data, error } = await supabase.rpc("list_todo_push_targets", {
+    p_user_ids: userIds,
+  });
+  if (error) throw error;
+
+  const targets = (data ?? []) as Array<{
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+  }>;
+  if (targets.length === 0) return { sent: 0, failed: 0 };
+
+  const body = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    icon: "/icon-192.png",
+    badge: "/badge-72.png",
+    url: payload.url,
+    tag: payload.tag,
+  });
+
+  let sent = 0;
+  let failed = 0;
+  await Promise.all(
+    targets.map(async (t) => {
+      try {
+        const outcome = await sendWithRetry(
+          {
+            endpoint: t.endpoint,
+            keys: { p256dh: t.p256dh, auth: t.auth },
+          },
+          body
+        );
+        if (outcome === "ok") {
+          sent += 1;
+          return;
+        }
+        failed += 1;
+        if (outcome === "gone") {
+          try {
+            await supabase.rpc("purge_push_endpoint", {
+              p_endpoint: t.endpoint,
+            });
+          } catch {
+            /* best-effort */
+          }
+        }
+      } catch {
+        failed += 1;
+      }
+    })
+  );
+  return { sent, failed };
+}

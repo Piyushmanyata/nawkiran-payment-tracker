@@ -21,6 +21,11 @@ source control.
 | Edit unpaid (pending/approved/denied) | Other staff (not director) | Yes (incl. own) | Other staff (not director) | Yes |
 | Edit director-requested payments | No | Yes | No | Yes |
 | View active history | Yes | Yes | Yes | Yes |
+| Create / complete team to-do | Yes | Yes | Yes | Yes |
+| Edit any open to-do | Own only (as initiator) | Yes | Own only (as initiator) | Yes |
+| Delete to-do | No | No | No | Yes |
 
-Admin removal is a soft delete: the payment is hidden from the active UI while
+Admin removal of **payments** is a soft delete: the payment is hidden from the active UI while
 the audit trail remains in the database.
+
+Team **to-dos** are specified in [domain-todos.md](domain-todos.md) (shared board, multi-assignee, 30-day done retention).
