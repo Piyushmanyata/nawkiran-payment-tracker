@@ -124,3 +124,37 @@ export function formatWhen(iso: string | null | undefined): string {
     return iso;
   }
 }
+
+/** Detailed date time formatting for audit trail: 23 Jul 2026, 04:30 PM */
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return iso;
+  }
+}
+
+/** Friendly relative time: 5m ago, 2h ago, 3d ago */
+export function formatRelativeTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  try {
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
+    return "";
+  } catch {
+    return "";
+  }
+}
+

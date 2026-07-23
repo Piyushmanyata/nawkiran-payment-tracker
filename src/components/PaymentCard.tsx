@@ -60,6 +60,7 @@ const STATUS_CONFIG: Record<
 function PaymentCardInner({
   payment,
   role,
+  onSelect,
   onApprove,
   onDeny,
   onMarkPaid,
@@ -68,6 +69,7 @@ function PaymentCardInner({
 }: {
   payment: Payment;
   role: UserRole | null;
+  onSelect?: (p: Payment) => void;
   onApprove?: (p: Payment) => void;
   onDeny?: (p: Payment) => void;
   onMarkPaid?: (p: Payment) => void;
@@ -103,13 +105,16 @@ function PaymentCardInner({
 
   return (
     <article
-      className={`rounded-2xl border bg-white p-4 shadow-xs transition hover:border-slate-300 ${config.containerClass}`}
+      onClick={() => onSelect?.(payment)}
+      className={`group rounded-2xl border bg-white p-4 shadow-xs transition-all hover:shadow-md hover:border-slate-300 ${
+        onSelect ? "cursor-pointer" : ""
+      } ${config.containerClass}`}
     >
       {/* Top Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <h3 className="truncate text-base font-bold leading-snug text-slate-900">
+            <h3 className="truncate text-base font-bold leading-snug text-slate-900 group-hover:text-blue-600 transition-colors">
               {payment.party}
             </h3>
             <PartyTagBadges party={payment.party} />
@@ -137,7 +142,7 @@ function PaymentCardInner({
       </div>
 
       {/* EXPRESS FLOW 3-STEP VISUAL STEPPER */}
-      <div className="mt-3 py-2 px-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+      <div className="mt-3 py-2 px-3 rounded-xl bg-slate-50/80 border border-slate-100 flex items-center justify-between text-xs">
         {/* Step 1: Requested */}
         <div className="flex items-center gap-1.5 font-bold text-slate-800">
           <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px]">
@@ -160,7 +165,6 @@ function PaymentCardInner({
           </span>
           <span>2. Approved</span>
         </div>
-
 
         {/* Line 2 */}
         <div className="h-[2px] flex-1 mx-2 bg-slate-200 rounded-full overflow-hidden">
@@ -191,8 +195,17 @@ function PaymentCardInner({
         </p>
       ) : null}
 
+      {/* Tap hint */}
+      <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 font-medium pt-1">
+        <span>Tap card for audit history</span>
+        <span className="group-hover:translate-x-0.5 transition-transform text-blue-600 font-bold">Details →</span>
+      </div>
+
       {showApprove ? (
-        <div className="mt-3.5 grid grid-cols-2 gap-2">
+        <div
+          className="mt-3 grid grid-cols-2 gap-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           <LoadingButton variant="primary" onClick={() => onApprove?.(payment)}>
             ✓ Approve
           </LoadingButton>
@@ -203,7 +216,7 @@ function PaymentCardInner({
       ) : null}
 
       {showMarkPaid ? (
-        <div className="mt-3.5">
+        <div className="mt-3" onClick={(e) => e.stopPropagation()}>
           <LoadingButton variant="primary" onClick={() => onMarkPaid?.(payment)}>
             ✓ Mark Paid
           </LoadingButton>
@@ -211,7 +224,10 @@ function PaymentCardInner({
       ) : null}
 
       {showEdit ? (
-        <div className={showApprove || showMarkPaid ? "mt-2" : "mt-3.5"}>
+        <div
+          className={showApprove || showMarkPaid ? "mt-2" : "mt-3"}
+          onClick={(e) => e.stopPropagation()}
+        >
           <LoadingButton variant="secondary" onClick={() => onEdit?.(payment)}>
             {editLabel}
           </LoadingButton>
@@ -219,7 +235,10 @@ function PaymentCardInner({
       ) : null}
 
       {showDelete ? (
-        <div className={showEdit ? "mt-2" : "mt-3.5"}>
+        <div
+          className={showEdit ? "mt-2" : "mt-3"}
+          onClick={(e) => e.stopPropagation()}
+        >
           <LoadingButton variant="danger" onClick={() => onDelete?.(payment)}>
             Remove from history
           </LoadingButton>

@@ -23,6 +23,9 @@ import type { Payment } from "@/types/database";
 const Modal = dynamic(() =>
   import("@/components/Modal").then((mod) => mod.Modal)
 );
+const PaymentDetailDrawer = dynamic(() =>
+  import("@/components/PaymentDetailDrawer").then((mod) => mod.PaymentDetailDrawer)
+);
 const CorrectPaymentDialog = dynamic(() =>
   import("@/components/CorrectPaymentDialog").then((mod) => mod.CorrectPaymentDialog)
 );
@@ -52,6 +55,7 @@ export default function HistoryPage() {
   } = usePaymentsLive();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [detailTarget, setDetailTarget] = useState<Payment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
   const [editTarget, setEditTarget] = useState<Payment | null>(null);
   const [busy, setBusy] = useState(false);
@@ -206,10 +210,19 @@ export default function HistoryPage() {
           payments={history}
           role={role}
           forceExpandAll={searching}
+          onSelect={setDetailTarget}
           onEdit={setEditTarget}
           onDelete={setDeleteTarget}
         />
       )}
+
+      <PaymentDetailDrawer
+        payment={detailTarget}
+        role={role}
+        onClose={() => setDetailTarget(null)}
+        onEdit={setEditTarget}
+        onDelete={setDeleteTarget}
+      />
 
       <Modal
         open={Boolean(deleteTarget)}

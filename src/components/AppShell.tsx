@@ -88,25 +88,52 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="min-h-full bg-slate-50">
         <OfflineBanner />
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
-          <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-900">Nawkiran Payments</p>
-              <p className="truncate text-xs text-slate-500">
-                {name}
-                {role ? ` · ${role}` : ""}
-              </p>
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 md:px-8 py-3">
+            <div className="flex items-center gap-6 min-w-0">
+              <div className="min-w-0">
+                <p className="text-base font-extrabold text-slate-900 tracking-tight">Nawkiran Payments</p>
+                <p className="truncate text-xs text-slate-500 font-medium">
+                  {name}
+                  {role ? ` · ${role}` : ""}
+                </p>
+              </div>
+
+              {/* Desktop Nav */}
+              <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
+                <a
+                  href="/open"
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    pathname === "/open" || pathname === "/"
+                      ? "bg-white text-blue-600 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Payments
+                </a>
+                <a
+                  href="/todo"
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    pathname === "/todo"
+                      ? "bg-white text-blue-600 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  To-do
+                </a>
+              </nav>
             </div>
+
             <button
               type="button"
               onClick={() => void signOut()}
-              className="min-h-10 shrink-0 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 active:bg-slate-200"
+              className="min-h-9 shrink-0 rounded-xl px-3 text-xs font-bold text-slate-600 border border-slate-200 transition hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200"
             >
               Log out
             </button>
           </div>
           <PushNotifications />
         </header>
-        <main className="mx-auto max-w-lg px-4 pb-28 pt-4">{children}</main>
+        <main className="mx-auto max-w-7xl px-4 md:px-8 pb-28 pt-4 md:pt-6">{children}</main>
         <BottomNavigation />
       </div>
     </PaymentsProvider>

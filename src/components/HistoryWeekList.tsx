@@ -10,6 +10,7 @@ import { canDeleteHistory, canEditPayment } from "@/lib/roles";
 function HistoryWeekListInner({
   payments,
   role,
+  onSelect,
   onEdit,
   onDelete,
   /** When searching, expand every group that has matches. */
@@ -17,6 +18,7 @@ function HistoryWeekListInner({
 }: {
   payments: Payment[];
   role: UserRole | null;
+  onSelect?: (p: Payment) => void;
   onEdit?: (p: Payment) => void;
   onDelete?: (p: Payment) => void;
   forceExpandAll?: boolean;
@@ -98,13 +100,14 @@ function HistoryWeekListInner({
             {open ? (
               <div
                 id={panelId}
-                className="space-y-3 border-t border-slate-100 px-3 py-3"
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-slate-100 px-3 py-3"
               >
                 {g.payments.map((p) => (
                   <PaymentCard
                     key={p.id}
                     payment={p}
                     role={role}
+                    onSelect={onSelect}
                     onEdit={
                       p.status === "denied" && canEditPayment(role, p)
                         ? onEdit

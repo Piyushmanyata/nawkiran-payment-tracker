@@ -37,6 +37,9 @@ const CorrectPaymentDialog = dynamic(() =>
 const HistoryWeekList = dynamic(() =>
   import("@/components/HistoryWeekList").then((mod) => mod.HistoryWeekList)
 );
+const PaymentDetailDrawer = dynamic(() =>
+  import("@/components/PaymentDetailDrawer").then((mod) => mod.PaymentDetailDrawer)
+);
 
 export default function OpenPage() {
   const searchParams = useSearchParams();
@@ -58,6 +61,7 @@ export default function OpenPage() {
   const [showAddDrawer, setShowAddDrawer] = useState(actionParam === "add");
   const [activeFilter, setActiveFilter] = useState<PaymentFilterMode>(filterParam || "all");
 
+  const [detailTarget, setDetailTarget] = useState<Payment | null>(null);
   const [approveTarget, setApproveTarget] = useState<Payment | null>(null);
   const [markPaidTarget, setMarkPaidTarget] = useState<Payment | null>(null);
   const [denyTarget, setDenyTarget] = useState<Payment | null>(null);
@@ -177,7 +181,7 @@ export default function OpenPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 md:space-y-6">
       {/* 1. TOP 2 STAT BARS (Pending for Approval & Pending for Payment) */}
       <PaymentTotals
         payments={payments}
@@ -197,13 +201,13 @@ export default function OpenPage() {
 
       {/* 2. SINGLE PAGE CONTROL BAR (+ Payment Request & Filters) */}
       <div className="flex items-center justify-between gap-2 pt-1">
-        <div className="flex gap-1 overflow-x-auto">
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
           <button
             type="button"
             onClick={() => setActiveFilter("all")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
               activeFilter === "all"
-                ? "bg-slate-900 text-white"
+                ? "bg-slate-900 text-white shadow-xs"
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
@@ -212,9 +216,9 @@ export default function OpenPage() {
           <button
             type="button"
             onClick={() => setActiveFilter("pending")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
               activeFilter === "pending"
-                ? "bg-amber-600 text-white"
+                ? "bg-amber-600 text-white shadow-xs"
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
@@ -224,9 +228,9 @@ export default function OpenPage() {
           <button
             type="button"
             onClick={() => setActiveFilter("approved")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
               activeFilter === "approved"
-                ? "bg-blue-600 text-white"
+                ? "bg-indigo-600 text-white shadow-xs"
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
@@ -235,9 +239,9 @@ export default function OpenPage() {
           <button
             type="button"
             onClick={() => setActiveFilter("history")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
               activeFilter === "history"
-                ? "bg-emerald-600 text-white"
+                ? "bg-emerald-600 text-white shadow-xs"
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
@@ -248,7 +252,7 @@ export default function OpenPage() {
         <button
           type="button"
           onClick={() => setShowAddDrawer(!showAddDrawer)}
-          className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs shrink-0 flex items-center gap-1"
+          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs shrink-0 flex items-center gap-1.5"
         >
           <span>+ Payment Request</span>
         </button>
@@ -256,8 +260,8 @@ export default function OpenPage() {
 
       {/* INLINE ADD REQUEST DRAWER */}
       {showAddDrawer && (
-        <div className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <div className="rounded-2xl border border-blue-200 bg-white p-5 shadow-md space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
             <h2 className="text-xs font-bold uppercase tracking-wider text-blue-600">
               New Payment Request
             </h2>
@@ -274,29 +278,44 @@ export default function OpenPage() {
       )}
 
       {/* 3. UNIFIED EXPRESS STREAM */}
-      <section className="space-y-3">
+      <section>
         {filteredPayments.length === 0 ? (
           <EmptyState text="No payments found for this view." />
         ) : activeFilter === "history" ? (
           <HistoryWeekList
             payments={filteredPayments}
             role={role}
+            onSelect={setDetailTarget}
             onEdit={canEdit ? setEditTarget : undefined}
           />
         ) : (
-          filteredPayments.map((payment) => (
-            <PaymentCard
-              key={payment.id}
-              payment={payment}
-              role={role}
-              onApprove={userCanApprove ? setApproveTarget : undefined}
-              onDeny={userCanApprove ? setDenyTarget : undefined}
-              onMarkPaid={userCanMarkPaid ? setMarkPaidTarget : undefined}
-              onEdit={canEdit ? setEditTarget : undefined}
-            />
-          ))
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+            {filteredPayments.map((payment) => (
+              <PaymentCard
+                key={payment.id}
+                payment={payment}
+                role={role}
+                onSelect={setDetailTarget}
+                onApprove={userCanApprove ? setApproveTarget : undefined}
+                onDeny={userCanApprove ? setDenyTarget : undefined}
+                onMarkPaid={userCanMarkPaid ? setMarkPaidTarget : undefined}
+                onEdit={canEdit ? setEditTarget : undefined}
+              />
+            ))}
+          </div>
         )}
       </section>
+
+      {/* Payment Detail & Audit Timeline Drawer */}
+      <PaymentDetailDrawer
+        payment={detailTarget}
+        role={role}
+        onClose={() => setDetailTarget(null)}
+        onApprove={userCanApprove ? setApproveTarget : undefined}
+        onDeny={userCanApprove ? setDenyTarget : undefined}
+        onMarkPaid={userCanMarkPaid ? setMarkPaidTarget : undefined}
+        onEdit={canEdit ? setEditTarget : undefined}
+      />
 
       <ApproveDialog
         open={Boolean(approveTarget)}
