@@ -422,8 +422,8 @@ export async function sendSelfTodoOverduePush(
   const body = JSON.stringify({
     title:
       titles.length === 1
-        ? "Overdue to-do"
-        : `${titles.length} overdue to-dos`,
+        ? "To-do reminder"
+        : `${titles.length} to-do reminders`,
     body: preview,
     icon: "/icon-192.png",
     badge: "/badge-72.png",
