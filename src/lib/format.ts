@@ -14,8 +14,8 @@ export function formatInr(amount: number | string): string {
 }
 
 /** Today in local timezone as YYYY-MM-DD. */
-export function todayLocalIso(): string {
-  const d = new Date();
+export function todayLocalIso(refDate?: Date): string {
+  const d = refDate ?? new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -75,31 +75,40 @@ export function statusLabel(status: PaymentStatus): string {
   }
 }
 
-/** Open to-do with due date strictly before today (or on/before today for recurring items starting at start of day). */
+/** Open to-do with due date strictly before today (or starting at 12:00 PM on due date for recurring items). */
 export function isTodoOverdue(
   status: "open" | "done",
   dueDate: string | null | undefined,
-  recurrenceRule?: RecurrenceRule | null
+  recurrenceRule?: RecurrenceRule | null,
+  refDate?: Date
 ): boolean {
   if (status !== "open" || !dueDate) return false;
   const isRecurring = Boolean(
     recurrenceRule && recurrenceRule.type && recurrenceRule.type !== "none"
   );
+  const now = refDate ?? new Date();
+  const today = todayLocalIso(now);
   if (isRecurring) {
-    return dueDate <= todayLocalIso();
+    if (dueDate < today) return true;
+    if (dueDate === today) {
+      return now.getHours() >= 12;
+    }
+    return false;
   }
-  return dueDate < todayLocalIso();
+  return dueDate < today;
 }
 
 export function formatTodoDueLabel(
   status: "open" | "done",
   dueDate: string | null | undefined,
-  recurrenceRule?: RecurrenceRule | null
+  recurrenceRule?: RecurrenceRule | null,
+  refDate?: Date
 ): string {
   if (!dueDate) return "No due date";
-  if (isTodoOverdue(status, dueDate, recurrenceRule)) {
+  const now = refDate ?? new Date();
+  if (isTodoOverdue(status, dueDate, recurrenceRule, now)) {
     const due = new Date(dueDate + "T00:00:00");
-    const today = new Date(todayLocalIso() + "T00:00:00");
+    const today = new Date(todayLocalIso(now) + "T00:00:00");
     const days = Math.round(
       (today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)
     );

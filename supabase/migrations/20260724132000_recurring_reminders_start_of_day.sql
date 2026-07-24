@@ -1,5 +1,5 @@
--- Migration: Recurring Reminders Start of Day
--- Recurring reminders show up starting at the start of the scheduled due date (due_date <= current_date).
+-- Migration: Recurring Reminders Start of Day at 12pm
+-- Recurring reminders show up starting at 12:00 PM on the scheduled due date (or anytime after the due date).
 
 create or replace function public.list_my_overdue_todo_titles()
 returns text[]
@@ -24,7 +24,13 @@ begin
         t.recurrence_rule is not null
         and t.recurrence_rule->>'type' is not null
         and t.recurrence_rule->>'type' <> 'none'
-        and t.due_date <= (timezone('Asia/Kolkata', now()))::date
+        and (
+          t.due_date < (timezone('Asia/Kolkata', now()))::date
+          or (
+            t.due_date = (timezone('Asia/Kolkata', now()))::date
+            and extract(hour from timezone('Asia/Kolkata', now())) >= 12
+          )
+        )
       )
       or (
         (t.recurrence_rule is null or t.recurrence_rule->>'type' is null or t.recurrence_rule->>'type' = 'none')

@@ -74,29 +74,28 @@ test("calculateNextDueDate advances custom_weekly and custom_monthly", () => {
   );
 });
 
-test("isTodoOverdue and formatTodoDueLabel trigger at start of day set for recurring reminders", () => {
-  const today = new Date();
-  const y = today.getFullYear();
-  const m = String(today.getMonth() + 1).padStart(2, "0");
-  const d = String(today.getDate()).padStart(2, "0");
-  const todayIso = `${y}-${m}-${d}`;
-
-  const tomorrowDate = new Date(today.getTime() + 86400000);
-  const tmY = tomorrowDate.getFullYear();
-  const tmM = String(tomorrowDate.getMonth() + 1).padStart(2, "0");
-  const tmD = String(tomorrowDate.getDate()).padStart(2, "0");
-  const tomorrowIso = `${tmY}-${tmM}-${tmD}`;
-
+test("isTodoOverdue and formatTodoDueLabel trigger at 12pm on the recurring date", () => {
   const recurringRule = { type: "daily" };
+  const todayIso = "2026-07-24";
+  const tomorrowIso = "2026-07-25";
 
-  // Recurring todo due today triggers at start of day set
-  assert.equal(isTodoOverdue("open", todayIso, recurringRule), true);
-  assert.equal(formatTodoDueLabel("open", todayIso, recurringRule), "Due: Today");
+  const morningTime = new Date("2026-07-24T09:00:00+05:30");
+  const noonTime = new Date("2026-07-24T12:00:00+05:30");
+  const afternoonTime = new Date("2026-07-24T14:30:00+05:30");
 
-  // Recurring todo due tomorrow does NOT trigger before start of day set
-  assert.equal(isTodoOverdue("open", tomorrowIso, recurringRule), false);
+  // Before 12pm on the due date: recurring reminder does NOT trigger yet
+  assert.equal(isTodoOverdue("open", todayIso, recurringRule, morningTime), false);
 
-  // Non-recurring todo due today does not trigger until past
-  assert.equal(isTodoOverdue("open", todayIso, null), false);
+  // At or after 12pm on the due date: recurring reminder triggers
+  assert.equal(isTodoOverdue("open", todayIso, recurringRule, noonTime), true);
+  assert.equal(formatTodoDueLabel("open", todayIso, recurringRule, noonTime), "Due: Today");
+
+  assert.equal(isTodoOverdue("open", todayIso, recurringRule, afternoonTime), true);
+
+  // Tomorrow's recurring todo does not trigger today
+  assert.equal(isTodoOverdue("open", tomorrowIso, recurringRule, afternoonTime), false);
+
+  // Non-recurring todo due today does not trigger today even at 2pm
+  assert.equal(isTodoOverdue("open", todayIso, null, afternoonTime), false);
 });
 
