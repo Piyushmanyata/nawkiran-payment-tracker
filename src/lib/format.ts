@@ -1,7 +1,6 @@
 import type { PaymentStatus, RecurrenceRule } from "@/types/database";
 
-/** @private — canonical export lives in recurrence.ts */
-function isRecurringRule(rule?: RecurrenceRule | null): boolean {
+export function isRecurringRule(rule?: RecurrenceRule | null): boolean {
   return Boolean(rule && rule.type && rule.type !== "none");
 }
 
