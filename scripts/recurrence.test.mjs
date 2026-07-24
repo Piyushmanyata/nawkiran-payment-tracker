@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateInitialDueDate, calculateNextDueDate, formatRecurrenceLabel } from "../src/lib/recurrence.ts";
-import { formatTodoDueLabel, isTodoOverdue } from "../src/lib/format.ts";
+import { formatTodoDueLabel, isTodoOverdue, isTodoVisible } from "../src/lib/format.ts";
 
 test("formatRecurrenceLabel formats standard and custom recurrence rules", () => {
   assert.equal(formatRecurrenceLabel(null), null);
@@ -21,6 +21,29 @@ test("formatRecurrenceLabel formats standard and custom recurrence rules", () =>
   assert.equal(
     formatRecurrenceLabel({ type: "custom_monthly", day_of_month: 15 }),
     "15th of month"
+  );
+});
+
+test("isTodoVisible hides future scheduled recurring to-dos until scheduled due date", () => {
+  const refTime = new Date("2026-07-24T10:00:00+05:30"); // Friday 24 Jul 2026
+  const recurringRule = { type: "custom_weekly", days_of_week: [1] }; // Every Monday
+
+  // Scheduled for next Monday 27 Jul -> hidden from screen on Friday 24 Jul
+  assert.equal(
+    isTodoVisible({ status: "open", due_date: "2026-07-27", recurrence_rule: recurringRule }, refTime),
+    false
+  );
+
+  // Scheduled for today Friday 24 Jul -> visible on screen
+  assert.equal(
+    isTodoVisible({ status: "open", due_date: "2026-07-24", recurrence_rule: recurringRule }, refTime),
+    true
+  );
+
+  // Non-recurring future todo -> visible on screen
+  assert.equal(
+    isTodoVisible({ status: "open", due_date: "2026-07-27", recurrence_rule: null }, refTime),
+    true
   );
 });
 

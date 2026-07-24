@@ -30,6 +30,7 @@ import {
   notifyTodoUpdateReply,
 } from "@/app/actions/push";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { isTodoVisible } from "@/lib/format";
 import type { CreateTodoInput, Profile, Todo } from "@/types/database";
 
 const Modal = dynamic(() =>
@@ -132,20 +133,24 @@ export default function TodoPage() {
   }, [reload]);
 
   const openCount = useMemo(
-    () => todos.filter((t) => t.status === "open").length,
+    () => todos.filter((t) => t.status === "open" && isTodoVisible(t)).length,
     [todos]
   );
 
   const visible = useMemo(() => {
     if (filter === "open") {
-      return sortOpenTodos(todos.filter((t) => t.status === "open"));
+      return sortOpenTodos(
+        todos.filter((t) => t.status === "open" && isTodoVisible(t))
+      );
     }
     if (filter === "done") {
       return sortDoneTodos(todos.filter((t) => t.status === "done"));
     }
     // Mine on open by default feel: show open mine first list of open+done mine
     const mine = todos.filter((t) => isMineTodo(t, userId));
-    const open = sortOpenTodos(mine.filter((t) => t.status === "open"));
+    const open = sortOpenTodos(
+      mine.filter((t) => t.status === "open" && isTodoVisible(t))
+    );
     const done = sortDoneTodos(mine.filter((t) => t.status === "done"));
     return [...open, ...done];
   }, [todos, filter, userId]);

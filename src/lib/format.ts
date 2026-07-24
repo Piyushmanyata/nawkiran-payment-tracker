@@ -116,6 +116,24 @@ export function isTodoOverdue(
   return dueDate < today;
 }
 
+/** Recurring to-dos are hidden from screen until their scheduled due date arrives (due_date <= today). */
+export function isTodoVisible(
+  todo: { status: "open" | "done"; due_date?: string | null; recurrence_rule?: RecurrenceRule | null },
+  refDate?: Date
+): boolean {
+  if (todo.status !== "open") return true;
+  const isRecurring = Boolean(
+    todo.recurrence_rule &&
+      todo.recurrence_rule.type &&
+      todo.recurrence_rule.type !== "none"
+  );
+  if (isRecurring && todo.due_date) {
+    const today = todayLocalIso(refDate);
+    return todo.due_date <= today;
+  }
+  return true;
+}
+
 export function formatTodoDueLabel(
   status: "open" | "done",
   dueDate: string | null | undefined,
