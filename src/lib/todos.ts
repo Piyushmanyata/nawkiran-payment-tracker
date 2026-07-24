@@ -1,6 +1,6 @@
 import { notifyMyOverdueTodos, notifyTodoAssigned } from "@/app/actions/push";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
-import type { CreateTodoInput, Profile, Todo, TodoPriority, UpdateTodoInput } from "@/types/database";
+import type { CreateTodoInput, Profile, RecurrenceType, Todo, TodoPriority, UpdateTodoInput } from "@/types/database";
 
 function asTodo(raw: unknown): Todo {
   const row = (raw ?? {}) as Record<string, unknown>;
@@ -16,7 +16,7 @@ function asTodo(raw: unknown): Todo {
     status: row.status === "done" ? "done" : "open",
     recurrence_rule: recRaw && recRaw.type
       ? {
-          type: recRaw.type as any,
+          type: recRaw.type as RecurrenceType,
           days_of_week: Array.isArray(recRaw.days_of_week)
             ? (recRaw.days_of_week as number[])
             : undefined,
