@@ -157,7 +157,7 @@ export default function TodoPage() {
     // Mine on open by default feel: show open mine first list of open+done mine
     const mine = todos.filter((t) => isMineTodo(t, userId));
     const open = sortOpenTodos(
-      mine.filter((t) => t.status === "open")
+      mine.filter((t) => t.status === "open" && !isRecurringTodo(t))
     );
     const done = sortDoneTodos(mine.filter((t) => t.status === "done"));
     return [...open, ...done];

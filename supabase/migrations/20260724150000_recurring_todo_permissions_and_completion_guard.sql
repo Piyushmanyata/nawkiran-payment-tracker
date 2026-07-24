@@ -22,7 +22,7 @@ declare
   pri public.todo_priority;
   row public.todos;
   newly uuid[];
-  is_rec boolean;
+  is_existing_rec boolean;
 begin
   me := public.current_profile();
 
@@ -34,10 +34,11 @@ begin
     raise exception 'TODO_FROZEN' using errcode = 'P0001';
   end if;
 
-  is_rec := (row.recurrence_rule is not null and row.recurrence_rule->>'type' is not null and row.recurrence_rule->>'type' <> 'none')
-         or (p_recurrence_rule is not null and p_recurrence_rule->>'type' is not null and p_recurrence_rule->>'type' <> 'none');
+  is_existing_rec := row.recurrence_rule is not null
+                 and row.recurrence_rule->>'type' is not null
+                 and row.recurrence_rule->>'type' <> 'none';
 
-  if is_rec then
+  if is_existing_rec then
     if me.id <> row.created_by and me.role <> 'admin' then
       raise exception 'NOT_AUTHORISED' using errcode = 'P0001';
     end if;
