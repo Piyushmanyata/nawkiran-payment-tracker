@@ -464,3 +464,148 @@ export async function sendSelfTodoOverduePush(
   return { sent, failed };
 }
 
+export type TodoUpdatePushParams = {
+  todoId: string;
+  todoTitle: string;
+  actorName: string;
+  message?: string | null;
+};
+
+export function buildTodoUpdateReqPayload(params: TodoUpdatePushParams) {
+  const actor = params.actorName.trim() || "A team member";
+  const titleText = params.todoTitle.trim() || "To-do";
+  const msg = params.message?.trim() ? ` — "${params.message.trim()}"` : "";
+
+  return {
+    title: "Update requested",
+    body: `${actor} requested an update on "${titleText}"${msg}`,
+    url: "/todo",
+    tag: `nk:todo-update-req:${params.todoId}:${Date.now()}`,
+  };
+}
+
+export function buildTodoUpdateReplyPayload(params: TodoUpdatePushParams) {
+  const actor = params.actorName.trim() || "A team member";
+  const titleText = params.todoTitle.trim() || "To-do";
+  const msg = params.message?.trim() ? `: "${params.message.trim()}"` : "";
+
+  return {
+    title: "Update reply",
+    body: `${actor} replied on "${titleText}"${msg}`,
+    url: "/todo",
+    tag: `nk:todo-update-reply:${params.todoId}:${Date.now()}`,
+  };
+}
+
+export async function sendTodoUpdateRequestPush(
+  todoId: string,
+  payload: { title: string; body: string; url: string; tag: string },
+  supabaseClient?: SupabaseClient
+): Promise<{ sent: number; failed: number }> {
+  if (!ensureVapid() || !todoId) return { sent: 0, failed: 0 };
+  const supabase = supabaseClient ?? (await createClient());
+
+  const { data, error } = await supabase.rpc("list_todo_update_request_push_targets", {
+    p_todo_id: todoId,
+  });
+  if (error) throw error;
+
+  const targets = (data ?? []) as Array<{
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+  }>;
+  if (targets.length === 0) return { sent: 0, failed: 0 };
+
+  const body = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    icon: "/icon-192.png",
+    badge: "/badge-72.png",
+    url: payload.url,
+    tag: payload.tag,
+  });
+
+  let sent = 0;
+  let failed = 0;
+  await Promise.all(
+    targets.map(async (t) => {
+      try {
+        const outcome = await sendWithRetry(
+          { endpoint: t.endpoint, keys: { p256dh: t.p256dh, auth: t.auth } },
+          body
+        );
+        if (outcome === "ok") sent += 1;
+        else {
+          failed += 1;
+          if (outcome === "gone") {
+            try {
+              await supabase.rpc("purge_push_endpoint", { p_endpoint: t.endpoint });
+            } catch {}
+          }
+        }
+      } catch {
+        failed += 1;
+      }
+    })
+  );
+  return { sent, failed };
+}
+
+export async function sendTodoUpdateReplyPush(
+  todoId: string,
+  targetUserIds: string[],
+  payload: { title: string; body: string; url: string; tag: string },
+  supabaseClient?: SupabaseClient
+): Promise<{ sent: number; failed: number }> {
+  if (!ensureVapid() || !todoId || !targetUserIds.length) return { sent: 0, failed: 0 };
+  const supabase = supabaseClient ?? (await createClient());
+
+  const { data, error } = await supabase.rpc("list_todo_update_reply_push_targets", {
+    p_todo_id: todoId,
+    p_target_user_ids: targetUserIds,
+  });
+  if (error) throw error;
+
+  const targets = (data ?? []) as Array<{
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+  }>;
+  if (targets.length === 0) return { sent: 0, failed: 0 };
+
+  const body = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    icon: "/icon-192.png",
+    badge: "/badge-72.png",
+    url: payload.url,
+    tag: payload.tag,
+  });
+
+  let sent = 0;
+  let failed = 0;
+  await Promise.all(
+    targets.map(async (t) => {
+      try {
+        const outcome = await sendWithRetry(
+          { endpoint: t.endpoint, keys: { p256dh: t.p256dh, auth: t.auth } },
+          body
+        );
+        if (outcome === "ok") sent += 1;
+        else {
+          failed += 1;
+          if (outcome === "gone") {
+            try {
+              await supabase.rpc("purge_push_endpoint", { p_endpoint: t.endpoint });
+            } catch {}
+          }
+        }
+      } catch {
+        failed += 1;
+      }
+    })
+  );
+  return { sent, failed };
+}
+

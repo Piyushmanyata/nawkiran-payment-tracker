@@ -19,10 +19,16 @@ import {
   isMineTodo,
   maybeNotifyOverdueTodos,
   maybePurgeOldTodos,
+  requestTodoUpdate,
+  replyTodoUpdate,
   sortDoneTodos,
   sortOpenTodos,
   updateTodo,
 } from "@/lib/todos";
+import {
+  notifyTodoUpdateRequest,
+  notifyTodoUpdateReply,
+} from "@/app/actions/push";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import type { Profile, Todo } from "@/types/database";
 
@@ -231,6 +237,20 @@ export default function TodoPage() {
     }
   }
 
+  async function doRequestUpdate(todo: Todo, message: string) {
+    const updated = await requestTodoUpdate(todo.id, message);
+    upsertLocal(updated);
+    void notifyTodoUpdateRequest(todo.id, todo.title, message);
+  }
+
+  async function doReplyUpdate(todo: Todo, parentId: string, message: string) {
+    const updated = await replyTodoUpdate(todo.id, parentId, message);
+    upsertLocal(updated);
+    const parentReq = todo.threads?.find((t) => t.id === parentId);
+    const targetUserIds = parentReq?.author_id ? [parentReq.author_id] : [];
+    void notifyTodoUpdateReply(todo.id, todo.title, targetUserIds, message);
+  }
+
   if (loading && todos.length === 0) {
     return <PageLoading label="Loading to-dos..." />;
   }
@@ -318,6 +338,8 @@ export default function TodoPage() {
                   : undefined
               }
               onDelete={setDeleteTarget}
+              onRequestUpdate={t.status === "open" ? doRequestUpdate : undefined}
+              onReplyUpdate={t.status === "open" ? doReplyUpdate : undefined}
             />
           ))}
         </div>

@@ -3,6 +3,8 @@
 import { after } from "next/server";
 import {
   buildPushPayload,
+  buildTodoUpdateReqPayload,
+  buildTodoUpdateReplyPayload,
   isPushConfigured,
   removePushSubscription,
   savePushSubscription,
@@ -10,6 +12,8 @@ import {
   sendPaymentPush,
   sendTodoPush,
   sendSelfTodoOverduePush,
+  sendTodoUpdateRequestPush,
+  sendTodoUpdateReplyPush,
   type PushEvent,
   type SerializedPushSubscription,
 } from "@/lib/push";
@@ -240,6 +244,101 @@ export async function notifyMyOverdueTodos(): Promise<{
     return { success: true, queued: true, count: titles.length };
   } catch (err) {
     console.error("notifyMyOverdueTodos", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Notify failed",
+    };
+  }
+}
+
+export async function notifyTodoUpdateRequest(
+  todoId: string,
+  todoTitle: string,
+  message?: string
+): Promise<{ success: boolean; queued?: boolean; error?: string }> {
+  try {
+    if (!isPushConfigured()) return { success: true, queued: false };
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not signed in" };
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const actorName = profile?.full_name || "A team member";
+    const payload = buildTodoUpdateReqPayload({
+      todoId,
+      todoTitle,
+      actorName,
+      message,
+    });
+
+    after(async () => {
+      try {
+        await sendTodoUpdateRequestPush(todoId, payload, supabase);
+      } catch (deliveryError) {
+        console.error("notifyTodoUpdateRequest delivery error", deliveryError);
+      }
+    });
+
+    return { success: true, queued: true };
+  } catch (err) {
+    console.error("notifyTodoUpdateRequest", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Notify failed",
+    };
+  }
+}
+
+export async function notifyTodoUpdateReply(
+  todoId: string,
+  todoTitle: string,
+  targetUserIds: string[],
+  replyMessage: string
+): Promise<{ success: boolean; queued?: boolean; error?: string }> {
+  try {
+    if (!isPushConfigured() || !targetUserIds.length) {
+      return { success: true, queued: false };
+    }
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not signed in" };
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const actorName = profile?.full_name || "A team member";
+    const payload = buildTodoUpdateReplyPayload({
+      todoId,
+      todoTitle,
+      actorName,
+      message: replyMessage,
+    });
+
+    after(async () => {
+      try {
+        await sendTodoUpdateReplyPush(todoId, targetUserIds, payload, supabase);
+      } catch (deliveryError) {
+        console.error("notifyTodoUpdateReply delivery error", deliveryError);
+      }
+    });
+
+    return { success: true, queued: true };
+  } catch (err) {
+    console.error("notifyTodoUpdateReply", err);
     return {
       success: false,
       error: err instanceof Error ? err.message : "Notify failed",

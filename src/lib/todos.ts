@@ -154,6 +154,34 @@ export async function deleteTodo(todoId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function requestTodoUpdate(
+  todoId: string,
+  content: string
+): Promise<Todo> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("request_todo_update", {
+    p_todo_id: todoId,
+    p_content: content,
+  });
+  if (error) throw error;
+  return data as unknown as Todo;
+}
+
+export async function replyTodoUpdate(
+  todoId: string,
+  parentId: string,
+  content: string
+): Promise<Todo> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("reply_todo_update", {
+    p_todo_id: todoId,
+    p_parent_id: parentId,
+    p_content: content,
+  });
+  if (error) throw error;
+  return data as unknown as Todo;
+}
+
 export const TODO_KEEP_DAYS = 30;
 const PURGE_FLAG = "nk_todo_purge_at";
 const PURGE_EVERY_MS = 12 * 60 * 60 * 1000;

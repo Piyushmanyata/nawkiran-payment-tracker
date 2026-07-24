@@ -70,6 +70,19 @@ export interface PaymentEvent {
   created_at: string;
 }
 
+export type TodoThreadType = "request" | "reply";
+
+export interface TodoThread {
+  id: string;
+  todo_id: string;
+  author_id: string;
+  author_name: string;
+  content: string;
+  type: TodoThreadType;
+  parent_id: string | null;
+  created_at: string;
+}
+
 export interface TodoAssignee {
   id: string;
   full_name: string;
@@ -88,6 +101,7 @@ export interface Todo {
   creator_name?: string | null;
   completer_name?: string | null;
   assignees: TodoAssignee[];
+  threads?: TodoThread[];
   /** Present only on create/update RPC responses */
   newly_assigned?: string[];
 }
