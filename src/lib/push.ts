@@ -480,7 +480,7 @@ export function buildTodoUpdateReqPayload(params: TodoUpdatePushParams) {
     title: "Update requested",
     body: `${actor} requested an update on "${titleText}"${msg}`,
     url: "/todo",
-    tag: `nk:todo-update-req:${params.todoId}:${Date.now()}`,
+    tag: `nk:todo-update-req:${params.todoId}`,
   };
 }
 
@@ -493,7 +493,7 @@ export function buildTodoUpdateReplyPayload(params: TodoUpdatePushParams) {
     title: "Update reply",
     body: `${actor} replied on "${titleText}"${msg}`,
     url: "/todo",
-    tag: `nk:todo-update-reply:${params.todoId}:${Date.now()}`,
+    tag: `nk:todo-update-reply:${params.todoId}`,
   };
 }
 

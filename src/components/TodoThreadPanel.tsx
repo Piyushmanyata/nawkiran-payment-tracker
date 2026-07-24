@@ -20,9 +20,7 @@ export function TodoThreadPanel({
 
   const [expanded, setExpanded] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
-  const [requestMessage, setRequestMessage] = useState(
-    "Could you please provide an update on this?"
-  );
+  const [requestMessage, setRequestMessage] = useState("");
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyMessage, setReplyMessage] = useState("");
   const [threadBusy, setThreadBusy] = useState(false);
@@ -37,7 +35,7 @@ export function TodoThreadPanel({
       await onRequestUpdate(todo, requestMessage.trim());
       setShowRequestForm(false);
       setExpanded(true);
-      setRequestMessage("Could you please provide an update on this?");
+      setRequestMessage("");
     } catch (err) {
       setThreadError(
         err instanceof Error ? err.message : "Failed to send update request"
