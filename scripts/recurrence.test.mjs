@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateNextDueDate, formatRecurrenceLabel } from "../src/lib/recurrence.ts";
+import { calculateInitialDueDate, calculateNextDueDate, formatRecurrenceLabel } from "../src/lib/recurrence.ts";
 import { formatTodoDueLabel, isTodoOverdue } from "../src/lib/format.ts";
 
 test("formatRecurrenceLabel formats standard and custom recurrence rules", () => {
@@ -21,6 +21,22 @@ test("formatRecurrenceLabel formats standard and custom recurrence rules", () =>
   assert.equal(
     formatRecurrenceLabel({ type: "custom_monthly", day_of_month: 15 }),
     "15th of month"
+  );
+});
+
+test("calculateInitialDueDate returns today if matching or calculates first upcoming occurrence", () => {
+  const fridayRef = "2026-07-24"; // Friday (ISO day 5)
+
+  // Every Monday (ISO day 1) created on Friday -> initial due date is upcoming Monday 2026-07-27
+  assert.equal(
+    calculateInitialDueDate({ type: "custom_weekly", days_of_week: [1] }, fridayRef),
+    "2026-07-27"
+  );
+
+  // Every Friday created on Friday -> initial due date is today 2026-07-24
+  assert.equal(
+    calculateInitialDueDate({ type: "custom_weekly", days_of_week: [5] }, fridayRef),
+    "2026-07-24"
   );
 });
 

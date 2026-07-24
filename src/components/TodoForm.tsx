@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { CreateTodoInput, Profile, RecurrenceRule, RecurrenceType, Todo, TodoPriority } from "@/types/database";
+import { calculateInitialDueDate } from "@/lib/recurrence";
 import { LoadingButton } from "@/components/LoadingButton";
 import {
   errorBoxClass,
@@ -89,9 +90,6 @@ export function TodoForm({
     let finalDueDate = dueDate || null;
 
     if (recType !== "none") {
-      if (!finalDueDate) {
-        finalDueDate = new Date().toISOString().slice(0, 10);
-      }
       if (recType === "custom_weekly") {
         recurrenceRule = {
           type: recType,
@@ -101,6 +99,9 @@ export function TodoForm({
         recurrenceRule = { type: recType, day_of_month: dayOfMonth };
       } else {
         recurrenceRule = { type: recType };
+      }
+      if (!finalDueDate) {
+        finalDueDate = calculateInitialDueDate(recurrenceRule);
       }
     }
 

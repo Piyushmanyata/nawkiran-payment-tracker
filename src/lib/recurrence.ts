@@ -111,3 +111,37 @@ export function calculateNextDueDate(
 
   return null;
 }
+
+/**
+  Calculate the initial scheduled due date when creating a recurring to-do.
+  If created on a day matching the pattern, returns today; otherwise returns the first upcoming matching date.
+ */
+export function calculateInitialDueDate(
+  rule: RecurrenceRule | null | undefined,
+  refDateStr?: string
+): string {
+  const todayIso = refDateStr ?? new Date().toISOString().slice(0, 10);
+  if (!rule || rule.type === "none" || rule.type === "daily" || rule.type === "weekly" || rule.type === "monthly" || rule.type === "yearly") {
+    return todayIso;
+  }
+
+  const base = new Date(`${todayIso}T00:00:00Z`);
+  if (isNaN(base.getTime())) return todayIso;
+
+  if (rule.type === "custom_weekly") {
+    const targetDays = new Set(rule.days_of_week ?? []);
+    if (targetDays.size === 0) return todayIso;
+    const jsDay = base.getUTCDay();
+    const isoDay = jsDay === 0 ? 7 : jsDay;
+    if (targetDays.has(isoDay)) return todayIso;
+    return calculateNextDueDate(todayIso, rule, todayIso) ?? todayIso;
+  }
+
+  if (rule.type === "custom_monthly") {
+    const targetDom = Math.min(Math.max(rule.day_of_month ?? 1, 1), 31);
+    if (base.getUTCDate() === targetDom) return todayIso;
+    return calculateNextDueDate(todayIso, rule, todayIso) ?? todayIso;
+  }
+
+  return todayIso;
+}
