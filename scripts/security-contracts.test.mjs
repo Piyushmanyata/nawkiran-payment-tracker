@@ -359,4 +359,20 @@ test("overdue push targets all responsible users across the team", () => {
   assert.match(migration, /extract\(hour from timezone\('Asia\/Kolkata', now\(\)\)\) >= 12/i);
 });
 
+test("is_todo_overdue_ist helper eliminates duplicate overdue predicates", () => {
+  const migration = sql["20260724140000_extract_overdue_ist_helper.sql"];
+  assert.ok(migration, "20260724140000_extract_overdue_ist_helper migration missing");
+  // Helper function exists
+  assert.match(migration, /create or replace function public\.is_todo_overdue_ist/i);
+  // Both RPCs are rewritten using the helper
+  assert.match(migration, /create or replace function public\.list_my_overdue_todo_titles/i);
+  assert.match(migration, /create or replace function public\.list_overdue_todo_push_targets/i);
+  // Helper used in both RPCs (not the raw predicate)
+  assert.match(migration, /public\.is_todo_overdue_ist\(t\)/i);
+  // Security: definer on RPCs, invoker on helper
+  assert.match(migration, /security invoker/i);
+  assert.match(migration, /security definer/i);
+});
+
+
 

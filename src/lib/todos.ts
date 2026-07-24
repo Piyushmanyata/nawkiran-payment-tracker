@@ -1,5 +1,6 @@
 import { notifyMyOverdueTodos, notifyTodoAssigned } from "@/app/actions/push";
-import { isRecurringRule, kolkataHour, todayLocalIso } from "@/lib/format";
+import { kolkataHour, todayLocalIso } from "@/lib/format";
+import { isRecurringRule } from "@/lib/recurrence";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import type { CreateTodoInput, Profile, RecurrenceType, Todo, TodoPriority, UpdateTodoInput } from "@/types/database";
 
@@ -241,7 +242,7 @@ export async function maybePurgeOldTodos(): Promise<number> {
 
 const OVERDUE_FLAG = "nk_todo_overdue_day";
 
-/** At most one overdue digest push per local calendar day (only locked when reminders exist or after 12pm). */
+/** At most one overdue digest push per local calendar day (locked after any successful check at/after 12pm IST). */
 export async function maybeNotifyOverdueTodos(): Promise<number> {
   try {
     const now = new Date();
@@ -249,11 +250,12 @@ export async function maybeNotifyOverdueTodos(): Promise<number> {
     if (typeof localStorage !== "undefined") {
       if (localStorage.getItem(OVERDUE_FLAG) === day) return 0;
     }
+    // Only attempt after 12pm IST (when recurring items become overdue).
+    if (kolkataHour(now) < 12) return 0;
     const result = await notifyMyOverdueTodos();
+    // Lock for the rest of the day regardless of personal count — other users may have been notified.
     if (typeof localStorage !== "undefined" && result.success) {
-      if ((result.count ?? 0) > 0 || kolkataHour(now) >= 12) {
-        localStorage.setItem(OVERDUE_FLAG, day);
-      }
+      localStorage.setItem(OVERDUE_FLAG, day);
     }
     return result.count ?? 0;
   } catch {

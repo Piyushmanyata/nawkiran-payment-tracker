@@ -37,10 +37,13 @@ export function BottomNavigation() {
 
     async function loadCount() {
       try {
+        // Exclude future-scheduled recurring todos (hidden from Open tab by isTodoVisible).
+        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
         const { count, error } = await supabase
           .from("todos")
           .select("id", { count: "exact", head: true })
-          .eq("status", "open");
+          .eq("status", "open")
+          .or(`due_date.is.null,due_date.lte.${today}`);
         if (!error && alive) setOpenTodoCount(count ?? 0);
       } catch {
         /* table may not exist until migration */
