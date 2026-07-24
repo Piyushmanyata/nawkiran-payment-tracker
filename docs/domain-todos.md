@@ -163,7 +163,7 @@ Align with existing push infrastructure where possible.
 | Assigned (added to assignee list on create or edit) | Each **newly** assigned person |
 | Overdue reminder | Each current assignee if any; if no assignees, **initiator** (recommended default so something pings) |
 
-**Not required day one but in scope of decision "D":** overdue reminders (cron or check-on-open). Exact schedule (daily digest vs immediate once overdue) can be an implementation detail; product intent is **people get nudged**.
+**Not required day one but in scope of decision "D":** overdue reminders (cron or check-on-open). Recurring reminders for to-dos trigger at 12:00 PM (Asia/Kolkata timezone) on the scheduled due date for all assignees (or initiator if unassigned). Exact schedule (daily digest vs immediate once overdue) can be an implementation detail; product intent is **people get nudged**.
 
 No blast-to-all on every create (rejected as too noisy).
 

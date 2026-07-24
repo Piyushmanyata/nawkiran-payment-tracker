@@ -1,4 +1,5 @@
 import { notifyMyOverdueTodos, notifyTodoAssigned } from "@/app/actions/push";
+import { kolkataHour, todayLocalIso } from "@/lib/format";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import type { CreateTodoInput, Profile, RecurrenceType, Todo, TodoPriority, UpdateTodoInput } from "@/types/database";
 
@@ -236,16 +237,19 @@ export async function maybePurgeOldTodos(): Promise<number> {
 
 const OVERDUE_FLAG = "nk_todo_overdue_day";
 
-/** At most one overdue digest push per local calendar day. */
+/** At most one overdue digest push per local calendar day (only locked when reminders exist or after 12pm). */
 export async function maybeNotifyOverdueTodos(): Promise<number> {
   try {
-    const day = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const day = todayLocalIso(now);
     if (typeof localStorage !== "undefined") {
       if (localStorage.getItem(OVERDUE_FLAG) === day) return 0;
     }
     const result = await notifyMyOverdueTodos();
     if (typeof localStorage !== "undefined" && result.success) {
-      localStorage.setItem(OVERDUE_FLAG, day);
+      if ((result.count ?? 0) > 0 || kolkataHour(now) >= 12) {
+        localStorage.setItem(OVERDUE_FLAG, day);
+      }
     }
     return result.count ?? 0;
   } catch {

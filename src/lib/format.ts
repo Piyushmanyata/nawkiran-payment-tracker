@@ -13,13 +13,31 @@ export function formatInr(amount: number | string): string {
   return inrFormatter.format(n);
 }
 
-/** Today in local timezone as YYYY-MM-DD. */
+/** Today in Asia/Kolkata (IST) timezone as YYYY-MM-DD. */
 export function todayLocalIso(refDate?: Date): string {
   const d = refDate ?? new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
+/** Hour in Asia/Kolkata (0-23). */
+export function kolkataHour(refDate?: Date): number {
+  const d = refDate ?? new Date();
+  const hourStr = d.toLocaleString("en-US", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    hour12: false,
+  });
+  const h = Number(hourStr);
+  return Number.isNaN(h) ? d.getHours() : h;
 }
 
 export function isOverdue(
@@ -75,7 +93,7 @@ export function statusLabel(status: PaymentStatus): string {
   }
 }
 
-/** Open to-do with due date strictly before today (or starting at 12:00 PM on due date for recurring items). */
+/** Open to-do with due date strictly before today (or starting at 12:00 PM IST on due date for recurring items). */
 export function isTodoOverdue(
   status: "open" | "done",
   dueDate: string | null | undefined,
@@ -91,7 +109,7 @@ export function isTodoOverdue(
   if (isRecurring) {
     if (dueDate < today) return true;
     if (dueDate === today) {
-      return now.getHours() >= 12;
+      return kolkataHour(now) >= 12;
     }
     return false;
   }
