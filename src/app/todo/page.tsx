@@ -30,7 +30,7 @@ import {
   notifyTodoUpdateReply,
 } from "@/app/actions/push";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
-import type { Profile, Todo } from "@/types/database";
+import type { CreateTodoInput, Profile, Todo } from "@/types/database";
 
 const Modal = dynamic(() =>
   import("@/components/Modal").then((mod) => mod.Modal)
@@ -161,23 +161,11 @@ export default function TodoPage() {
     setTodos((prev) => prev.filter((t) => t.id !== id));
   }
 
-  async function doCreate(input: {
-    title: string;
-    dueDate: string | null;
-    priority: "normal" | "urgent";
-    assigneeIds: string[];
-    recurrenceRule: Record<string, unknown> | null;
-  }) {
+  async function doCreate(input: CreateTodoInput) {
     setFormBusy(true);
     setFormError(null);
     try {
-      const todo = await createTodo({
-        title: input.title,
-        dueDate: input.dueDate,
-        priority: input.priority,
-        assigneeIds: input.assigneeIds,
-        recurrenceRule: input.recurrenceRule,
-      });
+      const todo = await createTodo(input);
       upsertLocal({
         ...todo,
         creator_name: profile?.full_name ?? todo.creator_name,
@@ -190,24 +178,14 @@ export default function TodoPage() {
     }
   }
 
-  async function doEdit(input: {
-    title: string;
-    dueDate: string | null;
-    priority: "normal" | "urgent";
-    assigneeIds: string[];
-    recurrenceRule: Record<string, unknown> | null;
-  }) {
+  async function doEdit(input: CreateTodoInput) {
     if (!editTarget) return;
     setFormBusy(true);
     setFormError(null);
     try {
       const todo = await updateTodo({
+        ...input,
         todoId: editTarget.id,
-        title: input.title,
-        dueDate: input.dueDate,
-        priority: input.priority,
-        assigneeIds: input.assigneeIds,
-        recurrenceRule: input.recurrenceRule,
       });
       upsertLocal(todo);
       setEditTarget(null);

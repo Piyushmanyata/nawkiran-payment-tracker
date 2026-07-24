@@ -1,6 +1,6 @@
 import { notifyMyOverdueTodos, notifyTodoAssigned } from "@/app/actions/push";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
-import type { Profile, Todo, TodoPriority } from "@/types/database";
+import type { CreateTodoInput, Profile, Todo, TodoPriority, UpdateTodoInput } from "@/types/database";
 
 function asTodo(raw: unknown): Todo {
   const row = (raw ?? {}) as Record<string, unknown>;
@@ -123,13 +123,7 @@ export async function fetchActiveProfiles(): Promise<Profile[]> {
   return (data ?? []) as Profile[];
 }
 
-export async function createTodo(input: {
-  title: string;
-  dueDate?: string | null;
-  priority?: TodoPriority;
-  assigneeIds?: string[];
-  recurrenceRule?: Record<string, unknown> | null;
-}): Promise<Todo> {
+export async function createTodo(input: CreateTodoInput): Promise<Todo> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.rpc("create_todo", {
     p_title: input.title,
@@ -144,14 +138,7 @@ export async function createTodo(input: {
   return todo;
 }
 
-export async function updateTodo(input: {
-  todoId: string;
-  title: string;
-  dueDate?: string | null;
-  priority?: TodoPriority;
-  assigneeIds?: string[];
-  recurrenceRule?: Record<string, unknown> | null;
-}): Promise<Todo> {
+export async function updateTodo(input: UpdateTodoInput): Promise<Todo> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.rpc("update_todo", {
     p_todo_id: input.todoId,

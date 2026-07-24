@@ -28,54 +28,38 @@ begin
   if t is null or t = 'none' then return null; end if;
 
   if t = 'daily' then
-    loop
-      cur := (cur + interval '1 day')::date;
-      exit when cur > today_date;
-    end loop;
-    return cur;
+    return (cur + interval '1 day')::date;
   elsif t = 'weekly' then
-    loop
-      cur := (cur + interval '1 week')::date;
-      exit when cur > today_date;
-    end loop;
-    return cur;
+    return (cur + interval '1 week')::date;
   elsif t = 'monthly' then
-    loop
-      cur := (cur + interval '1 month')::date;
-      exit when cur > today_date;
-    end loop;
-    return cur;
+    return (cur + interval '1 month')::date;
   elsif t = 'yearly' then
-    loop
-      cur := (cur + interval '1 year')::date;
-      exit when cur > today_date;
-    end loop;
-    return cur;
+    return (cur + interval '1 year')::date;
   elsif t = 'custom_weekly' then
     d_arr := p_rule->'days_of_week';
     if d_arr is null or jsonb_array_length(d_arr) = 0 then return null; end if;
     loop
       cur := (cur + interval '1 day')::date;
       iso_day := extract(isodow from cur)::integer;
-      if d_arr @> to_jsonb(iso_day) and cur > today_date then
+      if d_arr @> to_jsonb(iso_day) then
         return cur;
       end if;
       safety := safety + 1;
       exit when safety >= 366;
     end loop;
-    return cur;
+    return null;
   elsif t = 'custom_monthly' then
     dom := coalesce((p_rule->>'day_of_month')::integer, 1);
     if dom < 1 then dom := 1; elsif dom > 31 then dom := 31; end if;
     loop
       cur := (cur + interval '1 day')::date;
-      if extract(day from cur)::integer = dom and cur > today_date then
+      if extract(day from cur)::integer = dom then
         return cur;
       end if;
       safety := safety + 1;
       exit when safety >= 366;
     end loop;
-    return cur;
+    return null;
   end if;
 
   return null;

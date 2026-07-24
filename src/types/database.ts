@@ -122,6 +122,18 @@ export interface Todo {
   newly_assigned?: string[];
 }
 
+export interface CreateTodoInput {
+  title: string;
+  dueDate?: string | null;
+  priority?: TodoPriority;
+  assigneeIds?: string[];
+  recurrenceRule?: RecurrenceRule | null;
+}
+
+export interface UpdateTodoInput extends CreateTodoInput {
+  todoId: string;
+}
+
 export interface EditPaymentInput {
   party: string;
   amount: number;

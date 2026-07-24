@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { Profile, RecurrenceType, Todo, TodoPriority } from "@/types/database";
+import type { CreateTodoInput, Profile, RecurrenceRule, RecurrenceType, Todo, TodoPriority } from "@/types/database";
 import { LoadingButton } from "@/components/LoadingButton";
 import {
   errorBoxClass,
@@ -33,13 +33,7 @@ export function TodoForm({
   loading: boolean;
   error: string | null;
   onCancel?: () => void;
-  onSubmit: (input: {
-    title: string;
-    dueDate: string | null;
-    priority: TodoPriority;
-    assigneeIds: string[];
-    recurrenceRule: Record<string, unknown> | null;
-  }) => void;
+  onSubmit: (input: CreateTodoInput) => void;
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [dueDate, setDueDate] = useState(initial?.due_date ?? "");
@@ -91,8 +85,13 @@ export function TodoForm({
     const clean = title.trim();
     if (!clean) return;
 
-    let recurrenceRule: Record<string, unknown> | null = null;
+    let recurrenceRule: RecurrenceRule | null = null;
+    let finalDueDate = dueDate || null;
+
     if (recType !== "none") {
+      if (!finalDueDate) {
+        finalDueDate = new Date().toISOString().slice(0, 10);
+      }
       if (recType === "custom_weekly") {
         recurrenceRule = {
           type: recType,
@@ -107,7 +106,7 @@ export function TodoForm({
 
     onSubmit({
       title: clean,
-      dueDate: dueDate || null,
+      dueDate: finalDueDate,
       priority,
       assigneeIds,
       recurrenceRule,
