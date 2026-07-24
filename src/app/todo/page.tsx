@@ -135,14 +135,14 @@ export default function TodoPage() {
   }, [reload]);
 
   const openCount = useMemo(
-    () => todos.filter((t) => t.status === "open" && isTodoVisible(t)).length,
+    () => todos.filter((t) => t.status === "open" && !isRecurringTodo(t)).length,
     [todos]
   );
 
   const visible = useMemo(() => {
     if (filter === "open") {
       return sortOpenTodos(
-        todos.filter((t) => t.status === "open" && isTodoVisible(t))
+        todos.filter((t) => t.status === "open" && !isRecurringTodo(t))
       );
     }
     if (filter === "done") {
@@ -157,7 +157,7 @@ export default function TodoPage() {
     // Mine on open by default feel: show open mine first list of open+done mine
     const mine = todos.filter((t) => isMineTodo(t, userId));
     const open = sortOpenTodos(
-      mine.filter((t) => t.status === "open" && isTodoVisible(t))
+      mine.filter((t) => t.status === "open")
     );
     const done = sortDoneTodos(mine.filter((t) => t.status === "done"));
     return [...open, ...done];

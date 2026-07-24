@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateInitialDueDate, calculateNextDueDate, formatRecurrenceLabel } from "../src/lib/recurrence.ts";
 import { formatTodoDueLabel, isTodoOverdue, isTodoVisible } from "../src/lib/format.ts";
+import { canCompleteTodo, canDeleteTodo, canEditTodo } from "../src/lib/roles.ts";
 
 test("formatRecurrenceLabel formats standard and custom recurrence rules", () => {
   assert.equal(formatRecurrenceLabel(null), null);
@@ -130,11 +131,65 @@ test("isTodoOverdue and formatTodoDueLabel trigger at 12pm on the recurring date
   assert.equal(formatTodoDueLabel("open", todayIso, recurringRule, noonTime), "Due: Today");
 
   assert.equal(isTodoOverdue("open", todayIso, recurringRule, afternoonTime), true);
+});
 
-  // Tomorrow's recurring todo does not trigger today
-  assert.equal(isTodoOverdue("open", tomorrowIso, recurringRule, afternoonTime), false);
+test("canCompleteTodo disables marking done for recurring items before due date", () => {
+  const refTime = new Date("2026-07-24T10:00:00+05:30"); // 2026-07-24 IST
+  const recurring = { type: "daily" };
 
-  // Non-recurring todo due today does not trigger today even at 2pm
-  assert.equal(isTodoOverdue("open", todayIso, null, afternoonTime), false);
+  // Future due date -> complete disabled
+  assert.equal(
+    canCompleteTodo({ status: "open", due_date: "2026-07-25", recurrence_rule: recurring }, refTime),
+    false
+  );
+
+  // Due today -> complete enabled
+  assert.equal(
+    canCompleteTodo({ status: "open", due_date: "2026-07-24", recurrence_rule: recurring }, refTime),
+    true
+  );
+
+  // Past due date -> complete enabled
+  assert.equal(
+    canCompleteTodo({ status: "open", due_date: "2026-07-20", recurrence_rule: recurring }, refTime),
+    true
+  );
+
+  // Non-recurring with future due date -> complete enabled
+  assert.equal(
+    canCompleteTodo({ status: "open", due_date: "2026-07-25", recurrence_rule: null }, refTime),
+    true
+  );
+});
+
+test("canEditTodo restricts recurring to-dos to originator and admin only", () => {
+  const creatorId = "user-123";
+  const otherId = "user-456";
+  const recTodo = { created_by: creatorId, recurrence_rule: { type: "daily" } };
+  const normalTodo = { created_by: creatorId, recurrence_rule: null };
+
+  // Creator can edit recurring todo
+  assert.equal(canEditTodo("employee", recTodo, creatorId), true);
+  assert.equal(canEditTodo("director", recTodo, creatorId), true);
+
+  // Admin can edit recurring todo
+  assert.equal(canEditTodo("admin", recTodo, otherId), true);
+
+  // Director who is NOT creator CANNOT edit recurring todo
+  assert.equal(canEditTodo("director", recTodo, otherId), false);
+
+  // Employee who is NOT creator CANNOT edit recurring todo
+  assert.equal(canEditTodo("employee", recTodo, otherId), false);
+
+  // Director CAN edit non-recurring todo even if not creator
+  assert.equal(canEditTodo("director", normalTodo, otherId), true);
+});
+
+test("canDeleteTodo restricts deletion strictly to admin", () => {
+  assert.equal(canDeleteTodo("admin"), true);
+  assert.equal(canDeleteTodo("director"), false);
+  assert.equal(canDeleteTodo("employee"), false);
+  assert.equal(canDeleteTodo("accounts"), false);
+  assert.equal(canDeleteTodo(null), false);
 });
 

@@ -1,4 +1,4 @@
-import type { UserRole } from "@/types/database";
+import type { RecurrenceRule, UserRole } from "@/types/database";
 
 /** Director (and admin) approve / deny pending requests. */
 export function canApprove(role: UserRole | null | undefined): boolean {
@@ -42,16 +42,53 @@ export function canDeleteHistory(role: UserRole | null | undefined): boolean {
   return role === "admin";
 }
 
-/** Open to-do: initiator, director, or admin may edit. */
+function isRecurringRule(rule?: RecurrenceRule | null): boolean {
+  return Boolean(rule && rule.type && rule.type !== "none");
+}
+
+function todayLocalIso(refDate?: Date): string {
+  const d = refDate ?? new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
+/** Open to-do: creator or admin for recurring; creator, director, or admin for non-recurring. */
 export function canEditTodo(
   role: UserRole | null | undefined,
-  todo?: { created_by: string } | null,
+  todo?: { created_by: string; recurrence_rule?: RecurrenceRule | null } | null,
   userId?: string | null
 ): boolean {
-  if (!role) return false;
-  if (role === "director" || role === "admin") return true;
-  if (!todo || !userId) return false;
-  return todo.created_by === userId;
+  if (!role || !todo) return false;
+  if (role === "admin") return true;
+  const isCreator = Boolean(userId && todo.created_by === userId);
+
+  if (isRecurringRule(todo.recurrence_rule)) {
+    return isCreator;
+  }
+
+  if (role === "director") return true;
+  return isCreator;
+}
+
+/** Recurring to-dos cannot be marked complete until their due date arrives. */
+export function canCompleteTodo(
+  todo: { status: string; due_date?: string | null; recurrence_rule?: RecurrenceRule | null },
+  refDate?: Date
+): boolean {
+  if (todo.status !== "open") return false;
+  if (isRecurringRule(todo.recurrence_rule) && todo.due_date) {
+    const today = todayLocalIso(refDate);
+    if (todo.due_date > today) return false;
+  }
+  return true;
 }
 
 /** Admin-only hard delete for to-dos. */

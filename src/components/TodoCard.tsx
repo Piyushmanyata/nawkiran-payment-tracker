@@ -7,7 +7,7 @@ import {
   formatWhen,
   isTodoOverdue,
 } from "@/lib/format";
-import { canDeleteTodo, canEditTodo } from "@/lib/roles";
+import { canCompleteTodo, canDeleteTodo, canEditTodo } from "@/lib/roles";
 import { LoadingButton } from "@/components/LoadingButton";
 import { TodoThreadPanel } from "@/components/TodoThreadPanel";
 
@@ -36,6 +36,7 @@ function TodoCardInner({
 }) {
   const open = todo.status === "open";
   const overdue = isTodoOverdue(todo.status, todo.due_date, todo.recurrence_rule);
+  const completeAllowed = canCompleteTodo(todo);
   const showEdit = open && canEditTodo(role, todo, userId) && Boolean(onEdit);
   const showComplete = open && Boolean(onComplete);
   const showDelete = canDeleteTodo(role) && Boolean(onDelete);
@@ -124,6 +125,8 @@ function TodoCardInner({
           {showComplete ? (
             <LoadingButton
               variant="primary"
+              disabled={busy || !completeAllowed}
+              title={!completeAllowed ? "Available on due date" : undefined}
               loading={busy}
               loadingText="Saving..."
               onClick={() => onComplete?.(todo)}

@@ -374,5 +374,15 @@ test("is_todo_overdue_ist helper eliminates duplicate overdue predicates", () =>
   assert.match(migration, /security definer/i);
 });
 
+test("recurring to-dos edit permission and completion due date guard migration contract", () => {
+  const migration = sql["20260724150000_recurring_todo_permissions_and_completion_guard.sql"];
+  assert.ok(migration, "20260724150000_recurring_todo_permissions_and_completion_guard migration missing");
+  assert.match(migration, /create or replace function public\.update_todo/i);
+  assert.match(migration, /create or replace function public\.complete_todo/i);
+  assert.match(migration, /me\.id <> row\.created_by and me\.role <> 'admin'/i);
+  assert.match(migration, /row\.due_date > today_ist/i);
+  assert.match(migration, /RECURRING_NOT_DUE/i);
+});
+
 
 
