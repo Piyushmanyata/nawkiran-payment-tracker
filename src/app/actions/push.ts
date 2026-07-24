@@ -271,6 +271,7 @@ export async function notifyTodoUpdateRequest(
       .eq("id", user.id)
       .maybeSingle();
 
+    const actorId = user.id;
     const actorName = profile?.full_name || "A team member";
     const payload = buildTodoUpdateReqPayload({
       todoId,
@@ -281,7 +282,7 @@ export async function notifyTodoUpdateRequest(
 
     after(async () => {
       try {
-        await sendTodoUpdateRequestPush(todoId, payload, supabase);
+        await sendTodoUpdateRequestPush(todoId, actorId, payload, supabase);
       } catch (deliveryError) {
         console.error("notifyTodoUpdateRequest delivery error", deliveryError);
       }
@@ -320,6 +321,7 @@ export async function notifyTodoUpdateReply(
       .eq("id", user.id)
       .maybeSingle();
 
+    const actorId = user.id;
     const actorName = profile?.full_name || "A team member";
     const payload = buildTodoUpdateReplyPayload({
       todoId,
@@ -330,7 +332,13 @@ export async function notifyTodoUpdateReply(
 
     after(async () => {
       try {
-        await sendTodoUpdateReplyPush(todoId, targetUserIds, payload, supabase);
+        await sendTodoUpdateReplyPush(
+          todoId,
+          targetUserIds,
+          actorId,
+          payload,
+          supabase
+        );
       } catch (deliveryError) {
         console.error("notifyTodoUpdateReply delivery error", deliveryError);
       }

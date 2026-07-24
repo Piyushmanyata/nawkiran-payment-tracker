@@ -499,6 +499,7 @@ export function buildTodoUpdateReplyPayload(params: TodoUpdatePushParams) {
 
 export async function sendTodoUpdateRequestPush(
   todoId: string,
+  actorId: string | undefined,
   payload: { title: string; body: string; url: string; tag: string },
   supabaseClient?: SupabaseClient
 ): Promise<{ sent: number; failed: number }> {
@@ -507,6 +508,7 @@ export async function sendTodoUpdateRequestPush(
 
   const { data, error } = await supabase.rpc("list_todo_update_request_push_targets", {
     p_todo_id: todoId,
+    p_actor_id: actorId ?? null,
   });
   if (error) throw error;
 
@@ -555,6 +557,7 @@ export async function sendTodoUpdateRequestPush(
 export async function sendTodoUpdateReplyPush(
   todoId: string,
   targetUserIds: string[],
+  actorId: string | undefined,
   payload: { title: string; body: string; url: string; tag: string },
   supabaseClient?: SupabaseClient
 ): Promise<{ sent: number; failed: number }> {
@@ -564,6 +567,7 @@ export async function sendTodoUpdateReplyPush(
   const { data, error } = await supabase.rpc("list_todo_update_reply_push_targets", {
     p_todo_id: todoId,
     p_target_user_ids: targetUserIds,
+    p_actor_id: actorId ?? null,
   });
   if (error) throw error;
 

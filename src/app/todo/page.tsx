@@ -246,9 +246,16 @@ export default function TodoPage() {
   async function doReplyUpdate(todo: Todo, parentId: string, message: string) {
     const updated = await replyTodoUpdate(todo.id, parentId, message);
     upsertLocal(updated);
-    const parentReq = todo.threads?.find((t) => t.id === parentId);
-    const targetUserIds = parentReq?.author_id ? [parentReq.author_id] : [];
-    void notifyTodoUpdateReply(todo.id, todo.title, targetUserIds, message);
+    const parentReq = updated.threads?.find((t) => t.id === parentId);
+    const assignees = (updated.assignees ?? []).map((a) => a.id);
+    const targets = Array.from(
+      new Set(
+        [parentReq?.author_id, updated.created_by, ...assignees].filter(
+          Boolean
+        ) as string[]
+      )
+    );
+    void notifyTodoUpdateReply(todo.id, todo.title, targets, message);
   }
 
   if (loading && todos.length === 0) {
