@@ -88,12 +88,28 @@ export interface TodoAssignee {
   full_name: string;
 }
 
+export type RecurrenceType =
+  | "none"
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "yearly"
+  | "custom_weekly"
+  | "custom_monthly";
+
+export interface RecurrenceRule {
+  type: RecurrenceType;
+  days_of_week?: number[];
+  day_of_month?: number;
+}
+
 export interface Todo {
   id: string;
   title: string;
   priority: TodoPriority;
   due_date: string | null;
   status: TodoStatus;
+  recurrence_rule?: RecurrenceRule | null;
   created_by: string;
   created_at: string;
   completed_by: string | null;

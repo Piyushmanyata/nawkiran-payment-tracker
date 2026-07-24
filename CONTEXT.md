@@ -42,4 +42,26 @@ _Avoid_: Settled claim, closed transaction
 - **History Search**: Historical payments (`paid` / `denied`) are searchable under the `History` filter on `/open`. Searching on `Open` displays an inline notice if matching historical records exist.
 - **Retention & Immutability**: Historical payment records are retained for a rolling 30-day window (`HISTORY_KEEP_DAYS = 30`) and purged automatically. Manual deletion is disabled for Employees, Directors, and automated Agents, while Admins retain manual delete capability with a confirmation dialog.
 
+## To-do & Recurrence Rules
+
+**Recurring To-do**:
+A To-do item configured with a repeating schedule interval or calendar pattern (`daily`, `weekly`, `monthly`, `yearly`, specific days of the week, or specific day of the month). 
+
+**In-place Recurrence Reset**:
+When a Recurring To-do is marked as completed (`done`), it is immediately reset in-place back to `open` with its `due_date` advanced to the next scheduled occurrence date based on its calendar recurrence pattern. No separate historical row is spawned.
+
+**Recurrence Reference Anchor**:
+When advancing `due_date` upon completion, the calculation anchors from the **previous scheduled due date** (not the completion timestamp), preserving fixed calendar cadence without schedule drift.
+
+**Silent Recurrence Reset**:
+When a Recurring To-do is marked `done`, `status` is silently reset to `open` and `due_date` is advanced without generating system audit messages in the task thread.
+
+**Recurrence Preservation & Affordance**:
+Upon reset, assignees and priority are fully preserved. Recurring tasks display a distinct repeat badge/icon (`🔁 [Schedule]`) on task cards in `/todo` for visual clarity.
+
+
+
+
+
+
 

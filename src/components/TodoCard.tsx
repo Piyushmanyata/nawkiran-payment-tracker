@@ -11,6 +11,8 @@ import { canDeleteTodo, canEditTodo } from "@/lib/roles";
 import { LoadingButton } from "@/components/LoadingButton";
 import { TodoThreadPanel } from "@/components/TodoThreadPanel";
 
+import { formatRecurrenceLabel } from "@/lib/recurrence";
+
 function TodoCardInner({
   todo,
   role,
@@ -38,6 +40,7 @@ function TodoCardInner({
   const showComplete = open && Boolean(onComplete);
   const showDelete = canDeleteTodo(role) && Boolean(onDelete);
   const assigneeNames = todo.assignees.map((a) => a.full_name).filter(Boolean);
+  const recLabel = formatRecurrenceLabel(todo.recurrence_rule);
 
   return (
     <article
@@ -54,6 +57,11 @@ function TodoCardInner({
             {todo.priority === "urgent" ? (
               <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-red-700">
                 Urgent
+              </span>
+            ) : null}
+            {recLabel ? (
+              <span className="rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700">
+                🔁 {recLabel}
               </span>
             ) : null}
           </div>

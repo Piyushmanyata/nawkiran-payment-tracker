@@ -166,6 +166,7 @@ export default function TodoPage() {
     dueDate: string | null;
     priority: "normal" | "urgent";
     assigneeIds: string[];
+    recurrenceRule: Record<string, unknown> | null;
   }) {
     setFormBusy(true);
     setFormError(null);
@@ -175,6 +176,7 @@ export default function TodoPage() {
         dueDate: input.dueDate,
         priority: input.priority,
         assigneeIds: input.assigneeIds,
+        recurrenceRule: input.recurrenceRule,
       });
       upsertLocal({
         ...todo,
@@ -193,6 +195,7 @@ export default function TodoPage() {
     dueDate: string | null;
     priority: "normal" | "urgent";
     assigneeIds: string[];
+    recurrenceRule: Record<string, unknown> | null;
   }) {
     if (!editTarget) return;
     setFormBusy(true);
@@ -204,6 +207,7 @@ export default function TodoPage() {
         dueDate: input.dueDate,
         priority: input.priority,
         assigneeIds: input.assigneeIds,
+        recurrenceRule: input.recurrenceRule,
       });
       upsertLocal(todo);
       setEditTarget(null);

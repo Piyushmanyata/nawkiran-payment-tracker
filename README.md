@@ -1,75 +1,149 @@
 # Nawkiran
 
-Phone-first internal payment tracker.
+Phone-first internal payment tracker and team task manager.
 
-**Workflow:** Add → Approve/Deny → Outstanding → Mark Paid → History
+**Payment Workflow:** Add → Approve / Deny → Outstanding → 1-Click Mark Paid → History Audit
+**Task Workflow:** Create → Assign → Update Threads → Status (Pending / In Progress / Done)
 
-Stack: **Next.js** (Vercel) + **Supabase** (Auth, Postgres, Realtime, RLS).
+Built with **Next.js 16** (App Router), **React 19**, **Tailwind CSS**, **Supabase** (Auth, Postgres, Realtime, RLS & RPCs), and **VAPID Web Push Notifications**.
 
-## Quick start
+---
 
-1. Create a Supabase project (region closest to India).
-2. Apply migrations in order under `supabase/migrations/`.
-3. Disable public signup and enable leaked-password protection.
-4. Create users in Supabase Auth, then insert matching rows in `profiles`:
+## Key Features
+
+- **Express Payment Hub (`/open`)**: Single-page condensed dashboard featuring real-time stat counters (*Pending for Approval*, *Pending for Payment*), inline payment creation, Express Stepper cards (`Requested → Approved → Paid`), and 1-click payout execution.
+- **Payment Audit Drawer**: Detailed modal displaying actor attribution (requester, approver, denier, payer), ISO timestamps, denial reasons, and payment details (modes/UTRs).
+- **Integrated History & Automated Purge**: Searchable payment history under `/open?filter=history`. Historical records are retained for a rolling 30-day window (`HISTORY_KEEP_DAYS = 30`) and automatically hard-purged. Admins retain soft-delete capability to remove items from active UI while retaining audit logs.
+- **Team To-do Hub & Update Threads (`/todo`)**: Dedicated task hub supporting priority tagging, due dates, task assignments, real-time status transitions, and nested, collapsible task update threads.
+- **Native Web Push Notifications**: Zero-cost, VAPID-based push notification system for instant updates on payment approvals, payouts, task assignments, and thread comments without external paid services. Target resolution is strictly scoped to active user profiles.
+- **Postgres Security & RPCs**: Row Level Security (RLS) enforced across all tables; state mutations are handled exclusively via transactional Security Definer RPCs.
+
+---
+
+## Quick Start
+
+### 1. Prerequisites
+
+- **Node.js**: `v18+` or `v20+`
+- **Supabase**: Active Supabase project (AWS ap-south-1 / Mumbai recommended for low latency in India).
+
+### 2. Database Migrations
+
+Apply the migration scripts in sequential order from `supabase/migrations/` using the Supabase CLI or SQL Editor:
+
+```bash
+npx supabase db push
+```
+*Or execute files `001_schema.sql` through `20260724122200_active_profiles_push_target.sql` in order.*
+
+### 3. User Setup
+
+1. Create users via **Supabase Auth** (email/password). Disable public signup and enable leaked-password protection.
+2. Link Auth users to internal user profiles in `public.profiles`:
 
 ```sql
 insert into public.profiles (id, full_name, role, active)
 values
-  ('USER_UUID', 'Amit', 'employee', true),
-  ('USER_UUID', 'Director Name', 'director', true),
-  ('USER_UUID', 'Accounts Name', 'accounts', true);
+  ('USER_UUID_1', 'Amit', 'employee', true),
+  ('USER_UUID_2', 'Director Name', 'director', true),
+  ('USER_UUID_3', 'Accounts Name', 'accounts', true);
 ```
 
-5. Copy env file and fill keys:
+### 4. Environment Setup
+
+Copy `.env.local.example` to `.env.local` and populate your keys:
 
 ```bash
 cp .env.local.example .env.local
 ```
 
-6. Install and run:
+Fill in the required variables:
+
+```ini
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_publishable_key
+
+# Free Web Push (VAPID) — generate using: npx web-push generate-vapid-keys
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=your_vapid_public_key
+VAPID_PRIVATE_KEY=your_vapid_private_key
+VAPID_SUBJECT=mailto:admin@yourcompany.com
+```
+
+### 5. Local Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Roles
+---
 
-| Role | Can do |
-|---|---|
-| employee | Add payments; mark approved paid; edit other staff unpaid rows (not director-requested) |
-| director | Add auto-approved payments; approve / deny; edit any unpaid including own |
-| accounts | Add payments; mark approved paid; edit other staff unpaid rows (not director-requested) |
-| admin | All actions; edit any unpaid; remove history from the active UI |
+## Roles & Permissions
 
-History is grouped by week (collapsible). Paid/denied rows older than **30 days** are **hard-deleted** automatically (events included) to save database space.
+| Role | Payment Access | To-do Access | Admin Features |
+|---|---|---|---|
+| **employee** | Add payment requests; 1-click mark approved payments as paid; edit own/staff unpaid requests (non-director requested) | Create, view, update assigned tasks and post update thread comments | - |
+| **director** | Add auto-approved payments; approve or deny pending requests; edit any unpaid requests | Full task creation, assignment, status update, and thread comment access | - |
+| **accounts** | Add payment requests; 1-click mark approved payments as paid; edit staff unpaid requests | View team tasks and post thread updates | - |
+| **admin** | All actions across payments; soft-delete rows from active UI while preserving audit events | Full task & thread management | Soft-delete active payments, manage historical retention, purge data |
 
-Admin removal is a soft delete: the payment disappears from the active UI while its event trail remains in the database.
+---
 
-Security is enforced by **Row Level Security** and **Postgres RPCs**. The browser never updates payment status rows directly.
-
-## Deploy (Vercel)
-
-1. Push to a private GitHub repo.
-2. Import into Vercel.
-3. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
-4. Optional free push: set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and run migrations `012_push_subscriptions.sql` + `014_push_reliability.sql`.
-5. Deploy Preview, test on phones, then promote to Production.
-
-Do **not** put the Supabase service-role key or `VAPID_PRIVATE_KEY` in the frontend or Vercel public env.
-
-## Project layout
+## Project Structure
 
 ```text
-src/app/          login, open, add, history routes
-src/components/   UI (cards, dialogs, nav)
-src/lib/          supabase, payments RPCs, realtime, format
-supabase/migrations/  schema, functions, RLS
+src/
+├── app/
+│   ├── add/         # Payment request drawer route
+│   ├── api/         # Web Push subscription & sending API endpoints
+│   ├── login/       # Authentication page
+│   ├── open/        # Express Payment Hub (Requests, Stepper, History)
+│   ├── todo/        # Team To-do Hub & Task Update Threads
+│   ├── globals.css  # Global styles & Tailwind configuration
+│   └── layout.tsx   # Core layout wrapper with responsive navigation shell
+├── components/      # UI components (PaymentCard, ExpressStepper, TodoThreadPanel, etc.)
+├── hooks/           # Custom React hooks (usePushNotifications, usePayments, etc.)
+├── lib/             # Supabase clients, RPC helpers, Web Push dispatcher, formatters
+├── types/           # TypeScript interfaces and domain schemas
+└── utils/           # Helper utilities
+supabase/
+└── migrations/      # Sequential database migrations, RLS policies, and RPC functions
+public/              # Static assets, Web App Manifest, and Service Worker (`sw.js`)
+scripts/             # Test suites and operational scripts
 ```
 
-## Plan
+---
 
-See [docs/SETUP.md](docs/SETUP.md) for the full setup, [supabase/README.md](supabase/README.md) for database conventions, and [docs/domain-todos.md](docs/domain-todos.md) for the team To-do domain model.
+## Operational Commands
+
+- `npm run dev`: Start Next.js development server
+- `npm run build`: Build production bundle
+- `npm run typecheck`: Run TypeScript static type checking
+- `npm test`: Execute automated test suite (`node --test scripts/*.test.mjs`)
+- `npm run lint`: Run ESLint checks
+
+---
+
+## Deployment (Vercel)
+
+1. Connect repository to **Vercel**.
+2. Set Environment Variables in Vercel settings:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+   - `VAPID_PRIVATE_KEY`
+   - `VAPID_SUBJECT`
+3. Deploy preview, test Web Push on mobile browsers (iOS PWA / Android Chrome), and promote to Production.
+
+*Do **not** expose `VAPID_PRIVATE_KEY` or Supabase service-role key in public frontend environment variables.*
+
+---
+
+## Documentation Links
+
+- [docs/SETUP.md](docs/SETUP.md): In-depth setup and environment configuration
+- [docs/CONTEXT.md](CONTEXT.md): Domain language, notification target rules, and UI architecture
+- [docs/domain-todos.md](docs/domain-todos.md): Team To-do domain model and RPC reference
+- [supabase/README.md](supabase/README.md): Database architecture and migration guidelines

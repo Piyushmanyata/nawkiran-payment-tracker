@@ -5,12 +5,26 @@ import type { Profile, Todo, TodoPriority } from "@/types/database";
 function asTodo(raw: unknown): Todo {
   const row = (raw ?? {}) as Record<string, unknown>;
   const assigneesRaw = Array.isArray(row.assignees) ? row.assignees : [];
+  const recRaw = row.recurrence_rule && typeof row.recurrence_rule === "object"
+    ? (row.recurrence_rule as Record<string, unknown>)
+    : null;
   return {
     id: String(row.id ?? ""),
     title: String(row.title ?? ""),
     priority: (row.priority === "urgent" ? "urgent" : "normal") as TodoPriority,
     due_date: (row.due_date as string | null) ?? null,
     status: row.status === "done" ? "done" : "open",
+    recurrence_rule: recRaw && recRaw.type
+      ? {
+          type: recRaw.type as any,
+          days_of_week: Array.isArray(recRaw.days_of_week)
+            ? (recRaw.days_of_week as number[])
+            : undefined,
+          day_of_month: typeof recRaw.day_of_month === "number"
+            ? recRaw.day_of_month
+            : undefined,
+        }
+      : null,
     created_by: String(row.created_by ?? ""),
     created_at: String(row.created_at ?? ""),
     completed_by: (row.completed_by as string | null) ?? null,
@@ -114,6 +128,7 @@ export async function createTodo(input: {
   dueDate?: string | null;
   priority?: TodoPriority;
   assigneeIds?: string[];
+  recurrenceRule?: Record<string, unknown> | null;
 }): Promise<Todo> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.rpc("create_todo", {
@@ -121,6 +136,7 @@ export async function createTodo(input: {
     p_due_date: input.dueDate || null,
     p_priority: input.priority ?? "normal",
     p_assignee_ids: input.assigneeIds ?? [],
+    p_recurrence_rule: input.recurrenceRule ?? null,
   });
   if (error) throw error;
   const todo = asTodo(data);
@@ -134,6 +150,7 @@ export async function updateTodo(input: {
   dueDate?: string | null;
   priority?: TodoPriority;
   assigneeIds?: string[];
+  recurrenceRule?: Record<string, unknown> | null;
 }): Promise<Todo> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.rpc("update_todo", {
@@ -142,6 +159,7 @@ export async function updateTodo(input: {
     p_due_date: input.dueDate || null,
     p_priority: input.priority ?? "normal",
     p_assignee_ids: input.assigneeIds ?? [],
+    p_recurrence_rule: input.recurrenceRule ?? null,
   });
   if (error) throw error;
   const todo = asTodo(data);

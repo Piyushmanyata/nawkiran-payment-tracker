@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { Profile, Todo, TodoPriority } from "@/types/database";
+import type { Profile, RecurrenceType, Todo, TodoPriority } from "@/types/database";
 import { LoadingButton } from "@/components/LoadingButton";
 import {
   errorBoxClass,
@@ -9,6 +9,16 @@ import {
   hintClass,
   labelClass,
 } from "@/lib/ui";
+
+const DAYS = [
+  { id: 1, label: "M" },
+  { id: 2, label: "T" },
+  { id: 3, label: "W" },
+  { id: 4, label: "T" },
+  { id: 5, label: "F" },
+  { id: 6, label: "S" },
+  { id: 7, label: "S" },
+];
 
 export function TodoForm({
   profiles,
@@ -28,6 +38,7 @@ export function TodoForm({
     dueDate: string | null;
     priority: TodoPriority;
     assigneeIds: string[];
+    recurrenceRule: Record<string, unknown> | null;
   }) => void;
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -38,6 +49,15 @@ export function TodoForm({
   const [assigneeIds, setAssigneeIds] = useState<string[]>(
     initial?.assignees.map((a) => a.id) ?? []
   );
+  const [recType, setRecType] = useState<RecurrenceType>(
+    initial?.recurrence_rule?.type ?? "none"
+  );
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>(
+    initial?.recurrence_rule?.days_of_week ?? [1]
+  );
+  const [dayOfMonth, setDayOfMonth] = useState<number>(
+    initial?.recurrence_rule?.day_of_month ?? 1
+  );
 
   const [prevInitial, setPrevInitial] = useState(initial);
   if (initial !== prevInitial) {
@@ -46,6 +66,9 @@ export function TodoForm({
     setDueDate(initial?.due_date ?? "");
     setPriority(initial?.priority ?? "normal");
     setAssigneeIds(initial?.assignees.map((a) => a.id) ?? []);
+    setRecType(initial?.recurrence_rule?.type ?? "none");
+    setDaysOfWeek(initial?.recurrence_rule?.days_of_week ?? [1]);
+    setDayOfMonth(initial?.recurrence_rule?.day_of_month ?? 1);
   }
 
   function toggleAssignee(id: string) {
@@ -54,16 +77,40 @@ export function TodoForm({
     );
   }
 
+  function toggleDayOfWeek(dayId: number) {
+    setDaysOfWeek((prev) =>
+      prev.includes(dayId)
+        ? prev.filter((d) => d !== dayId)
+        : [...prev, dayId].sort((a, b) => a - b)
+    );
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (loading) return;
     const clean = title.trim();
     if (!clean) return;
+
+    let recurrenceRule: Record<string, unknown> | null = null;
+    if (recType !== "none") {
+      if (recType === "custom_weekly") {
+        recurrenceRule = {
+          type: recType,
+          days_of_week: daysOfWeek.length > 0 ? daysOfWeek : [1],
+        };
+      } else if (recType === "custom_monthly") {
+        recurrenceRule = { type: recType, day_of_month: dayOfMonth };
+      } else {
+        recurrenceRule = { type: recType };
+      }
+    }
+
     onSubmit({
       title: clean,
       dueDate: dueDate || null,
       priority,
       assigneeIds,
+      recurrenceRule,
     });
   }
 
@@ -103,6 +150,65 @@ export function TodoForm({
             <option value="urgent">Urgent</option>
           </select>
         </label>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className={labelClass}>Repeat</span>
+          <select
+            value={recType}
+            onChange={(e) => setRecType(e.target.value as RecurrenceType)}
+            className={fieldClass}
+          >
+            <option value="none">Does not repeat</option>
+            <option value="daily">Every day</option>
+            <option value="weekly">Every week</option>
+            <option value="monthly">Every month</option>
+            <option value="yearly">Every year</option>
+            <option value="custom_weekly">Specific days of week</option>
+            <option value="custom_monthly">Specific day of month</option>
+          </select>
+        </label>
+
+        {recType === "custom_weekly" ? (
+          <div>
+            <span className={labelClass}>Days of week</span>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {DAYS.map((d) => {
+                const on = daysOfWeek.includes(d.id);
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => toggleDayOfWeek(d.id)}
+                    className={`h-9 w-9 rounded-full text-xs font-bold transition ${
+                      on
+                        ? "bg-purple-600 text-white"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : recType === "custom_monthly" ? (
+          <label className="block">
+            <span className={labelClass}>Day of month (1-31)</span>
+            <select
+              value={dayOfMonth}
+              onChange={(e) => setDayOfMonth(Number(e.target.value))}
+              className={fieldClass}
+            >
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                <option key={day} value={day}>
+                  {day}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       <fieldset>
