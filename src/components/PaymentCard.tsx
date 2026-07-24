@@ -56,7 +56,7 @@ function PaymentCardInner({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <h3 className="truncate text-base font-bold leading-snug text-slate-900 group-hover:text-blue-600 transition-colors">
+            <h3 className="text-base font-bold leading-snug text-slate-900 group-hover:text-blue-600 transition-colors break-words whitespace-normal">
               {payment.party}
             </h3>
             <PartyTagBadges party={payment.party} />

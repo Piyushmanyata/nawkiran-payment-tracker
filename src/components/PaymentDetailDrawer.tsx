@@ -100,7 +100,7 @@ export function PaymentDetailDrawer({
             </span>
             <h2
               id="payment-detail-title"
-              className="text-xl font-extrabold text-slate-900 truncate"
+              className="text-xl font-extrabold text-slate-900 break-words whitespace-normal"
             >
               {payment.party}
             </h2>

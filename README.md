@@ -1,4 +1,4 @@
-# Nawkiran Payment Tracker
+# Nawkiran
 
 Phone-first internal payment tracker.
 

@@ -1,6 +1,6 @@
-# Nawkiran Payments Domain Context
+# Nawkiran Domain Context
 
-Payment request workflow and role-based access boundaries for Nawkiran Payments.
+Payment request workflow and role-based access boundaries for Nawkiran.
 
 ## Language
 
@@ -21,7 +21,7 @@ A Payment Request rejected by a Director with a reason. Visible only to the requ
 _Avoid_: Cancelled payment, rejected ticket
 
 **Paid Request**:
-An Approved Request where payout execution is completed by an Employee or staff.
+An Approved Request where payout execution is completed with 1-click by an Employee or staff.
 _Avoid_: Settled claim, closed transaction
 
 ## Rules & Notification Targets
@@ -29,7 +29,7 @@ _Avoid_: Settled claim, closed transaction
 - **Pending**: Visible to Requester + Directors + Admins. Push target: Directors + Admins.
 - **Approved**: Visible to All active staff. Push target: All Employees + Requester + Admins (excluding acting Director).
 - **Denied**: Visible to Requester + Directors + Admins. Push target: Requester + Admins.
-- **Paid**: Visible to All active staff. Push target: Directors + Requester + Admins.
+- **Paid**: Visible to All active staff. Push target: Directors + Requester + Admins. Direct 1-click execution (defaults to NEFT mode).
 
 ## UI Architecture
 
@@ -38,8 +38,8 @@ _Avoid_: Settled claim, closed transaction
 - **Responsive Affordance**: Mobile bottom sheet drawer (< 768px) and desktop slide-over side panel / split-view (≥ 768px).
 - **Responsive Shell Layout**: Full-width desktop dashboard (`max-w-7xl`) with responsive multi-column layout on desktop, and single-column touch view (`max-w-lg`) with bottom navigation bar on mobile.
 - **Primary Navigation**: 2 main tabs: `Payments` (`/open`) and `To-do` (`/todo`). The standalone `History` tab is removed from top and bottom navigation bars.
-- **Payments Hub Filters**: Primary filter chips on `/open` are `Open Requests` (default, displaying `pending` + `approved`), `Pending`, `Approved`, and `History`.
-- **History Search**: Historical payments (`paid` / `denied`) are searchable under the `History` filter on `/open`. Searching on `Open Requests` displays an inline notice if matching historical records exist.
+- **Payments Hub Filters**: Primary filter chips on `/open` are `Open` (default, displaying `pending` + `approved`), `Pending`, `Approved`, and `History`.
+- **History Search**: Historical payments (`paid` / `denied`) are searchable under the `History` filter on `/open`. Searching on `Open` displays an inline notice if matching historical records exist.
 - **Retention & Immutability**: Historical payment records are retained for a rolling 30-day window (`HISTORY_KEEP_DAYS = 30`) and purged automatically. Manual deletion is disabled for Employees, Directors, and automated Agents, while Admins retain manual delete capability with a confirmation dialog.
 
 

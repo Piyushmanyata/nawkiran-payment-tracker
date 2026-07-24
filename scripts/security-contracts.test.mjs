@@ -219,13 +219,11 @@ test("monthly hard-delete retention; history UI groups by day", () => {
   assert.match(historyDays, /isToday/);
 
   const historyPage = readFileSync(
-    join(process.cwd(), "src", "app", "history", "page.tsx"),
+    join(process.cwd(), "src", "app", "open", "page.tsx"),
     "utf8"
   );
   assert.match(historyPage, /HistoryWeekList|HistoryDayList/);
   assert.match(historyPage, /maybePurgeOldHistory/);
-  assert.match(historyPage, /30 days/);
-  assert.match(historyPage, /grouped by day/i);
 });
 
 test("gone push endpoints are purged after terminal delivery failures", () => {

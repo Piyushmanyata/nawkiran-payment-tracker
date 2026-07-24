@@ -33,9 +33,7 @@ const Modal = dynamic(() =>
 const ApproveDialog = dynamic(() =>
   import("@/components/ApproveDialog").then((mod) => mod.ApproveDialog)
 );
-const MarkPaidDialog = dynamic(() =>
-  import("@/components/MarkPaidDialog").then((mod) => mod.MarkPaidDialog)
-);
+
 const DenyDialog = dynamic(() =>
   import("@/components/DenyDialog").then((mod) => mod.DenyDialog)
 );
@@ -151,20 +149,18 @@ export default function OpenPage() {
     }
   }
 
-  async function doMarkPaid(paymentMode?: PaymentMode, reference?: string) {
-    if (!markPaidTarget) return;
+  async function doMarkPaid(target: Payment) {
     setBusy(true);
-    const target = markPaidTarget;
     upsertPayment({
       ...target,
       status: "paid",
       paid_by: profile?.id ?? null,
       payer_name: profile?.full_name ?? "Accounts",
-      payment_mode: paymentMode ?? "NEFT",
-      payment_reference: reference ?? null,
+      payment_mode: "NEFT",
+      payment_reference: null,
     });
     try {
-      const updated = await markPaymentPaid(target.id, paymentMode, reference);
+      const updated = await markPaymentPaid(target.id, "NEFT");
       upsertPayment({
         ...updated,
         payer_name: profile?.full_name ?? updated.payer_name,
@@ -323,7 +319,7 @@ export default function OpenPage() {
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
-            Open Requests
+            Open
           </button>
           <button
             type="button"
@@ -403,7 +399,7 @@ export default function OpenPage() {
                 onSelect={setDetailTarget}
                 onApprove={userCanApprove ? setApproveTarget : undefined}
                 onDeny={userCanApprove ? setDenyTarget : undefined}
-                onMarkPaid={userCanMarkPaid ? setMarkPaidTarget : undefined}
+                onMarkPaid={userCanMarkPaid ? (p) => void doMarkPaid(p) : undefined}
                 onEdit={canEdit ? setEditTarget : undefined}
               />
             ))}
@@ -418,7 +414,7 @@ export default function OpenPage() {
         onClose={() => setDetailTarget(null)}
         onApprove={userCanApprove ? setApproveTarget : undefined}
         onDeny={userCanApprove ? setDenyTarget : undefined}
-        onMarkPaid={userCanMarkPaid ? setMarkPaidTarget : undefined}
+        onMarkPaid={userCanMarkPaid ? (p) => void doMarkPaid(p) : undefined}
         onEdit={canEdit ? setEditTarget : undefined}
         onDelete={userCanDelete ? setDeleteTarget : undefined}
       />
@@ -430,13 +426,7 @@ export default function OpenPage() {
         onCancel={() => setApproveTarget(null)}
         onConfirm={() => void doApprove()}
       />
-      <MarkPaidDialog
-        open={Boolean(markPaidTarget)}
-        target={markPaidTarget}
-        loading={busy}
-        onCancel={() => setMarkPaidTarget(null)}
-        onConfirm={(mode, ref) => void doMarkPaid(mode, ref)}
-      />
+
       <DenyDialog
         open={Boolean(denyTarget)}
         loading={busy}
