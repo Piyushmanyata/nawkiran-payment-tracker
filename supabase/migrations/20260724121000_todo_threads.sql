@@ -274,4 +274,4 @@ revoke execute on function public.list_todo_update_reply_push_targets(uuid, uuid
 grant execute on function public.request_todo_update(uuid, text) to authenticated;
 grant execute on function public.reply_todo_update(uuid, uuid, text) to authenticated;
 grant execute on function public.list_todo_update_request_push_targets(uuid) to authenticated;
-grant execute on function public.list_todo_update_reply_push_targets(uuid) to authenticated;
+grant execute on function public.list_todo_update_reply_push_targets(uuid, uuid[]) to authenticated;
