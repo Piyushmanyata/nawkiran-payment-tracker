@@ -35,7 +35,7 @@ function TodoCardInner({
   busy?: boolean;
 }) {
   const open = todo.status === "open";
-  const overdue = isTodoOverdue(todo.status, todo.due_date);
+  const overdue = isTodoOverdue(todo.status, todo.due_date, todo.recurrence_rule);
   const showEdit = open && canEditTodo(role, todo, userId) && Boolean(onEdit);
   const showComplete = open && Boolean(onComplete);
   const showDelete = canDeleteTodo(role) && Boolean(onDelete);
@@ -80,7 +80,7 @@ function TodoCardInner({
           overdue ? "font-semibold text-amber-800" : "text-slate-600"
         }`}
       >
-        {formatTodoDueLabel(todo.status, todo.due_date)}
+        {formatTodoDueLabel(todo.status, todo.due_date, todo.recurrence_rule)}
       </p>
 
       <dl className="mt-2 grid gap-0.5 text-xs text-slate-500">

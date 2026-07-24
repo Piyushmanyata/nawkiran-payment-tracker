@@ -330,3 +330,13 @@ test("employee request privacy and push targeting migration", () => {
   assert.match(migration, /s\.user_id = pay\.requested_by or p\.role = 'admin'/i);
 });
 
+test("recurring reminders start of day migration contract", () => {
+  const migration = sql["20260724132000_recurring_reminders_start_of_day.sql"];
+  assert.ok(migration, "20260724132000_recurring_reminders_start_of_day migration missing");
+  assert.match(migration, /create or replace function public\.list_my_overdue_todo_titles/i);
+  assert.match(migration, /recurrence_rule->>'type' <> 'none'/i);
+  assert.match(migration, /due_date <= \(timezone\('Asia\/Kolkata', now\(\)\)\)::date/i);
+  assert.match(migration, /grant execute on function public\.list_my_overdue_todo_titles\(\)/i);
+});
+
+

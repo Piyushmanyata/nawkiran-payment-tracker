@@ -1,4 +1,4 @@
-import type { PaymentStatus } from "@/types/database";
+import type { PaymentStatus, RecurrenceRule } from "@/types/database";
 
 const inrFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -75,26 +75,35 @@ export function statusLabel(status: PaymentStatus): string {
   }
 }
 
-/** Open to-do with due date strictly before today. */
+/** Open to-do with due date strictly before today (or on/before today for recurring items starting at start of day). */
 export function isTodoOverdue(
   status: "open" | "done",
-  dueDate: string | null | undefined
+  dueDate: string | null | undefined,
+  recurrenceRule?: RecurrenceRule | null
 ): boolean {
   if (status !== "open" || !dueDate) return false;
+  const isRecurring = Boolean(
+    recurrenceRule && recurrenceRule.type && recurrenceRule.type !== "none"
+  );
+  if (isRecurring) {
+    return dueDate <= todayLocalIso();
+  }
   return dueDate < todayLocalIso();
 }
 
 export function formatTodoDueLabel(
   status: "open" | "done",
-  dueDate: string | null | undefined
+  dueDate: string | null | undefined,
+  recurrenceRule?: RecurrenceRule | null
 ): string {
   if (!dueDate) return "No due date";
-  if (isTodoOverdue(status, dueDate)) {
+  if (isTodoOverdue(status, dueDate, recurrenceRule)) {
     const due = new Date(dueDate + "T00:00:00");
     const today = new Date(todayLocalIso() + "T00:00:00");
     const days = Math.round(
       (today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)
     );
+    if (days === 0) return "Due: Today";
     if (days === 1) return "Due: Overdue by 1 day";
     return `Due: Overdue by ${days} days`;
   }
