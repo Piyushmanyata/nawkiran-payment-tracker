@@ -339,4 +339,24 @@ test("recurring reminders start of day migration contract", () => {
   assert.match(migration, /grant execute on function public\.list_my_overdue_todo_titles\(\)/i);
 });
 
+test("overdue push targets all responsible users across the team", () => {
+  const migration = sql["20260724134000_overdue_todo_push_all_targets.sql"];
+  assert.ok(migration, "20260724134000_overdue_todo_push_all_targets migration missing");
+  assert.match(migration, /create or replace function public\.list_overdue_todo_push_targets/i);
+  // Returns per-user title arrays (not just caller)
+  assert.match(migration, /returns table/i);
+  assert.match(migration, /user_id.*uuid/i);
+  assert.match(migration, /titles.*text\[\]/i);
+  // Both assignee and initiator-if-none paths are covered
+  assert.match(migration, /todo_assignees/i);
+  assert.match(migration, /created_by/i);
+  assert.match(migration, /not exists/i);
+  // Security: security definer + grant/revoke
+  assert.match(migration, /security definer/i);
+  assert.match(migration, /grant execute on function public\.list_overdue_todo_push_targets/i);
+  assert.match(migration, /revoke all on function public\.list_overdue_todo_push_targets/i);
+  // 12pm IST rule for recurring items preserved
+  assert.match(migration, /extract\(hour from timezone\('Asia\/Kolkata', now\(\)\)\) >= 12/i);
+});
+
 

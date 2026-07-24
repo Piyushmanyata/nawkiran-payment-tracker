@@ -464,6 +464,78 @@ export async function sendSelfTodoOverduePush(
   return { sent, failed };
 }
 
+/**
+ * Send an overdue digest to ALL responsible users (assignees, or initiators if unassigned).
+ * Uses the list_overdue_todo_push_targets RPC which returns per-user title arrays.
+ * Each user receives only the titles they are responsible for.
+ */
+export async function sendTodoOverdueDigestPush(
+  userTitles: Array<{ user_id: string; titles: string[] }>,
+  supabaseClient?: SupabaseClient
+): Promise<{ sent: number; failed: number }> {
+  if (!ensureVapid() || userTitles.length === 0) {
+    return { sent: 0, failed: 0 };
+  }
+
+  const supabase = supabaseClient ?? (await createClient());
+  let sent = 0;
+  let failed = 0;
+
+  await Promise.all(
+    userTitles.map(async ({ user_id, titles }) => {
+      if (!titles.length) return;
+
+      const { data: subs, error } = await supabase
+        .from("push_subscriptions")
+        .select("endpoint, p256dh, auth")
+        .eq("user_id", user_id);
+      if (error || !subs?.length) return;
+
+      const preview =
+        titles.length === 1
+          ? titles[0]
+          : `${titles[0]} (+${titles.length - 1} more)`;
+      const body = JSON.stringify({
+        title:
+          titles.length === 1
+            ? "To-do reminder"
+            : `${titles.length} to-do reminders`,
+        body: preview,
+        icon: "/icon-192.png",
+        badge: "/badge-72.png",
+        url: "/todo",
+        tag: "nk:todo-overdue",
+      });
+
+      await Promise.all(
+        subs.map(async (t) => {
+          try {
+            const outcome = await sendWithRetry(
+              { endpoint: t.endpoint, keys: { p256dh: t.p256dh, auth: t.auth } },
+              body
+            );
+            if (outcome === "ok") sent += 1;
+            else {
+              failed += 1;
+              if (outcome === "gone") {
+                try {
+                  await supabase.rpc("purge_push_endpoint", { p_endpoint: t.endpoint });
+                } catch {
+                  /* best-effort */
+                }
+              }
+            }
+          } catch {
+            failed += 1;
+          }
+        })
+      );
+    })
+  );
+
+  return { sent, failed };
+}
+
 export type TodoUpdatePushParams = {
   todoId: string;
   todoTitle: string;

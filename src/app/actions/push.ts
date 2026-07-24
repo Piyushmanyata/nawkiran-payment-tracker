@@ -12,6 +12,7 @@ import {
   sendPaymentPush,
   sendTodoPush,
   sendSelfTodoOverduePush,
+  sendTodoOverdueDigestPush,
   sendTodoUpdateRequestPush,
   sendTodoUpdateReplyPush,
   type PushEvent,
@@ -210,7 +211,12 @@ export async function notifyTodoAssigned(
   }
 }
 
-/** Overdue digest to the signed-in user only (self devices). */
+/**
+ * Overdue digest: push to ALL responsible users (assignees, or initiator if unassigned).
+ * Each user receives only the to-dos they are personally responsible for.
+ * Triggered client-side on page load; the signed-in user's own count is returned
+ * (for the localStorage rate-limit guard), but all team members are notified.
+ */
 export async function notifyMyOverdueTodos(): Promise<{
   success: boolean;
   queued?: boolean;
@@ -226,22 +232,28 @@ export async function notifyMyOverdueTodos(): Promise<{
     } = await supabase.auth.getUser();
     if (!user) return { success: false, error: "Not signed in" };
 
-    const { data, error } = await supabase.rpc("list_my_overdue_todo_titles");
+    // Fetch overdue titles for all responsible users across the team.
+    const { data, error } = await supabase.rpc("list_overdue_todo_push_targets");
     if (error) throw error;
 
-    const titles = Array.isArray(data)
-      ? (data as string[]).map((t) => String(t).trim()).filter(Boolean)
-      : [];
-    if (titles.length === 0) return { success: true, queued: false, count: 0 };
+    const userTitles = (Array.isArray(data) ? data : []) as Array<{
+      user_id: string;
+      titles: string[];
+    }>;
+    if (userTitles.length === 0) return { success: true, queued: false, count: 0 };
+
+    // Return the count for the current user so the client-side rate-limit guard works.
+    const myEntry = userTitles.find((u) => u.user_id === user.id);
+    const myCount = myEntry?.titles.length ?? 0;
 
     after(async () => {
       try {
-        await sendSelfTodoOverduePush(titles, supabase);
+        await sendTodoOverdueDigestPush(userTitles, supabase);
       } catch (deliveryError) {
         console.error("notifyMyOverdueTodos delivery", deliveryError);
       }
     });
-    return { success: true, queued: true, count: titles.length };
+    return { success: true, queued: true, count: myCount };
   } catch (err) {
     console.error("notifyMyOverdueTodos", err);
     return {
