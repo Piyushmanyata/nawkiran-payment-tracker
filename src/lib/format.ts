@@ -118,16 +118,11 @@ export function isTodoOverdue(
   return dueDate < today;
 }
 
-/** Recurring to-dos are hidden from screen until their scheduled due date arrives (due_date <= today). */
+/** All open to-dos stay visible on shared board per domain spec (§4 & §5). */
 export function isTodoVisible(
-  todo: { status: "open" | "done"; due_date?: string | null; recurrence_rule?: RecurrenceRule | null },
-  refDate?: Date
+  _todo: { status: "open" | "done"; due_date?: string | null; recurrence_rule?: RecurrenceRule | null },
+  _refDate?: Date
 ): boolean {
-  if (todo.status !== "open") return true;
-  if (isRecurringRule(todo.recurrence_rule) && todo.due_date) {
-    const today = todayLocalIso(refDate);
-    return todo.due_date <= today;
-  }
   return true;
 }
 

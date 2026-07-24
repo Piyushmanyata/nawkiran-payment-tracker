@@ -24,14 +24,14 @@ test("formatRecurrenceLabel formats standard and custom recurrence rules", () =>
   );
 });
 
-test("isTodoVisible hides future scheduled recurring to-dos until scheduled due date", () => {
+test("isTodoVisible keeps all open to-dos visible on shared board per domain spec", () => {
   const refTime = new Date("2026-07-24T10:00:00+05:30"); // Friday 24 Jul 2026
   const recurringRule = { type: "custom_weekly", days_of_week: [1] }; // Every Monday
 
-  // Scheduled for next Monday 27 Jul -> hidden from screen on Friday 24 Jul
+  // Scheduled for next Monday 27 Jul -> visible on screen per domain spec invariant (§4 & §5)
   assert.equal(
     isTodoVisible({ status: "open", due_date: "2026-07-27", recurrence_rule: recurringRule }, refTime),
-    false
+    true
   );
 
   // Scheduled for today Friday 24 Jul -> visible on screen
