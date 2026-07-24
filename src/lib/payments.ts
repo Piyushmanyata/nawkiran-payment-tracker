@@ -162,6 +162,19 @@ function queuePush(
   void firePaymentPush(notifyPaymentEvent, paymentId, event);
 }
 
+export async function hasSimilarPendingPayment(input: {
+  party: string;
+  amount: number;
+}): Promise<boolean> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("has_similar_pending_payment", {
+    p_party: input.party,
+    p_amount: input.amount,
+  });
+  if (error) throw error;
+  return Boolean(data);
+}
+
 export async function createPayment(input: {
   party: string;
   amount: number;

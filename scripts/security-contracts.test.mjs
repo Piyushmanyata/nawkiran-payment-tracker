@@ -384,5 +384,34 @@ test("recurring to-dos edit permission and completion due date guard migration c
   assert.match(migration, /RECURRING_NOT_DUE/i);
 });
 
+test("similar pending match is boolean-only and privileged", () => {
+  const migration = sql["20260724160000_similar_pending_match.sql"];
+  assert.ok(migration, "20260724160000_similar_pending_match migration missing");
+  assert.match(migration, /create or replace function public\.has_similar_pending_payment/i);
+  assert.match(migration, /returns boolean/i);
+  assert.match(migration, /security definer/i);
+  assert.match(migration, /p\.status = 'pending'/i);
+  assert.match(migration, /public\.parties_similar/i);
+  assert.match(migration, /char_length\(shorter\) < 5/i);
+  assert.match(migration, /position\(shorter in longer\) > 0/i);
+  assert.match(migration, /grant execute on function public\.has_similar_pending_payment/i);
+  assert.match(migration, /revoke all on function public\.has_similar_pending_payment/i);
+  // Helper must not be client-callable
+  assert.match(migration, /revoke all on function public\.parties_similar\(text, text\) from public, anon, authenticated/i);
+  // Must not select/return payment row fields from the public RPC
+  assert.doesNotMatch(migration, /has_similar_pending_payment[\s\S]*returns public\.payments/i);
+  assert.match(migration, /payments_pending_amount_idx/i);
 
+  const client = readFileSync(join(process.cwd(), "src", "lib", "payments.ts"), "utf8");
+  assert.match(client, /has_similar_pending_payment/i);
+  assert.match(client, /export async function hasSimilarPendingPayment/i);
 
+  const form = readFileSync(
+    join(process.cwd(), "src", "components", "AddPaymentForm.tsx"),
+    "utf8"
+  );
+  assert.match(form, /hasSimilarPendingPayment/);
+  assert.match(form, /similar open request may already exist/i);
+  assert.match(form, /!autoApprove/);
+  assert.doesNotMatch(form, /requester_name.*confirm|confirm.*amount.*party/i);
+});
