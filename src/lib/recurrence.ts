@@ -3,6 +3,13 @@ import type { RecurrenceRule } from "@/types/database";
 const DAYS_SHORT = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /**
+ * Check if a recurrence rule is active (type is not null, undefined, or "none").
+ */
+export function isRecurringRule(rule?: RecurrenceRule | null): boolean {
+  return Boolean(rule && rule.type && rule.type !== "none");
+}
+
+/**
  * Format recurrence rule for display on cards or labels (e.g., "Daily", "Weekly", "Mon, Wed, Fri", "15th of month").
  */
 export function formatRecurrenceLabel(rule: RecurrenceRule | null | undefined): string | null {

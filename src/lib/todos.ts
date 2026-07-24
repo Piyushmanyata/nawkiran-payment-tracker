@@ -1,5 +1,5 @@
 import { notifyMyOverdueTodos, notifyTodoAssigned } from "@/app/actions/push";
-import { kolkataHour, todayLocalIso } from "@/lib/format";
+import { isRecurringRule, kolkataHour, todayLocalIso } from "@/lib/format";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import type { CreateTodoInput, Profile, RecurrenceType, Todo, TodoPriority, UpdateTodoInput } from "@/types/database";
 
@@ -96,6 +96,10 @@ export function isMineTodo(todo: Todo, userId: string | null | undefined): boole
   if (!userId) return false;
   if (todo.created_by === userId) return true;
   return todo.assignees.some((a) => a.id === userId);
+}
+
+export function isRecurringTodo(todo: Todo): boolean {
+  return isRecurringRule(todo.recurrence_rule);
 }
 
 function queueAssignPush(todo: Todo): void {

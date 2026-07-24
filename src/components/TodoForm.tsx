@@ -44,15 +44,15 @@ export function TodoForm({
   const [assigneeIds, setAssigneeIds] = useState<string[]>(
     initial?.assignees.map((a) => a.id) ?? []
   );
-  const [recType, setRecType] = useState<RecurrenceType>(
-    initial?.recurrence_rule?.type ?? "none"
-  );
-  const [daysOfWeek, setDaysOfWeek] = useState<number[]>(
-    initial?.recurrence_rule?.days_of_week ?? [1]
-  );
-  const [dayOfMonth, setDayOfMonth] = useState<number>(
-    initial?.recurrence_rule?.day_of_month ?? 1
-  );
+  const [recRule, setRecRule] = useState<{
+    type: RecurrenceType;
+    days_of_week: number[];
+    day_of_month: number;
+  }>({
+    type: initial?.recurrence_rule?.type ?? "none",
+    days_of_week: initial?.recurrence_rule?.days_of_week ?? [1],
+    day_of_month: initial?.recurrence_rule?.day_of_month ?? 1,
+  });
 
   const [prevInitial, setPrevInitial] = useState(initial);
   if (initial !== prevInitial) {
@@ -61,9 +61,11 @@ export function TodoForm({
     setDueDate(initial?.due_date ?? "");
     setPriority(initial?.priority ?? "normal");
     setAssigneeIds(initial?.assignees.map((a) => a.id) ?? []);
-    setRecType(initial?.recurrence_rule?.type ?? "none");
-    setDaysOfWeek(initial?.recurrence_rule?.days_of_week ?? [1]);
-    setDayOfMonth(initial?.recurrence_rule?.day_of_month ?? 1);
+    setRecRule({
+      type: initial?.recurrence_rule?.type ?? "none",
+      days_of_week: initial?.recurrence_rule?.days_of_week ?? [1],
+      day_of_month: initial?.recurrence_rule?.day_of_month ?? 1,
+    });
   }
 
   function toggleAssignee(id: string) {
@@ -73,11 +75,12 @@ export function TodoForm({
   }
 
   function toggleDayOfWeek(dayId: number) {
-    setDaysOfWeek((prev) =>
-      prev.includes(dayId)
-        ? prev.filter((d) => d !== dayId)
-        : [...prev, dayId].sort((a, b) => a - b)
-    );
+    setRecRule((prev) => ({
+      ...prev,
+      days_of_week: prev.days_of_week.includes(dayId)
+        ? prev.days_of_week.filter((d) => d !== dayId)
+        : [...prev.days_of_week, dayId].sort((a, b) => a - b),
+    }));
   }
 
   function handleSubmit(e: FormEvent) {
@@ -89,16 +92,16 @@ export function TodoForm({
     let recurrenceRule: RecurrenceRule | null = null;
     let finalDueDate = dueDate || null;
 
-    if (recType !== "none") {
-      if (recType === "custom_weekly") {
+    if (recRule.type !== "none") {
+      if (recRule.type === "custom_weekly") {
         recurrenceRule = {
-          type: recType,
-          days_of_week: daysOfWeek.length > 0 ? daysOfWeek : [1],
+          type: recRule.type,
+          days_of_week: recRule.days_of_week.length > 0 ? recRule.days_of_week : [1],
         };
-      } else if (recType === "custom_monthly") {
-        recurrenceRule = { type: recType, day_of_month: dayOfMonth };
+      } else if (recRule.type === "custom_monthly") {
+        recurrenceRule = { type: recRule.type, day_of_month: recRule.day_of_month };
       } else {
-        recurrenceRule = { type: recType };
+        recurrenceRule = { type: recRule.type };
       }
       if (!finalDueDate) {
         finalDueDate = calculateInitialDueDate(recurrenceRule);
@@ -156,8 +159,13 @@ export function TodoForm({
         <label className="block">
           <span className={labelClass}>Repeat</span>
           <select
-            value={recType}
-            onChange={(e) => setRecType(e.target.value as RecurrenceType)}
+            value={recRule.type}
+            onChange={(e) =>
+              setRecRule((prev) => ({
+                ...prev,
+                type: e.target.value as RecurrenceType,
+              }))
+            }
             className={fieldClass}
           >
             <option value="none">Does not repeat</option>
@@ -170,12 +178,12 @@ export function TodoForm({
           </select>
         </label>
 
-        {recType === "custom_weekly" ? (
+        {recRule.type === "custom_weekly" ? (
           <div>
             <span className={labelClass}>Days of week</span>
             <div className="mt-1 flex flex-wrap gap-1.5">
               {DAYS.map((d) => {
-                const on = daysOfWeek.includes(d.id);
+                const on = recRule.days_of_week.includes(d.id);
                 return (
                   <button
                     key={d.id}
@@ -193,12 +201,17 @@ export function TodoForm({
               })}
             </div>
           </div>
-        ) : recType === "custom_monthly" ? (
+        ) : recRule.type === "custom_monthly" ? (
           <label className="block">
             <span className={labelClass}>Day of month (1-31)</span>
             <select
-              value={dayOfMonth}
-              onChange={(e) => setDayOfMonth(Number(e.target.value))}
+              value={recRule.day_of_month}
+              onChange={(e) =>
+                setRecRule((prev) => ({
+                  ...prev,
+                  day_of_month: Number(e.target.value),
+                }))
+              }
               className={fieldClass}
             >
               {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (

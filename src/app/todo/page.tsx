@@ -17,6 +17,7 @@ import {
   fetchActiveProfiles,
   fetchTodos,
   isMineTodo,
+  isRecurringTodo,
   maybeNotifyOverdueTodos,
   maybePurgeOldTodos,
   requestTodoUpdate,
@@ -37,12 +38,13 @@ const Modal = dynamic(() =>
   import("@/components/Modal").then((mod) => mod.Modal)
 );
 
-type Filter = "open" | "done" | "mine";
+type Filter = "open" | "done" | "mine" | "recurring";
 
 const FILTERS = [
   ["open", "Open"],
   ["done", "Done"],
   ["mine", "Mine"],
+  ["recurring", "Recurring"],
 ] as const;
 
 export default function TodoPage() {
@@ -145,6 +147,12 @@ export default function TodoPage() {
     }
     if (filter === "done") {
       return sortDoneTodos(todos.filter((t) => t.status === "done"));
+    }
+    if (filter === "recurring") {
+      const recurring = todos.filter((t) => isRecurringTodo(t));
+      const open = sortOpenTodos(recurring.filter((t) => t.status === "open"));
+      const done = sortDoneTodos(recurring.filter((t) => t.status === "done"));
+      return [...open, ...done];
     }
     // Mine on open by default feel: show open mine first list of open+done mine
     const mine = todos.filter((t) => isMineTodo(t, userId));
@@ -317,7 +325,9 @@ export default function TodoPage() {
               ? "No completed to-dos yet."
               : filter === "mine"
                 ? "Nothing assigned to you or created by you."
-                : "No open to-dos. Tap Add to create one."
+                : filter === "recurring"
+                  ? "No recurring reminders set."
+                  : "No open to-dos. Tap Add to create one."
           }
         />
       ) : (

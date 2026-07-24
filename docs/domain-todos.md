@@ -130,6 +130,7 @@ To-dos are a **separate aggregate** from payments. No foreign key to `payments` 
 1. **Open** — default  
 2. **Done** — completed items still in retention window  
 3. **Mine** — assigned to me **or** created by me (open and/or done per filter UX; default apply Mine on Open)
+4. **Recurring** — all recurring reminders set (including upcoming scheduled occurrences)
 
 ### Sort order (Open list)
 

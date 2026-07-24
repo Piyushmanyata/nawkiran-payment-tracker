@@ -1,5 +1,9 @@
 import type { PaymentStatus, RecurrenceRule } from "@/types/database";
 
+export function isRecurringRule(rule?: RecurrenceRule | null): boolean {
+  return Boolean(rule && rule.type && rule.type !== "none");
+}
+
 const inrFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
   currency: "INR",
@@ -101,9 +105,7 @@ export function isTodoOverdue(
   refDate?: Date
 ): boolean {
   if (status !== "open" || !dueDate) return false;
-  const isRecurring = Boolean(
-    recurrenceRule && recurrenceRule.type && recurrenceRule.type !== "none"
-  );
+  const isRecurring = isRecurringRule(recurrenceRule);
   const now = refDate ?? new Date();
   const today = todayLocalIso(now);
   if (isRecurring) {
@@ -122,12 +124,7 @@ export function isTodoVisible(
   refDate?: Date
 ): boolean {
   if (todo.status !== "open") return true;
-  const isRecurring = Boolean(
-    todo.recurrence_rule &&
-      todo.recurrence_rule.type &&
-      todo.recurrence_rule.type !== "none"
-  );
-  if (isRecurring && todo.due_date) {
+  if (isRecurringRule(todo.recurrence_rule) && todo.due_date) {
     const today = todayLocalIso(refDate);
     return todo.due_date <= today;
   }
