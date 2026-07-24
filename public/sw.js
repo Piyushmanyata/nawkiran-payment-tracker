@@ -1,4 +1,4 @@
-/* Nawkiran Payments — free Web Push service worker (no third-party SDK). */
+/* Nawkiran — free Web Push service worker (no third-party SDK). */
 
 const CACHE_NAME = "nawkiran-payments-cache-v4";
 const PUSH_CONFIG_CACHE = "nawkiran-push-config-v1";

@@ -71,7 +71,6 @@ export default function OpenPage() {
 
   const [detailTarget, setDetailTarget] = useState<Payment | null>(null);
   const [approveTarget, setApproveTarget] = useState<Payment | null>(null);
-  const [markPaidTarget, setMarkPaidTarget] = useState<Payment | null>(null);
   const [denyTarget, setDenyTarget] = useState<Payment | null>(null);
   const [editTarget, setEditTarget] = useState<Payment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
@@ -150,22 +149,25 @@ export default function OpenPage() {
   }
 
   async function doMarkPaid(target: Payment) {
+    const DEFAULT_PAYMENT_MODE: PaymentMode = "NEFT";
     setBusy(true);
+    if (detailTarget?.id === target.id) {
+      setDetailTarget(null);
+    }
     upsertPayment({
       ...target,
       status: "paid",
       paid_by: profile?.id ?? null,
       payer_name: profile?.full_name ?? "Accounts",
-      payment_mode: "NEFT",
+      payment_mode: DEFAULT_PAYMENT_MODE,
       payment_reference: null,
     });
     try {
-      const updated = await markPaymentPaid(target.id, "NEFT");
+      const updated = await markPaymentPaid(target.id, DEFAULT_PAYMENT_MODE);
       upsertPayment({
         ...updated,
         payer_name: profile?.full_name ?? updated.payer_name,
       });
-      setMarkPaidTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
       void reload();
