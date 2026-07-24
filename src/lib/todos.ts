@@ -26,6 +26,18 @@ function asTodo(raw: unknown): Todo {
         };
       })
       .filter((a) => a.id),
+    threads: Array.isArray(row.threads)
+      ? (row.threads as Record<string, unknown>[]).map((t) => ({
+          id: String(t.id ?? ""),
+          todo_id: String(t.todo_id ?? ""),
+          author_id: String(t.author_id ?? ""),
+          author_name: String(t.author_name ?? ""),
+          content: String(t.content ?? ""),
+          type: t.type === "reply" ? "reply" : "request",
+          parent_id: (t.parent_id as string | null) ?? null,
+          created_at: String(t.created_at ?? ""),
+        }))
+      : [],
     newly_assigned: Array.isArray(row.newly_assigned)
       ? (row.newly_assigned as string[])
       : undefined,
@@ -154,17 +166,24 @@ export async function deleteTodo(todoId: string): Promise<void> {
   if (error) throw error;
 }
 
+async function callTodoMutationRpc(
+  rpcName: string,
+  params: Record<string, unknown>
+): Promise<Todo> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc(rpcName, params);
+  if (error) throw error;
+  return asTodo(data);
+}
+
 export async function requestTodoUpdate(
   todoId: string,
   content: string
 ): Promise<Todo> {
-  const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.rpc("request_todo_update", {
+  return callTodoMutationRpc("request_todo_update", {
     p_todo_id: todoId,
     p_content: content,
   });
-  if (error) throw error;
-  return data as unknown as Todo;
 }
 
 export async function replyTodoUpdate(
@@ -172,14 +191,11 @@ export async function replyTodoUpdate(
   parentId: string,
   content: string
 ): Promise<Todo> {
-  const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.rpc("reply_todo_update", {
+  return callTodoMutationRpc("reply_todo_update", {
     p_todo_id: todoId,
     p_parent_id: parentId,
     p_content: content,
   });
-  if (error) throw error;
-  return data as unknown as Todo;
 }
 
 export const TODO_KEEP_DAYS = 30;

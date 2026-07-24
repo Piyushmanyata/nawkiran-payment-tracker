@@ -497,26 +497,11 @@ export function buildTodoUpdateReplyPayload(params: TodoUpdatePushParams) {
   };
 }
 
-export async function sendTodoUpdateRequestPush(
-  todoId: string,
-  actorId: string | undefined,
+async function dispatchPushPayloadToTargets(
+  targets: Array<{ endpoint: string; p256dh: string; auth: string }>,
   payload: { title: string; body: string; url: string; tag: string },
-  supabaseClient?: SupabaseClient
+  supabase: SupabaseClient
 ): Promise<{ sent: number; failed: number }> {
-  if (!ensureVapid() || !todoId) return { sent: 0, failed: 0 };
-  const supabase = supabaseClient ?? (await createClient());
-
-  const { data, error } = await supabase.rpc("list_todo_update_request_push_targets", {
-    p_todo_id: todoId,
-    p_actor_id: actorId ?? null,
-  });
-  if (error) throw error;
-
-  const targets = (data ?? []) as Array<{
-    endpoint: string;
-    p256dh: string;
-    auth: string;
-  }>;
   if (targets.length === 0) return { sent: 0, failed: 0 };
 
   const body = JSON.stringify({
@@ -554,6 +539,29 @@ export async function sendTodoUpdateRequestPush(
   return { sent, failed };
 }
 
+export async function sendTodoUpdateRequestPush(
+  todoId: string,
+  actorId: string | undefined,
+  payload: { title: string; body: string; url: string; tag: string },
+  supabaseClient?: SupabaseClient
+): Promise<{ sent: number; failed: number }> {
+  if (!ensureVapid() || !todoId) return { sent: 0, failed: 0 };
+  const supabase = supabaseClient ?? (await createClient());
+
+  const { data, error } = await supabase.rpc("list_todo_update_request_push_targets", {
+    p_todo_id: todoId,
+    p_actor_id: actorId ?? null,
+  });
+  if (error) throw error;
+
+  const targets = (data ?? []) as Array<{
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+  }>;
+  return dispatchPushPayloadToTargets(targets, payload, supabase);
+}
+
 export async function sendTodoUpdateReplyPush(
   todoId: string,
   targetUserIds: string[],
@@ -576,40 +584,6 @@ export async function sendTodoUpdateReplyPush(
     p256dh: string;
     auth: string;
   }>;
-  if (targets.length === 0) return { sent: 0, failed: 0 };
-
-  const body = JSON.stringify({
-    title: payload.title,
-    body: payload.body,
-    icon: "/icon-192.png",
-    badge: "/badge-72.png",
-    url: payload.url,
-    tag: payload.tag,
-  });
-
-  let sent = 0;
-  let failed = 0;
-  await Promise.all(
-    targets.map(async (t) => {
-      try {
-        const outcome = await sendWithRetry(
-          { endpoint: t.endpoint, keys: { p256dh: t.p256dh, auth: t.auth } },
-          body
-        );
-        if (outcome === "ok") sent += 1;
-        else {
-          failed += 1;
-          if (outcome === "gone") {
-            try {
-              await supabase.rpc("purge_push_endpoint", { p_endpoint: t.endpoint });
-            } catch {}
-          }
-        }
-      } catch {
-        failed += 1;
-      }
-    })
-  );
-  return { sent, failed };
+  return dispatchPushPayloadToTargets(targets, payload, supabase);
 }
 

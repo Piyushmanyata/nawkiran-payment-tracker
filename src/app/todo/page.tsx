@@ -118,6 +118,13 @@ export default function TodoPage() {
           void reload();
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "todo_threads" },
+        () => {
+          void reload();
+        }
+      )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
