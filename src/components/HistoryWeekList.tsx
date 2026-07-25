@@ -10,6 +10,7 @@ import { canDeleteHistory, canEditPayment } from "@/lib/roles";
 function HistoryWeekListInner({
   payments,
   role,
+  userId,
   onSelect,
   onEdit,
   onDelete,
@@ -18,6 +19,7 @@ function HistoryWeekListInner({
 }: {
   payments: Payment[];
   role: UserRole | null;
+  userId?: string | null;
   onSelect?: (p: Payment) => void;
   onEdit?: (p: Payment) => void;
   onDelete?: (p: Payment) => void;
@@ -107,9 +109,11 @@ function HistoryWeekListInner({
                     key={p.id}
                     payment={p}
                     role={role}
+                    userId={userId}
                     onSelect={onSelect}
                     onEdit={
-                      p.status === "denied" && canEditPayment(role, p)
+                      p.status === "denied" &&
+                      canEditPayment(role, p, userId)
                         ? onEdit
                         : undefined
                     }

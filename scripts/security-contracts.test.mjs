@@ -45,16 +45,19 @@ test("staff can edit unpaid payments via edit_unpaid_payment", () => {
   assert.match(migration, /revoke all on function public\.edit_unpaid_payment/i);
 });
 
-test("employees cannot edit director-requested payments", () => {
-  const migration = sql["016_director_edit_guard_and_speed.sql"];
-  assert.ok(migration, "016_director_edit_guard_and_speed migration missing");
+test("employees edit only own pending/denied via edit_unpaid_payment", () => {
+  const migration = sql["20260725120000_employee_edit_own_pending_denied.sql"];
+  assert.ok(migration, "employee edit own pending/denied migration missing");
+  assert.match(migration, /create or replace function public\.edit_unpaid_payment/i);
   assert.match(migration, /me\.role in \('employee', 'accounts'\)/i);
-  assert.match(migration, /requester_role = 'director'/i);
+  assert.match(migration, /row\.requested_by is distinct from me\.id/i);
+  assert.match(migration, /row\.status = 'approved'/i);
   assert.match(migration, /raise exception 'NOT_AUTHORISED'/i);
-  assert.match(migration, /payments_active_status_requested_at_idx/i);
+  assert.match(migration, /if row\.status = 'paid'/i);
 
   const roles = readFileSync(join(process.cwd(), "src", "lib", "roles.ts"), "utf8");
-  assert.match(roles, /requester_role === "director"/);
+  assert.match(roles, /payment\.status === "approved"/);
+  assert.match(roles, /payment\.requested_by !== userId/);
   assert.match(roles, /role === "director" \|\| role === "admin"/);
 });
 

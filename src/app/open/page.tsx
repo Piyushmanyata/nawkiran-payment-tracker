@@ -387,6 +387,7 @@ export default function OpenPage() {
           <HistoryWeekList
             payments={filteredPayments}
             role={role}
+            userId={profile?.id}
             onSelect={setDetailTarget}
             onEdit={canEdit ? setEditTarget : undefined}
             onDelete={userCanDelete ? setDeleteTarget : undefined}
@@ -398,6 +399,7 @@ export default function OpenPage() {
                 key={payment.id}
                 payment={payment}
                 role={role}
+                userId={profile?.id}
                 onSelect={setDetailTarget}
                 onApprove={userCanApprove ? setApproveTarget : undefined}
                 onDeny={userCanApprove ? setDenyTarget : undefined}
@@ -413,6 +415,7 @@ export default function OpenPage() {
       <PaymentDetailDrawer
         payment={detailTarget}
         role={role}
+        userId={profile?.id}
         onClose={() => setDetailTarget(null)}
         onApprove={userCanApprove ? setApproveTarget : undefined}
         onDeny={userCanApprove ? setDenyTarget : undefined}

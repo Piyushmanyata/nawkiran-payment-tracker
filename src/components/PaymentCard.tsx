@@ -3,12 +3,6 @@
 import { memo } from "react";
 import type { Payment, UserRole } from "@/types/database";
 import { formatDueLabel, formatInr, isOverdue } from "@/lib/format";
-import {
-  canApprove as roleCanApprove,
-  canDeleteHistory,
-  canEditPayment as roleCanEdit,
-  canMarkPaid as roleCanMarkPaid,
-} from "@/lib/roles";
 import { LoadingButton } from "@/components/LoadingButton";
 import { PartyTagBadges } from "@/components/PartyTagBadges";
 import { PAYMENT_STATUS_UI } from "@/lib/ui";
@@ -17,6 +11,7 @@ import { getPaymentActions } from "@/lib/roles";
 function PaymentCardInner({
   payment,
   role,
+  userId,
   onSelect,
   onApprove,
   onDeny,
@@ -26,6 +21,7 @@ function PaymentCardInner({
 }: {
   payment: Payment;
   role: UserRole | null;
+  userId?: string | null;
   onSelect?: (p: Payment) => void;
   onApprove?: (p: Payment) => void;
   onDeny?: (p: Payment) => void;
@@ -36,7 +32,8 @@ function PaymentCardInner({
   const { showApprove, showMarkPaid, showEdit, showDelete } = getPaymentActions(
     payment,
     role,
-    { onApprove, onDeny, onMarkPaid, onEdit, onDelete }
+    { onApprove, onDeny, onMarkPaid, onEdit, onDelete },
+    userId
   );
 
   const editLabel =

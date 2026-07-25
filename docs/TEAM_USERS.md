@@ -18,8 +18,9 @@ source control.
 | Add payment | Yes | Yes, auto-approved | Yes | Yes, auto-approved |
 | Approve / deny | No | Yes | No | Yes |
 | Mark paid | Yes | No | Yes | Yes |
-| Edit unpaid (pending/approved/denied) | Other staff (not director) | Yes (incl. own) | Other staff (not director) | Yes |
-| Edit director-requested payments | No | Yes | No | Yes |
+| Edit Pending / Denied | Own only | Yes (any) | Own only (legacy) | Yes (any) |
+| Edit Approved (unpaid) | No | Yes | No | Yes |
+| Edit Paid | No | No | No | No |
 | View active history | Yes | Yes | Yes | Yes |
 | Create / complete team to-do | Yes | Yes | Yes | Yes |
 | Edit any open to-do | Own only (as initiator) | Yes | Own only (as initiator) | Yes |

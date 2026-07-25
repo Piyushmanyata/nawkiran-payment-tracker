@@ -32,6 +32,7 @@ const STATUS_BADGE: Record<
 export function PaymentDetailDrawer({
   payment,
   role,
+  userId,
   onClose,
   onApprove,
   onDeny,
@@ -41,6 +42,7 @@ export function PaymentDetailDrawer({
 }: {
   payment: Payment | null;
   role: UserRole | null;
+  userId?: string | null;
   onClose: () => void;
   onApprove?: (p: Payment) => void;
   onDeny?: (p: Payment) => void;
@@ -67,7 +69,8 @@ export function PaymentDetailDrawer({
   const { showApprove, showMarkPaid, showEdit, showDelete } = getPaymentActions(
     payment,
     role,
-    { onApprove, onDeny, onMarkPaid, onEdit, onDelete }
+    { onApprove, onDeny, onMarkPaid, onEdit, onDelete },
+    userId
   );
 
   const overdue = isOverdue(payment.status, payment.due_date);

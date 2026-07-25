@@ -11,19 +11,30 @@ export function canMarkPaid(role: UserRole | null | undefined): boolean {
 }
 
 /**
- * Staff may edit unpaid payments.
- * Employees/accounts may edit each others' — never director-requested ones.
- * Pass `payment` for the per-row guard; omit for a role-level capability check.
+ * Who may edit which unpaid Payment Request.
+ * Employee/accounts: own pending|denied only (not approved, not peers).
+ * Director/admin: any unpaid. Paid never.
+ * Pass `payment` + `userId` for the per-row guard; omit payment for role-level capability.
  */
 export function canEditPayment(
   role: UserRole | null | undefined,
-  payment?: { requester_role?: UserRole | null } | null
+  payment?: {
+    status?: string;
+    requested_by?: string;
+    requester_role?: UserRole | null;
+  } | null,
+  userId?: string | null
 ): boolean {
   if (!role) return false;
-  if (role === "director" || role === "admin") return true;
+  if (role === "director" || role === "admin") {
+    if (!payment) return true;
+    return payment.status !== "paid";
+  }
   if (role !== "employee" && role !== "accounts") return false;
-  // Employees can edit each other; director payments are director-only.
-  if (payment?.requester_role === "director") return false;
+  if (!payment) return true;
+  if (payment.status === "approved" || payment.status === "paid") return false;
+  if (payment.status !== "pending" && payment.status !== "denied") return false;
+  if (!userId || payment.requested_by !== userId) return false;
   return true;
 }
 
@@ -98,7 +109,11 @@ export function canDeleteTodo(role: UserRole | null | undefined): boolean {
 
 /** Computed action availability for payment cards and detail view. */
 export function getPaymentActions(
-  payment: { status: string; requester_role?: UserRole | null },
+  payment: {
+    status: string;
+    requested_by?: string;
+    requester_role?: UserRole | null;
+  },
   role: UserRole | null,
   handlers: {
     onApprove?: unknown;
@@ -106,7 +121,8 @@ export function getPaymentActions(
     onMarkPaid?: unknown;
     onEdit?: unknown;
     onDelete?: unknown;
-  }
+  },
+  userId?: string | null
 ) {
   const showApprove =
     payment.status === "pending" &&
@@ -124,7 +140,9 @@ export function getPaymentActions(
     payment.status === "denied";
 
   const showEdit =
-    unpaid && canEditPayment(role, payment) && Boolean(handlers.onEdit);
+    unpaid &&
+    canEditPayment(role, payment, userId) &&
+    Boolean(handlers.onEdit);
 
   const showDelete =
     (payment.status === "paid" || payment.status === "denied") &&

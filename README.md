@@ -84,9 +84,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 | Role | Payment Access | To-do Access | Admin Features |
 |---|---|---|---|
-| **employee** | Add payment requests; 1-click mark approved payments as paid; edit own/staff unpaid requests (non-director requested) | Create, view, update assigned tasks and post update thread comments | - |
-| **director** | Add auto-approved payments; approve or deny pending requests; edit any unpaid requests | Full task creation, assignment, status update, and thread comment access | - |
-| **accounts** | Add payment requests; 1-click mark approved payments as paid; edit staff unpaid requests | View team tasks and post thread updates | - |
+| **employee** | Add payment requests; 1-click mark approved payments as paid; edit **own** Pending/Denied only (not Approved, not peers') | Create, view, update assigned tasks and post update thread comments | - |
+| **director** | Add auto-approved payments; approve or deny pending requests; edit any unpaid requests (incl. Approved) | Full task creation, assignment, status update, and thread comment access | - |
+| **accounts** | Legacy: same edit limits as employee if still present | View team tasks and post thread updates | - |
 | **admin** | All actions across payments; soft-delete rows from active UI while preserving audit events | Full task & thread management | Soft-delete active payments, manage historical retention, purge data |
 
 ---
