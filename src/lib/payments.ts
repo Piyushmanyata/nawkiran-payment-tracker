@@ -8,12 +8,43 @@ import type { Payment, PaymentMode, Profile, UserRole } from "@/types/database";
 const PAYMENT_COLUMNS =
   "id, party, amount, due_date, purpose, status, requested_by, requested_at, approved_by, approved_at, denied_by, denied_at, denial_reason, paid_by, paid_at, payment_mode, payment_reference, updated_at, version, client_request_id";
 
-export function isOpenPayment(payment: { status: string }): boolean {
-  return payment.status === "pending" || payment.status === "approved";
+type ViewedPayment = { status: string; requested_by?: string };
+
+/**
+ * Open = still needs someone to act.
+ *
+ * A denied request is open work for the person who raised it — they have to
+ * correct and resubmit (or withdraw), so it must not sink into history where
+ * it would be forgotten. Everyone else has already acted on it, so for them
+ * it reads as history.
+ */
+export function isOpenPayment(
+  payment: ViewedPayment,
+  userId?: string | null
+): boolean {
+  if (payment.status === "pending" || payment.status === "approved") return true;
+  return (
+    payment.status === "denied" &&
+    Boolean(userId) &&
+    payment.requested_by === userId
+  );
 }
 
-export function isHistoryPayment(payment: { status: string }): boolean {
-  return payment.status === "paid" || payment.status === "denied";
+/** History = settled, or someone else's denial that is not yours to fix. */
+export function isHistoryPayment(
+  payment: ViewedPayment,
+  userId?: string | null
+): boolean {
+  if (payment.status === "paid" || payment.status === "withdrawn") return true;
+  return payment.status === "denied" && !isOpenPayment(payment, userId);
+}
+
+/** A denial the viewer personally has to resolve. Drives "needs your action". */
+export function needsMyAction(
+  payment: ViewedPayment,
+  userId?: string | null
+): boolean {
+  return payment.status === "denied" && isOpenPayment(payment, userId);
 }
 
 type ProfileMeta = { name: string; role: UserRole };
@@ -241,7 +272,20 @@ export async function markPaymentPaid(
   return payment;
 }
 
-/** Admin only — hides a paid/denied payment while preserving its audit events. */
+/**
+ * Requester drops their own denied request instead of resubmitting it.
+ * The only way a denial leaves the requester's Open list without a payout.
+ */
+export async function withdrawPayment(paymentId: string): Promise<Payment> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("withdraw_payment", {
+    p_payment_id: paymentId,
+  });
+  if (error) throw error;
+  return mapPayment(data as Record<string, unknown>);
+}
+
+/** Admin only — hides a settled payment while preserving its audit events. */
 export async function adminDeletePayment(paymentId: string): Promise<void> {
   const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.rpc("admin_delete_payment", {

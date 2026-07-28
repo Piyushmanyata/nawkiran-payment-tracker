@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { usePathname } from "next/navigation";
-import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { useTodos } from "@/components/TodosProvider";
+import { isRecurringTodo } from "@/lib/todos";
 
 const tabs = [
   {
@@ -29,41 +30,13 @@ const tabs = [
 
 export function BottomNavigation() {
   const pathname = usePathname();
-  const [openTodoCount, setOpenTodoCount] = useState(0);
+  const { todos } = useTodos();
 
-  useEffect(() => {
-    let alive = true;
-    const supabase = getSupabaseBrowserClient();
-
-    async function loadCount() {
-      try {
-        const { count, error } = await supabase
-          .from("todos")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "open");
-        if (!error && alive) setOpenTodoCount(count ?? 0);
-      } catch {
-        /* table may not exist until migration */
-      }
-    }
-
-    void loadCount();
-    const channel = supabase
-      .channel("todos-nav-badge")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "todos" },
-        () => {
-          void loadCount();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      alive = false;
-      void supabase.removeChannel(channel);
-    };
-  }, []);
+  // Matches the /todo "Open" tab, which hides recurring items until they are due.
+  const openTodoCount = useMemo(
+    () => todos.filter((t) => t.status === "open" && !isRecurringTodo(t)).length,
+    [todos]
+  );
 
   return (
     <nav

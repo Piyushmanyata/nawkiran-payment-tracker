@@ -11,7 +11,6 @@ import {
   sendTestPush,
   sendPaymentPush,
   sendTodoPush,
-  sendSelfTodoOverduePush,
   sendTodoOverdueDigestPush,
   sendTodoUpdateRequestPush,
   sendTodoUpdateReplyPush,

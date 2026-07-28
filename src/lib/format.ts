@@ -118,9 +118,17 @@ export function isTodoOverdue(
   return dueDate < today;
 }
 
-/** All open to-dos stay visible on shared board per domain spec (§4 & §5). */
+/**
+ * All open to-dos stay visible on the shared board per domain spec (§4 & §5).
+ * Kept as an explicit predicate (rather than inlining `true`) so the rule has
+ * one place to change, and so its contract stays under test.
+ */
 export function isTodoVisible(
-  _todo: { status: "open" | "done"; due_date?: string | null; recurrence_rule?: RecurrenceRule | null },
+  _todo: {
+    status: "open" | "done";
+    due_date?: string | null;
+    recurrence_rule?: RecurrenceRule | null;
+  },
   _refDate?: Date
 ): boolean {
   return true;

@@ -1,3 +1,5 @@
+import type { PaymentStatus } from "@/types/database";
+
 /** Shared form control styles — keep inputs consistent across pages. */
 export const fieldClass =
   "w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
@@ -34,10 +36,8 @@ export type PaymentStatusUIConfig = {
   step2IconText: string;
 };
 
-export const PAYMENT_STATUS_UI: Record<
-  "pending" | "approved" | "denied" | "paid",
-  PaymentStatusUIConfig
-> = {
+/** Single source of truth for payment status colours — cards and drawer share it. */
+export const PAYMENT_STATUS_UI: Record<PaymentStatus, PaymentStatusUIConfig> = {
   pending: {
     containerClass: "border-slate-200",
     badgeClass: "bg-amber-50 text-amber-800 border-amber-200",
@@ -55,7 +55,7 @@ export const PAYMENT_STATUS_UI: Record<
     step2IconText: "✓",
   },
   denied: {
-    containerClass: "border-rose-200 bg-rose-50/10",
+    containerClass: "border-rose-300 bg-rose-50/40",
     badgeClass: "bg-rose-50 text-rose-800 border-rose-200",
     badgeLabel: "Denied Request",
     line1Class: "bg-rose-400",
@@ -69,6 +69,14 @@ export const PAYMENT_STATUS_UI: Record<
     line1Class: "bg-emerald-500",
     step2IconClass: "bg-emerald-600 text-white",
     step2IconText: "✓",
+  },
+  withdrawn: {
+    containerClass: "border-slate-200 bg-slate-50/60",
+    badgeClass: "bg-slate-100 text-slate-600 border-slate-300",
+    badgeLabel: "Withdrawn Request",
+    line1Class: "bg-slate-300",
+    step2IconClass: "bg-slate-300 text-slate-600",
+    step2IconText: "—",
   },
 };
 

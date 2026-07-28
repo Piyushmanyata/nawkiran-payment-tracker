@@ -57,6 +57,8 @@ export function computeTotals(payments: Payment[]): PaymentTotals {
         t.deniedCount += 1;
         t.deniedSum += amt;
         break;
+      case "withdrawn":
+        break;
     }
   }
 

@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
-import { usePaymentsLive } from "@/hooks/usePaymentsLive";
+import { usePayments } from "@/components/PaymentsProvider";
 import { createPayment, hasSimilarPendingPayment } from "@/lib/payments";
 import { userMessageFromError } from "@/lib/errors";
 import { canApprove } from "@/lib/roles";
@@ -35,7 +35,7 @@ type PendingCreate = {
 export function AddPaymentForm() {
   const router = useRouter();
   const { profile } = useAuth();
-  const { upsertPayment } = usePaymentsLive();
+  const { upsertPayment } = usePayments();
   const autoApprove = canApprove(profile?.role);
   const [party, setParty] = useState("");
   const [amount, setAmount] = useState("");

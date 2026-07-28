@@ -2,20 +2,31 @@ import { getSupabaseBrowserClient } from "@/lib/supabase";
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 const DEBOUNCE_MS = 400;
+/** Tab-focus refetches are throttled here; providers throttle again by freshness. */
+const VISIBLE_THROTTLE_MS = 15_000;
 
-export type PaymentsRealtimeHandlers = {
+export type RowPayload = RealtimePostgresChangesPayload<Record<string, unknown>>;
+
+export type RealtimeHandlers = {
   /** Full reload fallback (online / visibility / unhandled events). */
   onRefresh: () => void;
   /** Apply a postgres change without a network round-trip when possible. */
-  onRow?: (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => boolean;
+  onRow?: (payload: RowPayload) => boolean;
 };
 
 /**
- * Subscribe to payments table changes.
- * Prefer onRow patches; debounce full refresh only when patching is insufficient.
- * Visibility refresh is cheap only if PaymentsProvider FRESH_MS allows it.
+ * One Realtime channel per logical dataset.
+ *
+ * Prefer `onRow` patches; a debounced full refresh is the fallback for events
+ * a patch cannot express (and for reconnects). Every subscriber of a dataset
+ * must share a single channel — duplicated channels multiply both socket
+ * traffic and refetches.
  */
-export function subscribePayments(handlers: PaymentsRealtimeHandlers): () => void {
+export function subscribeTables(
+  channelName: string,
+  tables: readonly string[],
+  handlers: RealtimeHandlers
+): () => void {
   const { onRefresh, onRow } = handlers;
   const supabase = getSupabaseBrowserClient();
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -31,7 +42,7 @@ export function subscribePayments(handlers: PaymentsRealtimeHandlers): () => voi
     }, DEBOUNCE_MS);
   };
 
-  const onChange = (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+  const onChange = (payload: RowPayload) => {
     if (!alive) return;
     if (onRow) {
       try {
@@ -43,21 +54,21 @@ export function subscribePayments(handlers: PaymentsRealtimeHandlers): () => voi
     scheduleRefresh();
   };
 
-  let channel: RealtimeChannel | null = supabase
-    .channel("payments-live")
-    .on(
+  let channel: RealtimeChannel | null = supabase.channel(channelName);
+  for (const table of tables) {
+    channel = channel.on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "payments" },
+      { event: "*", schema: "public", table },
       onChange
-    )
-    .subscribe();
+    );
+  }
+  channel.subscribe();
 
   const onOnline = () => scheduleRefresh();
   const onVisible = () => {
     if (document.visibilityState !== "visible") return;
-    // Throttle tab-focus refetches (provider still applies FRESH_MS).
     const now = Date.now();
-    if (now - lastVisibleRefresh < 15_000) return;
+    if (now - lastVisibleRefresh < VISIBLE_THROTTLE_MS) return;
     lastVisibleRefresh = now;
     scheduleRefresh();
   };
@@ -76,3 +87,10 @@ export function subscribePayments(handlers: PaymentsRealtimeHandlers): () => voi
     }
   };
 }
+
+export const subscribePayments = (handlers: RealtimeHandlers) =>
+  subscribeTables("payments-live", ["payments"], handlers);
+
+/** To-do rows and their threads always move together — one channel covers both. */
+export const subscribeTodos = (handlers: RealtimeHandlers) =>
+  subscribeTables("todos-live", ["todos", "todo_threads"], handlers);

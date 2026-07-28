@@ -7,6 +7,7 @@ import { LoadingButton } from "@/components/LoadingButton";
 import { PartyTagBadges } from "@/components/PartyTagBadges";
 import { PAYMENT_STATUS_UI } from "@/lib/ui";
 import { getPaymentActions } from "@/lib/roles";
+import { needsMyAction } from "@/lib/payments";
 
 function PaymentCardInner({
   payment,
@@ -16,6 +17,7 @@ function PaymentCardInner({
   onApprove,
   onDeny,
   onMarkPaid,
+  onWithdraw,
   onDelete,
   onEdit,
 }: {
@@ -26,29 +28,40 @@ function PaymentCardInner({
   onApprove?: (p: Payment) => void;
   onDeny?: (p: Payment) => void;
   onMarkPaid?: (p: Payment) => void;
+  onWithdraw?: (p: Payment) => void;
   onDelete?: (p: Payment) => void;
   onEdit?: (p: Payment) => void;
 }) {
-  const { showApprove, showMarkPaid, showEdit, showDelete } = getPaymentActions(
-    payment,
-    role,
-    { onApprove, onDeny, onMarkPaid, onEdit, onDelete },
-    userId
-  );
+  const { showApprove, showMarkPaid, showEdit, showWithdraw, showDelete } =
+    getPaymentActions(
+      payment,
+      role,
+      { onApprove, onDeny, onMarkPaid, onEdit, onWithdraw, onDelete },
+      userId
+    );
 
   const editLabel =
     payment.status === "denied" ? "Correct & resubmit" : "Edit";
 
   const overdue = isOverdue(payment.status, payment.due_date);
   const config = PAYMENT_STATUS_UI[payment.status];
+  // Denied requests stay in the requester's Open list until they act on them.
+  const mustAct = needsMyAction(payment, userId);
 
   return (
     <article
       onClick={() => onSelect?.(payment)}
       className={`group rounded-2xl border bg-white p-4 shadow-xs transition-all hover:shadow-md hover:border-slate-300 ${
         onSelect ? "cursor-pointer" : ""
-      } ${config.containerClass}`}
+      } ${config.containerClass} ${mustAct ? "ring-1 ring-rose-300" : ""}`}
     >
+      {mustAct ? (
+        <p className="mb-2.5 -mt-1 flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-rose-700">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-rose-500" />
+          Action needed — correct &amp; resubmit or withdraw
+        </p>
+      ) : null}
+
       {/* Top Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -122,7 +135,7 @@ function PaymentCardInner({
             {payment.status === "paid" ? "✓" : "3"}
           </span>
           <span className={payment.status === "paid" ? "text-emerald-700" : "text-slate-400"}>
-            3. Paid
+            {payment.status === "withdrawn" ? "3. Closed" : "3. Paid"}
           </span>
         </div>
       </div>
@@ -173,9 +186,20 @@ function PaymentCardInner({
         </div>
       ) : null}
 
-      {showDelete ? (
+      {showWithdraw ? (
         <div
           className={showEdit ? "mt-2" : "mt-3"}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <LoadingButton variant="secondary" onClick={() => onWithdraw?.(payment)}>
+            Withdraw request
+          </LoadingButton>
+        </div>
+      ) : null}
+
+      {showDelete ? (
+        <div
+          className={showEdit || showWithdraw ? "mt-2" : "mt-3"}
           onClick={(e) => e.stopPropagation()}
         >
           <LoadingButton variant="danger" onClick={() => onDelete?.(payment)}>

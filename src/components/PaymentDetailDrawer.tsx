@@ -6,28 +6,7 @@ import { formatDateTime, formatDueLabel, formatInr, formatRelativeTime, isOverdu
 import { PartyTagBadges } from "@/components/PartyTagBadges";
 import { LoadingButton } from "@/components/LoadingButton";
 import { getPaymentActions } from "@/lib/roles";
-
-const STATUS_BADGE: Record<
-  Payment["status"],
-  { class: string; label: string }
-> = {
-  pending: {
-    class: "bg-amber-500/10 text-amber-800 border-amber-300/60",
-    label: "Pending Request",
-  },
-  approved: {
-    class: "bg-indigo-500/10 text-indigo-800 border-indigo-300/60",
-    label: "Approved Request",
-  },
-  denied: {
-    class: "bg-rose-500/10 text-rose-800 border-rose-300/60",
-    label: "Denied Request",
-  },
-  paid: {
-    class: "bg-emerald-500/10 text-emerald-800 border-emerald-300/60",
-    label: "Paid Request",
-  },
-};
+import { PAYMENT_STATUS_UI } from "@/lib/ui";
 
 export function PaymentDetailDrawer({
   payment,
@@ -38,6 +17,7 @@ export function PaymentDetailDrawer({
   onDeny,
   onMarkPaid,
   onEdit,
+  onWithdraw,
   onDelete,
 }: {
   payment: Payment | null;
@@ -48,6 +28,7 @@ export function PaymentDetailDrawer({
   onDeny?: (p: Payment) => void;
   onMarkPaid?: (p: Payment) => void;
   onEdit?: (p: Payment) => void;
+  onWithdraw?: (p: Payment) => void;
   onDelete?: (p: Payment) => void;
 }) {
   useEffect(() => {
@@ -66,16 +47,20 @@ export function PaymentDetailDrawer({
 
   if (!payment) return null;
 
-  const { showApprove, showMarkPaid, showEdit, showDelete } = getPaymentActions(
-    payment,
-    role,
-    { onApprove, onDeny, onMarkPaid, onEdit, onDelete },
-    userId
-  );
+  const { showApprove, showMarkPaid, showEdit, showWithdraw, showDelete } =
+    getPaymentActions(
+      payment,
+      role,
+      { onApprove, onDeny, onMarkPaid, onEdit, onWithdraw, onDelete },
+      userId
+    );
 
   const overdue = isOverdue(payment.status, payment.due_date);
-  const badge = STATUS_BADGE[payment.status];
+  const badge = PAYMENT_STATUS_UI[payment.status];
   const relativeReq = formatRelativeTime(payment.requested_at);
+  // Withdrawn rows keep their denial fields — step 2 still reads as a denial.
+  const wasDenied = payment.status === "denied" || payment.status === "withdrawn";
+  const isWithdrawn = payment.status === "withdrawn";
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end items-end md:items-stretch">
@@ -97,9 +82,9 @@ export function PaymentDetailDrawer({
         <div className="flex items-start justify-between p-5 md:p-6 border-b border-slate-100 bg-slate-50/50">
           <div className="space-y-1 pr-4 min-w-0">
             <span
-              className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${badge.class}`}
+              className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${badge.badgeClass}`}
             >
-              {badge.label}
+              {badge.badgeLabel}
             </span>
             <h2
               id="payment-detail-title"
@@ -178,20 +163,16 @@ export function PaymentDetailDrawer({
                   className={`absolute -left-6 top-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ring-4 ring-white ${
                     payment.status === "pending"
                       ? "bg-amber-500 text-white"
-                      : payment.status === "denied"
+                      : wasDenied
                       ? "bg-rose-500 text-white"
                       : "bg-indigo-600 text-white"
                   }`}
                 >
-                  {payment.status === "pending"
-                    ? "2"
-                    : payment.status === "denied"
-                    ? "✕"
-                    : "✓"}
+                  {payment.status === "pending" ? "2" : wasDenied ? "✕" : "✓"}
                 </div>
                 <div
                   className={`rounded-xl p-3 border ${
-                    payment.status === "denied"
+                    wasDenied
                       ? "bg-rose-50/50 border-rose-100"
                       : payment.status === "pending"
                       ? "bg-amber-50/50 border-amber-100"
@@ -206,14 +187,14 @@ export function PaymentDetailDrawer({
                       className={`text-[11px] font-bold ${
                         payment.status === "pending"
                           ? "text-amber-700"
-                          : payment.status === "denied"
+                          : wasDenied
                           ? "text-rose-700"
                           : "text-indigo-700"
                       }`}
                     >
                       {payment.status === "pending"
                         ? "Awaiting Action"
-                        : payment.status === "denied"
+                        : wasDenied
                         ? "Denied"
                         : "Approved"}
                     </span>
@@ -236,7 +217,7 @@ export function PaymentDetailDrawer({
                         </p>
                       </>
                     )}
-                    {payment.status === "denied" && (
+                    {wasDenied && (
                       <>
                         <p>
                           <span className="font-semibold text-slate-700">Denied by: </span>
@@ -279,7 +260,7 @@ export function PaymentDetailDrawer({
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-900">
-                      3. Paid
+                      {isWithdrawn ? "3. Closed" : "3. Paid"}
                     </span>
                     <span
                       className={`text-[11px] font-bold ${
@@ -288,7 +269,11 @@ export function PaymentDetailDrawer({
                           : "text-slate-400"
                       }`}
                     >
-                      {payment.status === "paid" ? "Completed" : "Pending"}
+                      {payment.status === "paid"
+                        ? "Completed"
+                        : isWithdrawn
+                        ? "Withdrawn"
+                        : "Pending"}
                     </span>
                   </div>
 
@@ -319,6 +304,8 @@ export function PaymentDetailDrawer({
                       <p className="text-slate-400 italic">
                         {payment.status === "approved"
                           ? "Ready for payout execution."
+                          : isWithdrawn
+                          ? `Withdrawn by ${payment.requester_name || "the requester"} — no payout will be made.`
                           : "Requires approval before payout."}
                       </p>
                     )}
@@ -330,7 +317,7 @@ export function PaymentDetailDrawer({
         </div>
 
         {/* Footer Actions */}
-        {(showApprove || showMarkPaid || showEdit || showDelete) && (
+        {(showApprove || showMarkPaid || showEdit || showWithdraw || showDelete) && (
           <div className="p-5 md:p-6 border-t border-slate-100 bg-slate-50/80 space-y-2">
             {showApprove && (
               <div className="grid grid-cols-2 gap-2">
@@ -378,6 +365,18 @@ export function PaymentDetailDrawer({
                 {payment.status === "denied"
                   ? "Correct & Resubmit"
                   : "Edit Payment"}
+              </LoadingButton>
+            )}
+
+            {showWithdraw && (
+              <LoadingButton
+                variant="secondary"
+                onClick={() => {
+                  onWithdraw?.(payment);
+                  onClose();
+                }}
+              >
+                Withdraw Request
               </LoadingButton>
             )}
 

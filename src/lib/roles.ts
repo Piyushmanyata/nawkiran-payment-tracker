@@ -1,5 +1,10 @@
 import type { RecurrenceRule, UserRole } from "@/types/database";
 
+/** Settled for good — no further edits, approvals or payouts. */
+function isSettledPayment(status: string | undefined): boolean {
+  return status === "paid" || status === "withdrawn";
+}
+
 /** Director (and admin) approve / deny pending requests. */
 export function canApprove(role: UserRole | null | undefined): boolean {
   return role === "director" || role === "admin";
@@ -28,11 +33,11 @@ export function canEditPayment(
   if (!role) return false;
   if (role === "director" || role === "admin") {
     if (!payment) return true;
-    return payment.status !== "paid";
+    return !isSettledPayment(payment.status);
   }
   if (role !== "employee" && role !== "accounts") return false;
   if (!payment) return true;
-  if (payment.status === "approved" || payment.status === "paid") return false;
+  if (payment.status === "approved" || isSettledPayment(payment.status)) return false;
   if (payment.status !== "pending" && payment.status !== "denied") return false;
   if (!userId || payment.requested_by !== userId) return false;
   return true;
@@ -120,6 +125,7 @@ export function getPaymentActions(
     onDeny?: unknown;
     onMarkPaid?: unknown;
     onEdit?: unknown;
+    onWithdraw?: unknown;
     onDelete?: unknown;
   },
   userId?: string | null
@@ -144,11 +150,20 @@ export function getPaymentActions(
     canEditPayment(role, payment, userId) &&
     Boolean(handlers.onEdit);
 
+  // Only the requester retires their own denial, and only by giving up on it.
+  const showWithdraw =
+    payment.status === "denied" &&
+    Boolean(userId) &&
+    payment.requested_by === userId &&
+    Boolean(handlers.onWithdraw);
+
   const showDelete =
-    (payment.status === "paid" || payment.status === "denied") &&
+    (payment.status === "paid" ||
+      payment.status === "denied" ||
+      payment.status === "withdrawn") &&
     canDeleteHistory(role) &&
     Boolean(handlers.onDelete);
 
-  return { showApprove, showMarkPaid, showEdit, showDelete };
+  return { showApprove, showMarkPaid, showEdit, showWithdraw, showDelete };
 }
 

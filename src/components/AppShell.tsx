@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { PaymentsProvider } from "@/components/PaymentsProvider";
+import { TodosProvider } from "@/components/TodosProvider";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { roleLabel } from "@/lib/ui";
@@ -14,6 +15,15 @@ const PushNotifications = dynamic(
   () => import("./PushNotifications").then((mod) => mod.PushNotifications),
   { ssr: false }
 );
+
+/** One fetch + one Realtime channel per dataset for the whole signed-in shell. */
+function AppProviders({ children }: { children: ReactNode }) {
+  return (
+    <PaymentsProvider>
+      <TodosProvider>{children}</TodosProvider>
+    </PaymentsProvider>
+  );
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { loading, configured, session, profile, signOut } = useAuth();
@@ -41,7 +51,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     const prefetch = router.prefetch;
     const run = () => {
       prefetch("/open");
-      prefetch("/add");
       prefetch("/todo");
     };
     const ric = window.requestIdleCallback?.bind(window);
@@ -84,7 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const role = roleLabel(profile?.role);
 
   return (
-    <PaymentsProvider>
+    <AppProviders>
       <div className="min-h-full bg-slate-50">
         <OfflineBanner />
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
@@ -136,7 +145,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="mx-auto max-w-7xl px-4 md:px-8 pb-28 md:pb-8 pt-4 md:pt-6">{children}</main>
         <BottomNavigation />
       </div>
-    </PaymentsProvider>
+    </AppProviders>
   );
 }
 

@@ -229,6 +229,73 @@ test("monthly hard-delete retention; history UI groups by day", () => {
   assert.match(historyPage, /maybePurgeOldHistory/);
 });
 
+test("denied requests stay open for their requester until paid or withdrawn", () => {
+  const enumMigration = sql["20260728100000_payment_withdrawn_enum.sql"];
+  assert.ok(enumMigration, "payment_withdrawn_enum migration missing");
+  assert.match(
+    enumMigration,
+    /alter type public\.payment_status add value if not exists 'withdrawn'/i
+  );
+  assert.match(enumMigration, /'withdrawn',\s*\n\s*'admin_deleted'/i);
+  // The label must land in its own migration: Postgres cannot use a new enum
+  // value in the transaction that adds it.
+  assert.doesNotMatch(enumMigration, /create or replace function/i);
+
+  const migration = sql["20260728100100_withdraw_payment_and_open_denials.sql"];
+  assert.ok(migration, "withdraw_payment_and_open_denials migration missing");
+  assert.match(migration, /create or replace function public\.withdraw_payment/i);
+  // Requester-only, denied-only.
+  assert.match(migration, /row\.requested_by is distinct from me\.id/i);
+  assert.match(migration, /row\.status <> 'denied'/i);
+  assert.match(migration, /raise exception 'NOT_DENIED'/i);
+  assert.match(migration, /revoke all on function public\.withdraw_payment\(uuid\) from public, anon/i);
+  assert.match(migration, /grant execute on function public\.withdraw_payment\(uuid\) to authenticated/i);
+  // Withdrawn is terminal for edits, and admin cleanup covers it.
+  assert.match(migration, /row\.status in \('paid', 'withdrawn'\)/i);
+  assert.match(migration, /not in \('paid', 'denied', 'withdrawn'\)/i);
+  // Retention must never hard-delete a live denial.
+  assert.match(migration, /status in \('paid', 'withdrawn'\)\s*\n\s*and coalesce\(paid_at, updated_at\) < cutoff/i);
+
+  const paymentsLib = readFileSync(
+    join(process.cwd(), "src", "lib", "payments.ts"),
+    "utf8"
+  );
+  assert.match(paymentsLib, /export async function withdrawPayment/);
+  assert.match(paymentsLib, /export function needsMyAction/);
+  // Open/history split is viewer-aware, not status-only.
+  assert.match(paymentsLib, /isOpenPayment\(\s*payment: ViewedPayment,\s*userId\?: string \| null\s*\)/);
+  assert.match(paymentsLib, /payment\.status === "denied" &&\s*\n\s*Boolean\(userId\) &&\s*\n\s*payment\.requested_by === userId/);
+  assert.match(paymentsLib, /payment\.status === "paid" \|\| payment\.status === "withdrawn"/);
+
+  const roles = readFileSync(join(process.cwd(), "src", "lib", "roles.ts"), "utf8");
+  assert.match(roles, /showWithdraw/);
+  assert.match(roles, /function isSettledPayment/);
+});
+
+test("each dataset has exactly one Realtime channel", () => {
+  const realtime = readFileSync(
+    join(process.cwd(), "src", "lib", "realtime.ts"),
+    "utf8"
+  );
+  assert.match(realtime, /export function subscribeTables/);
+  assert.match(realtime, /subscribeTables\("payments-live", \["payments"\]/);
+  assert.match(realtime, /subscribeTables\("todos-live", \["todos", "todo_threads"\]/);
+
+  // The nav badge must read from the shared provider, never open its own channel.
+  const nav = readFileSync(
+    join(process.cwd(), "src", "components", "BottomNavigation.tsx"),
+    "utf8"
+  );
+  assert.match(nav, /useTodos/);
+  assert.doesNotMatch(nav, /\.channel\(/);
+
+  const todoPage = readFileSync(
+    join(process.cwd(), "src", "app", "todo", "page.tsx"),
+    "utf8"
+  );
+  assert.doesNotMatch(todoPage, /\.channel\(/);
+});
+
 test("gone push endpoints are purged after terminal delivery failures", () => {
   const purge = migrations.find((name) =>
     name.endsWith("_purge_gone_push_endpoints.sql")

@@ -1,6 +1,15 @@
 export type UserRole = "employee" | "director" | "accounts" | "admin";
 
-export type PaymentStatus = "pending" | "approved" | "denied" | "paid";
+/**
+ * `denied` is not a terminal state: the requester must correct and resubmit,
+ * or withdraw. Only `paid` and `withdrawn` are settled.
+ */
+export type PaymentStatus =
+  | "pending"
+  | "approved"
+  | "denied"
+  | "paid"
+  | "withdrawn";
 
 export type PaymentMode =
   | "NEFT"
@@ -62,6 +71,7 @@ export interface PaymentEvent {
     | "paid"
     | "resubmitted"
     | "edited"
+    | "withdrawn"
     | "admin_deleted";
   performed_by: string;
   old_status: PaymentStatus | null;

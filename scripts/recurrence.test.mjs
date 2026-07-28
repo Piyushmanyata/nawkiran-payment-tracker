@@ -117,7 +117,6 @@ test("calculateNextDueDate advances custom_weekly and custom_monthly", () => {
 test("isTodoOverdue and formatTodoDueLabel trigger at 12pm on the recurring date", () => {
   const recurringRule = { type: "daily" };
   const todayIso = "2026-07-24";
-  const tomorrowIso = "2026-07-25";
 
   const morningTime = new Date("2026-07-24T09:00:00+05:30");
   const noonTime = new Date("2026-07-24T12:00:00+05:30");

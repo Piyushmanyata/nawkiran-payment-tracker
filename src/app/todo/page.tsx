@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/components/AuthProvider";
 import { EmptyState } from "@/components/EmptyState";
@@ -15,7 +15,6 @@ import {
   createTodo,
   deleteTodo,
   fetchActiveProfiles,
-  fetchTodos,
   isMineTodo,
   isRecurringTodo,
   maybeNotifyOverdueTodos,
@@ -30,8 +29,7 @@ import {
   notifyTodoUpdateRequest,
   notifyTodoUpdateReply,
 } from "@/app/actions/push";
-import { getSupabaseBrowserClient } from "@/lib/supabase";
-import { isTodoVisible } from "@/lib/format";
+import { useTodos } from "@/components/TodosProvider";
 import type { CreateTodoInput, Profile, Todo } from "@/types/database";
 
 const Modal = dynamic(() =>
@@ -52,10 +50,17 @@ export default function TodoPage() {
   const role = profile?.role ?? null;
   const userId = profile?.id ?? null;
 
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const {
+    todos,
+    loading,
+    error,
+    setError,
+    reload,
+    upsertTodo: upsertLocal,
+    removeTodo: removeLocal,
+  } = useTodos();
+
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("open");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [formBusy, setFormBusy] = useState(false);
@@ -64,39 +69,21 @@ export default function TodoPage() {
   const [editTarget, setEditTarget] = useState<Todo | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Todo | null>(null);
 
-  const reload = useCallback(async () => {
-    try {
-      const rows = await fetchTodos();
-      setTodos(rows);
-      setError(null);
-    } catch (err) {
-      setError(userMessageFromError(err));
-    }
-  }, []);
-
+  // To-do rows live in TodosProvider; the assignee picker is page-local.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      setLoading(true);
       try {
-        const [rows, people] = await Promise.all([
-          fetchTodos(),
-          fetchActiveProfiles(),
-        ]);
-        if (cancelled) return;
-        setTodos(rows);
-        setProfiles(people);
-        setError(null);
+        const people = await fetchActiveProfiles();
+        if (!cancelled) setProfiles(people);
       } catch (err) {
         if (!cancelled) setError(userMessageFromError(err));
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setError]);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,30 +94,6 @@ export default function TodoPage() {
     })();
     return () => {
       cancelled = true;
-    };
-  }, [reload]);
-
-  useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    const channel = supabase
-      .channel("todos-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "todos" },
-        () => {
-          void reload();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "todo_threads" },
-        () => {
-          void reload();
-        }
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
     };
   }, [reload]);
 
@@ -162,17 +125,6 @@ export default function TodoPage() {
     const done = sortDoneTodos(mine.filter((t) => t.status === "done"));
     return [...open, ...done];
   }, [todos, filter, userId]);
-
-  function upsertLocal(todo: Todo) {
-    setTodos((prev) => {
-      const rest = prev.filter((t) => t.id !== todo.id);
-      return [todo, ...rest];
-    });
-  }
-
-  function removeLocal(id: string) {
-    setTodos((prev) => prev.filter((t) => t.id !== id));
-  }
 
   async function doCreate(input: CreateTodoInput) {
     setFormBusy(true);

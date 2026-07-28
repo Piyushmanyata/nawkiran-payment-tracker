@@ -142,4 +142,3 @@ function ChevronIcon() {
 }
 
 export const HistoryWeekList = memo(HistoryWeekListInner);
-export const HistoryDayList = HistoryWeekList;

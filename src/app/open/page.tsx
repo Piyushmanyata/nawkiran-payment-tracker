@@ -19,8 +19,10 @@ import {
   isOpenPayment,
   markPaymentPaid,
   maybePurgeOldHistory,
+  needsMyAction,
+  withdrawPayment,
 } from "@/lib/payments";
-import { usePaymentsLive } from "@/hooks/usePaymentsLive";
+import { usePayments } from "@/components/PaymentsProvider";
 import { userMessageFromError } from "@/lib/errors";
 import { canApprove, canDeleteHistory, canEditPayment, canMarkPaid } from "@/lib/roles";
 import { formatInr } from "@/lib/format";
@@ -47,6 +49,14 @@ const PaymentDetailDrawer = dynamic(() =>
   import("@/components/PaymentDetailDrawer").then((mod) => mod.PaymentDetailDrawer)
 );
 
+/** [filter, label, active background] — one row per primary filter chip. */
+const FILTER_CHIPS: ReadonlyArray<readonly [PaymentFilterMode, string, string]> = [
+  ["all", "Open", "bg-slate-900"],
+  ["pending", "Pending", "bg-amber-600"],
+  ["approved", "Approved", "bg-indigo-600"],
+  ["history", "History", "bg-emerald-600"],
+];
+
 export default function OpenPage() {
   const searchParams = useSearchParams();
   const actionParam = searchParams.get("action");
@@ -54,6 +64,7 @@ export default function OpenPage() {
 
   const { profile } = useAuth();
   const role = profile?.role ?? null;
+  const userId = profile?.id ?? null;
   const {
     payments,
     loading,
@@ -62,7 +73,7 @@ export default function OpenPage() {
     reload,
     upsertPayment,
     removePayment,
-  } = usePaymentsLive();
+  } = usePayments();
 
   const [busy, setBusy] = useState(false);
   const [showAddDrawer, setShowAddDrawer] = useState(actionParam === "add");
@@ -73,6 +84,7 @@ export default function OpenPage() {
   const [approveTarget, setApproveTarget] = useState<Payment | null>(null);
   const [denyTarget, setDenyTarget] = useState<Payment | null>(null);
   const [editTarget, setEditTarget] = useState<Payment | null>(null);
+  const [withdrawTarget, setWithdrawTarget] = useState<Payment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
 
   const canEdit = canEditPayment(role);
@@ -100,28 +112,42 @@ export default function OpenPage() {
     );
   };
 
-  // Filtered Payments Stream for Single Page Hub
+  // Filtered Payments Stream for Single Page Hub.
+  // Denials you own sort to the top of Open — they are the only rows here that
+  // are blocked on *you*.
   const filteredPayments = useMemo(() => {
     const q = searchQuery.trim();
-    return payments.filter((item) => {
+    const rows = payments.filter((item) => {
       let matchesStatus = false;
       if (activeFilter === "pending") matchesStatus = item.status === "pending";
       else if (activeFilter === "approved") matchesStatus = item.status === "approved";
-      else if (activeFilter === "history") matchesStatus = isHistoryPayment(item);
-      else matchesStatus = isOpenPayment(item);
+      else if (activeFilter === "history") matchesStatus = isHistoryPayment(item, userId);
+      else matchesStatus = isOpenPayment(item, userId);
 
       if (!matchesStatus) return false;
       return matchesSearch(item, q);
     });
-  }, [payments, activeFilter, searchQuery]);
+    if (activeFilter !== "all") return rows;
+    return rows
+      .slice()
+      .sort(
+        (a, b) =>
+          Number(needsMyAction(b, userId)) - Number(needsMyAction(a, userId))
+      );
+  }, [payments, activeFilter, searchQuery, userId]);
+
+  const actionNeededCount = useMemo(
+    () => payments.filter((item) => needsMyAction(item, userId)).length,
+    [payments, userId]
+  );
 
   const matchingHistoryCount = useMemo(() => {
     const q = searchQuery.trim();
     if (!q || activeFilter === "history") return 0;
     return payments.filter(
-      (item) => isHistoryPayment(item) && matchesSearch(item, q)
+      (item) => isHistoryPayment(item, userId) && matchesSearch(item, q)
     ).length;
-  }, [payments, searchQuery, activeFilter]);
+  }, [payments, searchQuery, activeFilter, userId]);
 
   async function doApprove() {
     if (!approveTarget) return;
@@ -211,6 +237,22 @@ export default function OpenPage() {
           : updated
       );
       setEditTarget(null);
+    } catch (err) {
+      setError(userMessageFromError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doWithdraw() {
+    if (!withdrawTarget) return;
+    setBusy(true);
+    const target = withdrawTarget;
+    if (detailTarget?.id === target.id) setDetailTarget(null);
+    try {
+      const updated = await withdrawPayment(target.id);
+      upsertPayment(updated);
+      setWithdrawTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -311,52 +353,39 @@ export default function OpenPage() {
           </div>
         ) : null}
 
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => setActiveFilter("all")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
-              activeFilter === "all"
-                ? "bg-slate-900 text-white shadow-xs"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-            }`}
-          >
-            Open
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveFilter("pending")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
-              activeFilter === "pending"
-                ? "bg-amber-600 text-white shadow-xs"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-            }`}
-          >
-            Pending
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveFilter("approved")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
-              activeFilter === "approved"
-                ? "bg-indigo-600 text-white shadow-xs"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-            }`}
-          >
-            Approved
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveFilter("history")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
-              activeFilter === "history"
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-            }`}
-          >
-            History
-          </button>
+        <div
+          role="tablist"
+          aria-label="Payment filters"
+          className="flex gap-1.5 overflow-x-auto pb-1"
+        >
+          {FILTER_CHIPS.map(([mode, label, activeClass]) => {
+            const active = activeFilter === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveFilter(mode)}
+                className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold transition ${
+                  active
+                    ? `${activeClass} text-white shadow-xs`
+                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {label}
+                {mode === "all" && actionNeededCount > 0 ? (
+                  <span
+                    className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                      active ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"
+                    }`}
+                  >
+                    {actionNeededCount}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -382,7 +411,19 @@ export default function OpenPage() {
       {/* 3. UNIFIED EXPRESS STREAM */}
       <section>
         {filteredPayments.length === 0 ? (
-          <EmptyState text="No payments found for this view." />
+          <EmptyState
+            text={
+              searchQuery.trim()
+                ? `No ${activeFilter === "history" ? "history" : "open"} records match "${searchQuery.trim()}".`
+                : activeFilter === "history"
+                  ? "Nothing settled yet. Paid and withdrawn requests land here."
+                  : activeFilter === "pending"
+                    ? "No requests are waiting for approval."
+                    : activeFilter === "approved"
+                      ? "No approved requests are waiting for payout."
+                      : "All clear — nothing open right now."
+            }
+          />
         ) : activeFilter === "history" ? (
           <HistoryWeekList
             payments={filteredPayments}
@@ -405,6 +446,7 @@ export default function OpenPage() {
                 onDeny={userCanApprove ? setDenyTarget : undefined}
                 onMarkPaid={userCanMarkPaid ? (p) => void doMarkPaid(p) : undefined}
                 onEdit={canEdit ? setEditTarget : undefined}
+                onWithdraw={setWithdrawTarget}
               />
             ))}
           </div>
@@ -421,6 +463,7 @@ export default function OpenPage() {
         onDeny={userCanApprove ? setDenyTarget : undefined}
         onMarkPaid={userCanMarkPaid ? (p) => void doMarkPaid(p) : undefined}
         onEdit={canEdit ? setEditTarget : undefined}
+        onWithdraw={setWithdrawTarget}
         onDelete={userCanDelete ? setDeleteTarget : undefined}
       />
 
@@ -445,6 +488,37 @@ export default function OpenPage() {
         onCancel={() => setEditTarget(null)}
         onConfirm={(input) => void doEdit(input)}
       />
+
+      <Modal
+        open={Boolean(withdrawTarget)}
+        titleId="withdraw-title"
+        title="Withdraw this request?"
+        onClose={() => setWithdrawTarget(null)}
+        disableClose={busy}
+      >
+        <p className="mt-2 text-base text-slate-700">
+          {formatInr(withdrawTarget?.amount ?? 0)} for {withdrawTarget?.party}{" "}
+          will move to History and will not be paid. Correct and resubmit
+          instead if the request is still needed.
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <LoadingButton
+            variant="secondary"
+            disabled={busy}
+            onClick={() => setWithdrawTarget(null)}
+          >
+            Cancel
+          </LoadingButton>
+          <LoadingButton
+            variant="danger"
+            loading={busy}
+            loadingText="Withdrawing..."
+            onClick={() => void doWithdraw()}
+          >
+            Withdraw
+          </LoadingButton>
+        </div>
+      </Modal>
 
       <Modal
         open={Boolean(deleteTarget)}
