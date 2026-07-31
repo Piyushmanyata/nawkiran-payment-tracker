@@ -72,7 +72,8 @@ export interface PaymentEvent {
     | "resubmitted"
     | "edited"
     | "withdrawn"
-    | "admin_deleted";
+    | "admin_deleted"
+    | "deleted";
   performed_by: string;
   old_status: PaymentStatus | null;
   new_status: PaymentStatus;

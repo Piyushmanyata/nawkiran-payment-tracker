@@ -116,6 +116,13 @@ export function buildPushPayload(
         url: "/open?filter=history",
         tagPrefix: "paid",
       };
+    case "deleted":
+      return {
+        title: "Payment removed",
+        body: `${money} · No longer needs payout`,
+        url: "/open",
+        tagPrefix: "del",
+      };
     default:
       return {
         title: "Nawkiran",

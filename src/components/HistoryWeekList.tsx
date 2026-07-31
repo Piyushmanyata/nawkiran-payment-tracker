@@ -5,7 +5,7 @@ import type { Payment, UserRole } from "@/types/database";
 import { PaymentCard } from "@/components/PaymentCard";
 import { groupHistoryByDay } from "@/lib/history-weeks";
 import { formatInr } from "@/lib/format";
-import { canDeleteHistory, canEditPayment } from "@/lib/roles";
+import { canEditPayment } from "@/lib/roles";
 
 function HistoryWeekListInner({
   payments,
@@ -13,7 +13,6 @@ function HistoryWeekListInner({
   userId,
   onSelect,
   onEdit,
-  onDelete,
   /** When searching, expand every group that has matches. */
   forceExpandAll = false,
 }: {
@@ -22,7 +21,6 @@ function HistoryWeekListInner({
   userId?: string | null;
   onSelect?: (p: Payment) => void;
   onEdit?: (p: Payment) => void;
-  onDelete?: (p: Payment) => void;
   forceExpandAll?: boolean;
 }) {
   const groups = useMemo(() => groupHistoryByDay(payments), [payments]);
@@ -117,7 +115,6 @@ function HistoryWeekListInner({
                         ? onEdit
                         : undefined
                     }
-                    onDelete={canDeleteHistory(role) ? onDelete : undefined}
                   />
                 ))}
               </div>

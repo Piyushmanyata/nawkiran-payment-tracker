@@ -18,7 +18,6 @@ function PaymentCardInner({
   onDeny,
   onMarkPaid,
   onWithdraw,
-  onDelete,
   onEdit,
 }: {
   payment: Payment;
@@ -29,14 +28,14 @@ function PaymentCardInner({
   onDeny?: (p: Payment) => void;
   onMarkPaid?: (p: Payment) => void;
   onWithdraw?: (p: Payment) => void;
-  onDelete?: (p: Payment) => void;
   onEdit?: (p: Payment) => void;
 }) {
-  const { showApprove, showMarkPaid, showEdit, showWithdraw, showDelete } =
+  // Delete is drawer-only (ADR-0004); never wire onDelete here.
+  const { showApprove, showMarkPaid, showEdit, showWithdraw } =
     getPaymentActions(
       payment,
       role,
-      { onApprove, onDeny, onMarkPaid, onEdit, onWithdraw, onDelete },
+      { onApprove, onDeny, onMarkPaid, onEdit, onWithdraw },
       userId
     );
 
@@ -197,16 +196,6 @@ function PaymentCardInner({
         </div>
       ) : null}
 
-      {showDelete ? (
-        <div
-          className={showEdit || showWithdraw ? "mt-2" : "mt-3"}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <LoadingButton variant="danger" onClick={() => onDelete?.(payment)}>
-            Remove from history
-          </LoadingButton>
-        </div>
-      ) : null}
     </article>
   );
 }

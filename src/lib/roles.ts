@@ -53,9 +53,9 @@ export function canCreatePayment(role: UserRole | null | undefined): boolean {
   );
 }
 
-/** Only admin can permanently remove paid/denied history rows. */
-export function canDeleteHistory(role: UserRole | null | undefined): boolean {
-  return role === "admin";
+/** Directors and Admins soft-delete approved / history payments. */
+export function canDeletePayment(role: UserRole | null | undefined): boolean {
+  return role === "director" || role === "admin";
 }
 
 function isRecurringRule(rule?: RecurrenceRule | null): boolean {
@@ -158,10 +158,11 @@ export function getPaymentActions(
     Boolean(handlers.onWithdraw);
 
   const showDelete =
-    (payment.status === "paid" ||
+    (payment.status === "approved" ||
+      payment.status === "paid" ||
       payment.status === "denied" ||
       payment.status === "withdrawn") &&
-    canDeleteHistory(role) &&
+    canDeletePayment(role) &&
     Boolean(handlers.onDelete);
 
   return { showApprove, showMarkPaid, showEdit, showWithdraw, showDelete };

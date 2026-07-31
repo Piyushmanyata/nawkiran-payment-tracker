@@ -11,8 +11,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageLoading } from "@/components/PageLoading";
 import {
-  adminDeletePayment,
   approvePayment,
+  deletePayment,
   denyPayment,
   editUnpaidPayment,
   isHistoryPayment,
@@ -24,7 +24,7 @@ import {
 } from "@/lib/payments";
 import { usePayments } from "@/components/PaymentsProvider";
 import { userMessageFromError } from "@/lib/errors";
-import { canApprove, canDeleteHistory, canEditPayment, canMarkPaid } from "@/lib/roles";
+import { canApprove, canDeletePayment, canEditPayment, canMarkPaid } from "@/lib/roles";
 import { formatInr } from "@/lib/format";
 import { LoadingButton } from "@/components/LoadingButton";
 import type { EditPaymentInput, Payment, PaymentMode } from "@/types/database";
@@ -85,12 +85,11 @@ export default function OpenPage() {
   const [denyTarget, setDenyTarget] = useState<Payment | null>(null);
   const [editTarget, setEditTarget] = useState<Payment | null>(null);
   const [withdrawTarget, setWithdrawTarget] = useState<Payment | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
 
   const canEdit = canEditPayment(role);
   const userCanApprove = canApprove(role);
   const userCanMarkPaid = canMarkPaid(role);
-  const userCanDelete = canDeleteHistory(role);
+  const userCanDelete = canDeletePayment(role);
 
   useEffect(() => {
     if (role) {
@@ -260,14 +259,19 @@ export default function OpenPage() {
     }
   }
 
-  async function doDelete() {
-    if (!deleteTarget) return;
+  async function doDelete(payment: Payment) {
+    if (
+      !window.confirm(
+        "This payment will leave everyone's list and cannot be undone. Delete it?"
+      )
+    ) {
+      return;
+    }
     setBusy(true);
     try {
-      const id = deleteTarget.id;
-      await adminDeletePayment(id);
-      removePayment(id);
-      setDeleteTarget(null);
+      await deletePayment(payment.id, payment.status);
+      removePayment(payment.id);
+      if (detailTarget?.id === payment.id) setDetailTarget(null);
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -431,7 +435,6 @@ export default function OpenPage() {
             userId={profile?.id}
             onSelect={setDetailTarget}
             onEdit={canEdit ? setEditTarget : undefined}
-            onDelete={userCanDelete ? setDeleteTarget : undefined}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
@@ -464,7 +467,7 @@ export default function OpenPage() {
         onMarkPaid={userCanMarkPaid ? (p) => void doMarkPaid(p) : undefined}
         onEdit={canEdit ? setEditTarget : undefined}
         onWithdraw={setWithdrawTarget}
-        onDelete={userCanDelete ? setDeleteTarget : undefined}
+        onDelete={userCanDelete ? (p) => void doDelete(p) : undefined}
       />
 
       <ApproveDialog
@@ -520,36 +523,6 @@ export default function OpenPage() {
         </div>
       </Modal>
 
-      <Modal
-        open={Boolean(deleteTarget)}
-        titleId="delete-title"
-        title="Remove from history?"
-        onClose={() => setDeleteTarget(null)}
-        disableClose={busy}
-      >
-        <p className="mt-2 text-base text-slate-700">
-          Remove {formatInr(deleteTarget?.amount ?? 0)} for{" "}
-          {deleteTarget?.party} from the active history? Its audit record will
-          be retained.
-        </p>
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <LoadingButton
-            variant="secondary"
-            disabled={busy}
-            onClick={() => setDeleteTarget(null)}
-          >
-            Cancel
-          </LoadingButton>
-          <LoadingButton
-            variant="danger"
-            loading={busy}
-            loadingText="Removing..."
-            onClick={() => void doDelete()}
-          >
-            Remove
-          </LoadingButton>
-        </div>
-      </Modal>
     </div>
   );
 }

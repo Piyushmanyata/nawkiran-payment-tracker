@@ -385,10 +385,9 @@ export function PaymentDetailDrawer({
                 variant="danger"
                 onClick={() => {
                   onDelete?.(payment);
-                  onClose();
                 }}
               >
-                Remove from History
+                Delete
               </LoadingButton>
             )}
           </div>

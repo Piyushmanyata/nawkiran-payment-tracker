@@ -51,8 +51,8 @@ const RULES: Array<{ test: (t: string) => boolean; message: string }> = [
     message: "Please choose a payment mode.",
   },
   {
-    test: (t) => t.includes("not_history"),
-    message: "Only paid or denied history items can be deleted.",
+    test: (t) => t.includes("not_history") || t.includes("not_deletable"),
+    message: "This payment cannot be deleted in its current status.",
   },
   {
     test: (t) =>

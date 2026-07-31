@@ -28,6 +28,10 @@ _Avoid_: Deleted request, void payment
 An Approved Request where payout execution is completed with 1-click by an Employee or staff.
 _Avoid_: Settled claim, closed transaction
 
+**Deleted Payment**:
+A Payment Request that a Director or Admin has soft-removed from everyone's active lists. The row and its audit trail remain; the product never restores it. Allowed only from **Approved**, **Paid**, **Denied**, or **Withdrawn** — never from **Pending**.
+_Avoid_: Hard delete, void payment, cancel status, trash, archive
+
 **Similar Pending Match**:
 A server-side similarity check used only when an Employee submits a new Payment Request. A match exists when another Payment Request is still **Pending** (not Approved/Denied/Paid), the **amount is exact**, and the **party names are similar** after normalize (trim, collapse spaces, case-insensitive): if the shorter name is at least 5 characters, either name may **contain** the other; otherwise names must be normalized-equal. Matches include the Employee's **own** Pending requests.
 _Avoid_: Duplicate invoice lock, unique payment constraint
@@ -43,6 +47,7 @@ _Avoid_: Hard unique index, cross-employee pending list
 - **Denied**: Visible to Requester + Directors + Admins. Push target: Requester + Admins. Counts as **open** for the requester and as **history** for everyone else.
 - **Withdrawn**: Visible to Requester + Directors + Admins. No push. Always history.
 - **Paid**: Visible to All active staff. Push target: Directors + Requester + Admins. Direct 1-click execution (defaults to NEFT mode).
+- **Deleted**: Hidden from all staff lists (soft-hide). Push only when the removed row was **Approved** (unpaid): Employees (+ legacy accounts), excluding the actor. No push for Paid / Denied / Withdrawn deletes. No product restore.
 - **Similar Pending Warning**: Employees only; on submit only; Pending + exact amount + similar party (see Similar Pending Match). Soft confirm; doubles remain allowed. Does not apply to Approved (unpaid) or history. Privacy: boolean/generic signal only — does not widen Pending visibility.
 
 ## UI Architecture
@@ -55,7 +60,7 @@ _Avoid_: Hard unique index, cross-employee pending list
 - **Payments Hub Filters**: Primary filter chips on `/open` are `Open` (default, displaying `pending` + `approved` + the viewer's own `denied`), `Pending`, `Approved`, and `History` (`paid` + `withdrawn` + other people's `denied`). The `Open` chip carries a count badge for the viewer's own denials, which also sort to the top of the list and render with an "Action needed" ribbon.
 - **History Search**: Historical payments (`paid` / `denied`) are searchable under the `History` filter on `/open`. Searching on `Open` displays an inline notice if matching historical records exist.
 - **Realtime**: One Supabase Realtime channel per dataset for the whole signed-in shell — `payments-live` (payments) and `todos-live` (todos + todo_threads) — owned by `PaymentsProvider` / `TodosProvider`. Every consumer, including the nav badge, reads from those providers; components must never open their own channel.
-- **Retention & Immutability**: Settled payment records (`paid`, `withdrawn`) are retained for a rolling 30-day window (`HISTORY_KEEP_DAYS = 30`) and purged automatically. `denied` records are never auto-purged — they are still live work for their requester. Manual deletion is disabled for Employees, Directors, and automated Agents, while Admins retain manual delete capability with a confirmation dialog.
+- **Retention & Immutability**: Settled payment records (`paid`, `withdrawn`) are retained for a rolling 30-day window (`HISTORY_KEEP_DAYS = 30`) and purged automatically. `denied` records are never auto-purged — they are still live work for their requester. Manual soft-delete (Deleted Payment) is available to **Directors and Admins only**, for `approved` / `paid` / `denied` / `withdrawn`, from the payment detail drawer with a native browser confirm — not on cards, not for Employees, not for `pending`.
 - **Similar Pending Warning (submit)**: On Employee submit of a new Payment Request, if Similar Pending Match exists, show generic confirm before calling create; no live-as-you-type check.
 
 ## To-do & Recurrence Rules

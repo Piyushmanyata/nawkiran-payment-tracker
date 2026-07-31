@@ -285,13 +285,19 @@ export async function withdrawPayment(paymentId: string): Promise<Payment> {
   return mapPayment(data as Record<string, unknown>);
 }
 
-/** Admin only — hides a settled payment while preserving its audit events. */
-export async function adminDeletePayment(paymentId: string): Promise<void> {
+/**
+ * Director/Admin soft-delete. Push only when the row was Approved (payout queue).
+ */
+export async function deletePayment(
+  paymentId: string,
+  priorStatus?: Payment["status"]
+): Promise<void> {
   const supabase = getSupabaseBrowserClient();
-  const { error } = await supabase.rpc("admin_delete_payment", {
+  const { error } = await supabase.rpc("delete_payment", {
     p_payment_id: paymentId,
   });
   if (error) throw error;
+  if (priorStatus === "approved") queuePush(paymentId, "deleted");
 }
 
 /** History hard-delete retention window (days). UI still groups by week. */

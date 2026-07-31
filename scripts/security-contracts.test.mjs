@@ -188,6 +188,51 @@ test("admin removal preserves events and remains authenticated-only", () => {
   assert.match(migration, /revoke all on function public\.admin_delete_payment\(uuid\) from anon/i);
 });
 
+test("directors and admins soft-delete via delete_payment", () => {
+  const migration = sql["20260731120000_delete_payment.sql"];
+  assert.ok(migration, "delete_payment migration missing");
+  assert.match(migration, /create or replace function public\.delete_payment/i);
+  assert.match(migration, /me\.role not in \('director', 'admin'\)/i);
+  assert.match(
+    migration,
+    /row\.status not in \('approved', 'paid', 'denied', 'withdrawn'\)/i
+  );
+  assert.match(migration, /raise exception 'NOT_DELETABLE'/i);
+  assert.match(migration, /'deleted'/i);
+  assert.match(migration, /drop function if exists public\.admin_delete_payment/i);
+  assert.match(migration, /revoke all on function public\.delete_payment\(uuid\) from public/i);
+  assert.match(migration, /grant execute on function public\.delete_payment\(uuid\) to authenticated/i);
+  // Approved-delete push only: server gates status + employees/accounts.
+  assert.match(migration, /event_clean = 'deleted'/i);
+  assert.match(migration, /pay\.status = 'approved'/i);
+  assert.match(migration, /p\.role in \('employee', 'accounts'\)/i);
+  assert.match(migration, /p\.deleted_at is null or event_clean = 'deleted'/i);
+
+  const roles = readFileSync(join(process.cwd(), "src", "lib", "roles.ts"), "utf8");
+  assert.match(roles, /canDeletePayment/);
+  assert.match(roles, /role === "director" \|\| role === "admin"/);
+  assert.match(roles, /payment\.status === "approved"/);
+
+  const paymentsLib = readFileSync(
+    join(process.cwd(), "src", "lib", "payments.ts"),
+    "utf8"
+  );
+  assert.match(paymentsLib, /delete_payment/);
+  assert.match(paymentsLib, /priorStatus === "approved"/);
+  assert.doesNotMatch(paymentsLib, /admin_delete_payment/);
+
+  const openPage = readFileSync(
+    join(process.cwd(), "src", "app", "open", "page.tsx"),
+    "utf8"
+  );
+  assert.match(openPage, /window\.confirm/);
+  assert.match(openPage, /onDelete=\{userCanDelete/);
+  // Drawer-only: history cards must not receive delete handlers.
+  const historyBlock = openPage.match(/<HistoryWeekList[\s\S]*?\/>/);
+  assert.ok(historyBlock, "HistoryWeekList usage missing");
+  assert.doesNotMatch(historyBlock[0], /onDelete/);
+});
+
 test("monthly hard-delete retention; history UI groups by day", () => {
   const soft = sql["018_history_weekly_retention.sql"];
   assert.ok(soft, "018_history_weekly_retention migration missing");

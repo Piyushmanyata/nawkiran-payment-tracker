@@ -2,7 +2,12 @@
 
 import type { Payment } from "@/types/database";
 
-export type PushEvent = "pending" | "approved" | "denied" | "paid";
+export type PushEvent =
+  | "pending"
+  | "approved"
+  | "denied"
+  | "paid"
+  | "deleted";
 
 /**
  * Map a payment after an action to the push event to fire.
