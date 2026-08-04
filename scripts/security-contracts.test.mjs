@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -629,6 +629,12 @@ test("attendance schema: tables, checks, select-only RLS, supervisor company sco
     /exists \(\s*select 1\s+from public\.attendance_days d\s+where d\.id = attendance_day_id/i
   );
 
+  // Supabase Data API grants are explicit for newly created public tables.
+  assert.match(
+    migration,
+    /grant select on public\.workers,\s*public\.attendance_days,\s*public\.attendance_entries,\s*public\.attendance_events\s+to authenticated/i
+  );
+
   // No direct write policies — writes are Phase 3 security definer RPCs.
   assert.doesNotMatch(migration, /for insert/i);
   assert.doesNotMatch(migration, /for update/i);
@@ -729,6 +735,23 @@ test("attendance RPCs: lock helper, role allowlists, audit, company fences", () 
   // LOCKED guard present on write RPCs.
   assert.match(migration, /raise exception 'LOCKED' using errcode = 'P0001'/i);
 
+  // A confirmed shift is read-only for Supervisors until they explicitly reopen it.
+  assert.match(
+    migration,
+    /function public\.upsert_attendance_entry[\s\S]*?if me\.role = 'supervisor'[\s\S]*?day\.confirmed_at is not null[\s\S]*?raise exception 'CONFIRMED' using errcode = 'P0001'/i
+  );
+  assert.match(
+    migration,
+    /function public\.delete_attendance_entry[\s\S]*?if me\.role = 'supervisor'[\s\S]*?day\.confirmed_at is not null[\s\S]*?raise exception 'CONFIRMED' using errcode = 'P0001'/i
+  );
+
+  // Supervisors can only record against the active roster exposed to them.
+  const raceMigration = sql["20260804130100_attendance_day_race.sql"];
+  assert.match(
+    raceMigration,
+    /function public\.upsert_attendance_entry[\s\S]*?if me\.role = 'supervisor'[\s\S]*?not worker\.active[\s\S]*?raise exception 'NOT_AUTHORISED' using errcode = 'P0001'/i
+  );
+
   // All security definer.
   assert.match(
     migration,
@@ -751,32 +774,23 @@ test("attendance first writes retry after a concurrent day insert", () => {
   }
 });
 
-test("service-role key is fenced to one server module (ADR-0007)", () => {
-  const adminUsers = readFileSync(
-    join(process.cwd(), "src", "lib", "admin-users.ts"),
-    "utf8"
+test("admin provisioning surface is removed; roles stay in Supabase", () => {
+  assert.equal(
+    existsSync(join(process.cwd(), "src", "app", "admin", "page.tsx")),
+    false
   );
-  assert.match(adminUsers, /import "server-only"/);
-  assert.match(adminUsers, /SUPABASE_SERVICE_ROLE_KEY/);
-  assert.match(adminUsers, /employee|supervisor/);
-  assert.match(adminUsers, /CREATABLE_ROLES|isCreatableRole/);
-  assert.doesNotMatch(adminUsers, /NEXT_PUBLIC_SUPABASE_SERVICE_ROLE/);
-
-  // Creatable roles allowlist — not a blocklist of admin/director.
-  assert.match(
-    adminUsers,
-    /const CREATABLE_ROLES = \["employee", "supervisor"\]/
+  assert.equal(
+    existsSync(
+      join(process.cwd(), "src", "app", "api", "admin", "users", "route.ts")
+    ),
+    false
+  );
+  assert.equal(
+    existsSync(join(process.cwd(), "src", "lib", "admin-users.ts")),
+    false
   );
 
-  const route = readFileSync(
-    join(process.cwd(), "src", "app", "api", "admin", "users", "route.ts"),
-    "utf8"
-  );
-  assert.match(route, /isCreatableRole/);
-  assert.match(route, /createStaffUser|setStaffActive/);
-  assert.doesNotMatch(route, /SUPABASE_SERVICE_ROLE_KEY/);
-
-  // Key name must not appear outside admin-users.ts under src/.
+  // A service-role key must not be needed by the application source.
   const walk = (dir) => {
     const out = [];
     for (const name of readdirSync(dir)) {
@@ -787,11 +801,9 @@ test("service-role key is fenced to one server module (ADR-0007)", () => {
     return out;
   };
   const srcRoot = join(process.cwd(), "src");
-  const hits = walk(srcRoot).filter((p) => {
-    if (p.replace(/\\/g, "/").endsWith("/lib/admin-users.ts")) return false;
-    const body = readFileSync(p, "utf8");
-    return body.includes("SUPABASE_SERVICE_ROLE_KEY");
-  });
+  const hits = walk(srcRoot).filter((p) =>
+    readFileSync(p, "utf8").includes("SUPABASE_SERVICE_ROLE_KEY")
+  );
   assert.deepEqual(hits, [], `service role key leaked to: ${hits.join(", ")}`);
 
   // Never in client components as NEXT_PUBLIC

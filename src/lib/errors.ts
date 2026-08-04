@@ -35,6 +35,39 @@ const RULES: Array<{ test: (t: string) => boolean; message: string }> = [
     message: "You are not authorised for this action.",
   },
   {
+    test: (t) => t.includes("confirmed"),
+    message: "This shift is confirmed. Reopen it before editing.",
+  },
+  {
+    test: (t) => t.includes("locked"),
+    message: "This attendance day is locked. Ask an admin to correct it.",
+  },
+  {
+    test: (t) => t.includes("invalid_informed"),
+    message: "Choose whether the worker informed someone.",
+  },
+  {
+    test: (t) => t.includes("invalid_reason"),
+    message: "Choose an absence reason.",
+  },
+  {
+    test: (t) => t.includes("invalid_note"),
+    message: "Add a short note for this absence reason.",
+  },
+  {
+    test: (t) =>
+      t.includes("invalid_lent_to") || t.includes("lent_to_same_company"),
+    message: "Choose the other company for a lent-out worker.",
+  },
+  {
+    test: (t) => t.includes("invalid_name"),
+    message: "Enter a valid worker name.",
+  },
+  {
+    test: (t) => t.includes("invalid_designation"),
+    message: "Enter a shorter designation.",
+  },
+  {
     test: (t) => t.includes("invalid_party"),
     message: "Please enter a valid party or vendor name.",
   },

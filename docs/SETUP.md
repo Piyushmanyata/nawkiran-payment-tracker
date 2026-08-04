@@ -18,9 +18,9 @@ values
 
 Use unique temporary passwords, require a reset, and never commit credentials.
 
-Directors and additional Admins stay manual (Supabase dashboard). Day-to-day
-**Employee** and **Supervisor** logins can be created from the in-app Admin page
-once `SUPABASE_SERVICE_ROLE_KEY` is configured (see below).
+Create every Auth user and matching `public.profiles` row manually in Supabase.
+For a Supervisor, set `role = 'supervisor'` and `company` to `NKPL` or `APTUS`.
+There is no in-app admin dashboard or service-role provisioning path.
 
 ## Local app
 
@@ -38,19 +38,8 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJ...
 ```
 
-Server-only secret for Admin staff provisioning (ADR-0007):
-
-```text
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-```
-
-- **Never** prefix this with `NEXT_PUBLIC_`.
-- **Never** import it outside `src/lib/admin-users.ts`.
-- Used only by `/api/admin/users` after the caller's profile is re-read from the
-  database and confirmed `role = 'admin'`. Creatable roles are capped to
-  `employee` and `supervisor`.
-- Attendance, payments, to-dos and the attendance export continue to run as the
-  signed-in user under RLS — they do **not** use this key.
+Attendance, payments, to-dos and the attendance export run as the signed-in
+user under RLS. The app does not need a service-role key.
 
 Optional (free Web Push — no third-party vendor):
 
@@ -63,17 +52,14 @@ VAPID_SUBJECT=mailto:admin@yourcompany.com
 Generate keys once with `npx web-push generate-vapid-keys`, then apply
 `012_push_subscriptions.sql` and `014_push_reliability.sql` in the Supabase SQL editor.
 
-Never expose a service-role, VAPID private key, or other secret to the browser or
-Vercel **public** env. Put `SUPABASE_SERVICE_ROLE_KEY` and `VAPID_PRIVATE_KEY`
-only as server/env secrets.
+Never expose a service-role key, VAPID private key, or other secret to the
+browser or Vercel **public** env. Put `VAPID_PRIVATE_KEY` only in server/env
+secrets.
 
 ## Vercel
 
 Import the private GitHub repository, set both public variables for Preview and
 Production, and configure the deployed URL under Supabase Auth URL Configuration.
-
-For Admin provisioning, set `SUPABASE_SERVICE_ROLE_KEY` as a **server** secret
-(Production and Preview), not as a public env var.
 
 For push alerts, also set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and
 `VAPID_SUBJECT` (server secret for the private key).
@@ -106,7 +92,7 @@ The actor is never notified about their own action.
 - An admin can hide paid or denied history while the audit event remains.
 - Supervisor lands only on Attendance; records exceptions and confirms a shift.
 - Director sees Not submitted vs confirmed empty shifts distinctly.
-- Admin creates an Employee/Supervisor login and deactivates a leaver.
+- Staff roles and account deactivation are managed in Supabase.
 
 ## Backups
 

@@ -215,7 +215,9 @@ begin
   end if;
 
   if me.role = 'supervisor' then
-    if me.company is null or worker.company is distinct from me.company then
+    if not worker.active
+       or me.company is null
+       or worker.company is distinct from me.company then
       raise exception 'NOT_AUTHORISED' using errcode = 'P0001';
     end if;
     company_clean := me.company;
@@ -291,6 +293,10 @@ begin
       company_clean, p_work_date, shift_clean
     )
     returning * into day;
+  end if;
+
+  if me.role = 'supervisor' and day.confirmed_at is not null then
+    raise exception 'CONFIRMED' using errcode = 'P0001';
   end if;
 
   select * into existing
@@ -411,6 +417,10 @@ begin
     if me.company is null or day.company is distinct from me.company then
       raise exception 'NOT_AUTHORISED' using errcode = 'P0001';
     end if;
+  end if;
+
+  if me.role = 'supervisor' and day.confirmed_at is not null then
+    raise exception 'CONFIRMED' using errcode = 'P0001';
   end if;
 
   locked := public.attendance_locked(day.work_date);

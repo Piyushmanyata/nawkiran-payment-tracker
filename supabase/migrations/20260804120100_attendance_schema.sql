@@ -102,6 +102,11 @@ alter table public.attendance_days enable row level security;
 alter table public.attendance_entries enable row level security;
 alter table public.attendance_events enable row level security;
 
+-- New public tables are not guaranteed to be exposed through Supabase's Data
+-- API. RLS controls rows; these grants make the read surface reachable.
+grant select on public.workers, public.attendance_days,
+  public.attendance_entries, public.attendance_events to authenticated;
+
 create policy workers_select
   on public.workers
   for select

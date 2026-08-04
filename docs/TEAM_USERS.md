@@ -4,8 +4,9 @@ Provision Directors and Admins in Supabase Authentication, then add their UUID
 and role to `public.profiles` as described in [SETUP.md](SETUP.md). Never store
 passwords in source control.
 
-Day-to-day **Employee** and **Supervisor** logins are created from the Admin
-page (`/admin`) using the fenced service-role path (ADR-0007).
+All Auth users and matching profile rows are managed in Supabase. Supervisors
+must have `company = 'NKPL'` or `company = 'APTUS'`; the app has no admin
+dashboard or service-role provisioning path.
 
 | Name | Role |
 |---|---|
@@ -45,7 +46,6 @@ Team **to-dos** are specified in [domain-todos.md](domain-todos.md) (shared boar
 | Add worker to roster | Own company | No | No | No | Yes (any company) |
 | Rename / deactivate worker | No | No | No | No | Yes |
 | Export month `.xlsx` | No | Yes | Yes | Yes | Yes |
-| Create staff logins | No | No | No | No | Employee & Supervisor only |
-| Deactivate staff login | No | No | No | No | Employee & Supervisor only |
+| Create / deactivate staff login | No | No | No | Supabase | No |
 
 See `CONTEXT.md` → **Attendance Language** and ADR-0005 through ADR-0008.

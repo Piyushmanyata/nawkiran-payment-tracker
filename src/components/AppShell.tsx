@@ -46,9 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const isLogin = pathname === "/login";
   const isSupervisor = profile?.role === "supervisor";
-  const isAdmin = profile?.role === "admin";
   const isAttendance = pathname === "/attendance";
-  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
 
   useEffect(() => {
     if (loading) return;
@@ -175,14 +173,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                   >
                     Attendance
                   </Link>
-                  {isAdmin ? (
-                    <Link
-                      href="/admin"
-                      className={navLinkClass(isAdminRoute)}
-                    >
-                      Admin
-                    </Link>
-                  ) : null}
                 </nav>
               ) : null}
             </div>

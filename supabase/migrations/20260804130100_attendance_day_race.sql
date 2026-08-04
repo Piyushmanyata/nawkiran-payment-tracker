@@ -60,7 +60,9 @@ begin
   end if;
 
   if me.role = 'supervisor' then
-    if me.company is null or worker.company is distinct from me.company then
+    if not worker.active
+       or me.company is null
+       or worker.company is distinct from me.company then
       raise exception 'NOT_AUTHORISED' using errcode = 'P0001';
     end if;
     company_clean := me.company;
@@ -144,6 +146,10 @@ begin
         and shift = shift_clean
       for update;
     end if;
+  end if;
+
+  if me.role = 'supervisor' and day.confirmed_at is not null then
+    raise exception 'CONFIRMED' using errcode = 'P0001';
   end if;
 
   select * into existing

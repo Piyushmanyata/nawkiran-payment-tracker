@@ -4,7 +4,7 @@ Date: 2026-08-04
 
 ## Status
 
-Accepted
+Superseded — roles and staff accounts are managed directly in Supabase.
 
 ## Context
 

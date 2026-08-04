@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageLoading } from "@/components/PageLoading";
@@ -51,21 +51,24 @@ export function AttendanceSummary() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadSequence = useRef(0);
 
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     try {
       if (tab === "today") {
         const [d, w] = await Promise.all([
           fetchAttendanceDays({ workDate }),
           fetchWorkersAll(),
         ]);
-        setDays(d);
-        setWorkers(w);
         const dayIds = d.map((x) => x.id);
         const [entryRows, eventRows] = await Promise.all([
           fetchAttendanceEntries(dayIds),
           fetchAttendanceEvents(dayIds),
         ]);
+        if (sequence !== loadSequence.current) return;
+        setDays(d);
+        setWorkers(w);
         setEntries(entryRows);
         setEvents(eventRows);
       } else {
@@ -73,16 +76,19 @@ export function AttendanceSummary() {
           fetchAttendanceDays({ monthPrefix: month }),
           fetchWorkersAll(),
         ]);
+        const entryRows = await fetchAttendanceEntries(d.map((x) => x.id));
+        if (sequence !== loadSequence.current) return;
         setDays(d);
         setWorkers(w);
-        setEntries(await fetchAttendanceEntries(d.map((x) => x.id)));
+        setEntries(entryRows);
         setEvents([]);
       }
+      if (sequence !== loadSequence.current) return;
       setError(null);
     } catch (err) {
-      setError(userMessageFromError(err));
+      if (sequence === loadSequence.current) setError(userMessageFromError(err));
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) setLoading(false);
     }
   }, [tab, workDate, month]);
 

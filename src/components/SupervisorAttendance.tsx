@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { LoadingButton } from "@/components/LoadingButton";
@@ -55,6 +55,7 @@ export function SupervisorAttendance({ profile }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const loadSequence = useRef(0);
 
   const [markOpen, setMarkOpen] = useState(false);
   const [addWorkerOpen, setAddWorkerOpen] = useState(false);
@@ -82,6 +83,7 @@ export function SupervisorAttendance({ profile }: Props) {
   );
 
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     try {
       if (!company) {
         throw new Error(
@@ -92,19 +94,19 @@ export function SupervisorAttendance({ profile }: Props) {
         fetchWorkers(company),
         fetchAttendanceDays({ workDate, company }),
       ]);
-      setWorkers(roster);
       const match = days.find((d) => d.shift === shift) ?? null;
+      const nextEntries = match
+        ? await fetchAttendanceEntries([match.id])
+        : [];
+      if (sequence !== loadSequence.current) return;
+      setWorkers(roster);
       setDay(match);
-      if (match) {
-        setEntries(await fetchAttendanceEntries([match.id]));
-      } else {
-        setEntries([]);
-      }
+      setEntries(nextEntries);
       setError(null);
     } catch (err) {
-      setError(userMessageFromError(err));
+      if (sequence === loadSequence.current) setError(userMessageFromError(err));
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) setLoading(false);
     }
   }, [company, workDate, shift]);
 

@@ -422,44 +422,13 @@ server output.
 
 ---
 
-## 9. Phase 7 — Admin provisioning (do this last, and slowly)
+## 9. Phase 7 — Role management via Supabase
 
-This is the only part that adds security risk. Re-read
-`docs/adr/0007-service-role-user-provisioning-fences.md` immediately before
-starting.
-
-**One module** — `src/lib/admin-users.ts` — with `import "server-only";` at the
-top. It is the **only** file in the repository that may reference
-`SUPABASE_SERVICE_ROLE_KEY`.
-
-**One route** — `src/app/api/admin/users/route.ts` — which must:
-
-1. Read the session from cookies and load the caller's profile **from the
-   database**. Never trust a role sent by the client. Never accept a role from
-   the request body as the caller's identity.
-2. Reject anything other than `role = 'admin'` with 403.
-3. Accept a target role of **`employee` or `supervisor` only**. Reject `admin`,
-   `director` and `accounts` explicitly, by allowlist not blocklist.
-4. Require a `company` when the target role is `supervisor`.
-5. Generate a temporary password, return it **once** in the response, and set
-   the user to require a password change at first sign-in. Never write it to
-   the database. Never log it. Never include it in an error message.
-6. If the `profiles` insert fails after the auth user was created, delete the
-   orphaned auth user before returning the error.
-
-**Deactivation** (`PATCH`): set `profiles.active = false`, revoke the user's
-sessions, and ban the auth login — all three, in one operation. Reactivation
-reverses all three. **Never delete a profile row.** The UI says *Deactivate*,
-never *Delete* (ADR-0008).
-
-**Admin page:** `src/app/admin/page.tsx`, reachable only by `admin`, same
-redirect discipline as the Supervisor. Two sections — staff logins, and the
-Worker Roster (rename, change designation, deactivate).
-
-**Environment:** add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` and to Vercel
-as a **server** secret. Never `NEXT_PUBLIC_`. Then update `docs/SETUP.md`,
-which currently forbids this key — amend it to describe the fenced use and keep
-the prohibition for every other key and for the browser.
+There is intentionally no in-app Admin dashboard and no service-role
+provisioning route. Create Auth users and matching `public.profiles` rows in
+Supabase. A Supervisor must have `role = 'supervisor'` and `company = 'NKPL'`
+or `company = 'APTUS'`; staff account deactivation is also done in Supabase by
+setting `active = false` and revoking access there.
 
 ---
 
@@ -469,10 +438,8 @@ Extend `scripts/security-contracts.test.mjs` — **extend it, do not create a
 second file.** Cover every case listed under *Testing Decisions → Seam two* in
 issue #13. The ones that matter most:
 
-- `SUPABASE_SERVICE_ROLE_KEY` appears in exactly one source file, never under a
-  `NEXT_PUBLIC_` prefix, never in a client component.
-- The provisioning route's creatable-role allowlist contains only `employee`
-  and `supervisor`.
+- No `SUPABASE_SERVICE_ROLE_KEY` appears in application source.
+- There is no `/admin` dashboard or app-side staff provisioning route.
 - Every attendance RPC has its role allowlist, its `LOCKED` guard, and its
   `revoke` / `grant` pair.
 - Every existing payment and to-do RPC still rejects roles outside its
@@ -516,7 +483,7 @@ Plus, by inspection:
 - No `push`, no PR, no commit to `main`. Branch and commit locally only.
 - No new runtime dependency other than the export library.
 - No third realtime channel.
-- `SUPABASE_SERVICE_ROLE_KEY` referenced in exactly one file.
+- No `SUPABASE_SERVICE_ROLE_KEY` appears in application source.
 - No `NEXT_PUBLIC_` variable added.
 - Nothing in the codebase records presence.
 - Every term you introduced is in `CONTEXT.md`.
