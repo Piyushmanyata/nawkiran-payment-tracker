@@ -119,14 +119,22 @@ export async function fetchAttendanceEntries(
 ): Promise<AttendanceEntry[]> {
   if (dayIds.length === 0) return [];
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("attendance_entries")
-    .select(
-      "id, attendance_day_id, worker_id, kind, informed, reason, note, lent_to_company, recorded_by, created_at, updated_at, workers(full_name, designation)"
-    )
-    .in("attendance_day_id", dayIds);
-  if (error) throw error;
-  return (data ?? []).map((r) => asEntry(r as Record<string, unknown>));
+  const entries: AttendanceEntry[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from("attendance_entries")
+      .select(
+        "id, attendance_day_id, worker_id, kind, informed, reason, note, lent_to_company, recorded_by, created_at, updated_at, workers(full_name, designation)"
+      )
+      .in("attendance_day_id", dayIds)
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    entries.push(...(data ?? []).map((r) => asEntry(r as Record<string, unknown>)));
+    if ((data ?? []).length < pageSize) break;
+  }
+  return entries;
 }
 
 function nextMonthStart(yyyyMm: string): string {

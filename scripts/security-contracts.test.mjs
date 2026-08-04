@@ -557,6 +557,27 @@ test("supervisor role and company dimension are constrained on profiles", () => 
   assert.match(roles, /role === "supervisor"\) return false/);
 });
 
+test("supervisors cannot read payments, payment events, or to-dos", () => {
+  const migration = sql["20260804130000_supervisor_read_isolation.sql"];
+  assert.ok(migration, "supervisor read isolation migration missing");
+
+  for (const policy of [
+    "payments_select",
+    "payment_events_select",
+    "todos_select",
+    "todo_assignees_select",
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(
+        `create policy ${policy}[\\s\\S]*?using \\([\\s\\S]*?my_role\\(\\)\\s*<>\\s*'supervisor'`,
+        "i"
+      ),
+      `${policy} must exclude supervisors`
+    );
+  }
+});
+
 test("attendance schema: tables, checks, select-only RLS, supervisor company scope", () => {
   const migration = sql["20260804120100_attendance_schema.sql"];
   assert.ok(migration, "attendance schema migration missing");

@@ -14,6 +14,7 @@ import type {
 export const runtime = "nodejs";
 
 const STAFF_ROLES = new Set(["employee", "accounts", "director", "admin"]);
+const ENTRY_PAGE_SIZE = 1000;
 
 function nextMonthStart(yyyyMm: string): string {
   const [y, m] = yyyyMm.split("-").map(Number);
@@ -25,7 +26,12 @@ function nextMonthStart(yyyyMm: string): string {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const month = (url.searchParams.get("month") ?? "").trim();
-  if (!/^\d{4}-\d{2}$/.test(month)) {
+  const monthNumber = Number(month.slice(5));
+  if (
+    !/^\d{4}-\d{2}$/.test(month) ||
+    monthNumber < 1 ||
+    monthNumber > 12
+  ) {
     return Response.json({ error: "month must be YYYY-MM" }, { status: 400 });
   }
 
@@ -68,23 +74,30 @@ export async function GET(request: Request) {
   const days = (dayRows ?? []) as AttendanceDay[];
   const dayIds = days.map((d) => d.id);
 
-  let entries: AttendanceEntry[] = [];
+  const entries: AttendanceEntry[] = [];
   if (dayIds.length > 0) {
-    const { data: entryRows, error: entryErr } = await supabase
-      .from("attendance_entries")
-      .select(
-        "id, attendance_day_id, worker_id, kind, informed, reason, note, lent_to_company, recorded_by, created_at, updated_at"
-      )
-      .in("attendance_day_id", dayIds);
-    if (entryErr) {
-      return Response.json({ error: "Failed to load entries" }, { status: 500 });
+    for (let offset = 0; ; offset += ENTRY_PAGE_SIZE) {
+      const { data: entryRows, error: entryErr } = await supabase
+        .from("attendance_entries")
+        .select(
+          "id, attendance_day_id, worker_id, kind, informed, reason, note, lent_to_company, recorded_by, created_at, updated_at"
+        )
+        .in("attendance_day_id", dayIds)
+        .order("id", { ascending: true })
+        .range(offset, offset + ENTRY_PAGE_SIZE - 1);
+      if (entryErr) {
+        return Response.json({ error: "Failed to load entries" }, { status: 500 });
+      }
+      entries.push(
+        ...(entryRows ?? []).map((r) => ({
+          ...(r as AttendanceEntry),
+          kind: r.kind as AttendanceKind,
+          reason: (r.reason as AbsenceReason | null) ?? null,
+          lent_to_company: (r.lent_to_company as Company | null) ?? null,
+        }))
+      );
+      if ((entryRows ?? []).length < ENTRY_PAGE_SIZE) break;
     }
-    entries = (entryRows ?? []).map((r) => ({
-      ...(r as AttendanceEntry),
-      kind: r.kind as AttendanceKind,
-      reason: (r.reason as AbsenceReason | null) ?? null,
-      lent_to_company: (r.lent_to_company as Company | null) ?? null,
-    }));
   }
 
   const { data: workerRows, error: workerErr } = await supabase
