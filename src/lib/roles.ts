@@ -83,6 +83,8 @@ export function canEditTodo(
   userId?: string | null
 ): boolean {
   if (!role || !todo) return false;
+  // Supervisors have no to-do surface — never grant via creator short-circuit.
+  if (role === "supervisor") return false;
   if (role === "admin") return true;
   const isCreator = Boolean(userId && todo.created_by === userId);
 
@@ -150,9 +152,10 @@ export function getPaymentActions(
     canEditPayment(role, payment, userId) &&
     Boolean(handlers.onEdit);
 
-  // Only the requester retires their own denial, and only by giving up on it.
+  // Only a staff requester retires their own denial by giving up on it.
   const showWithdraw =
     payment.status === "denied" &&
+    canCreatePayment(role) &&
     Boolean(userId) &&
     payment.requested_by === userId &&
     Boolean(handlers.onWithdraw);

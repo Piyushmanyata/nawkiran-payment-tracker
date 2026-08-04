@@ -122,7 +122,7 @@ export async function fetchActiveProfiles(): Promise<Profile[]> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, role, active, created_at")
+    .select("id, full_name, role, company, active, created_at")
     .eq("active", true)
     .order("full_name");
   if (error) throw error;

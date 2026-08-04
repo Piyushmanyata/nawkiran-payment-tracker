@@ -17,7 +17,15 @@ const PushNotifications = dynamic(
 );
 
 /** One fetch + one Realtime channel per dataset for the whole signed-in shell. */
-function AppProviders({ children }: { children: ReactNode }) {
+function AppProviders({
+  children,
+  supervisor,
+}: {
+  children: ReactNode;
+  supervisor: boolean;
+}) {
+  // Supervisors never touch payments/to-dos — skip those providers and channels.
+  if (supervisor) return <>{children}</>;
   return (
     <PaymentsProvider>
       <TodosProvider>{children}</TodosProvider>
@@ -25,11 +33,22 @@ function AppProviders({ children }: { children: ReactNode }) {
   );
 }
 
+const navLinkClass = (active: boolean) =>
+  `px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+    active
+      ? "bg-white text-blue-600 shadow-xs"
+      : "text-slate-600 hover:text-slate-900"
+  }`;
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { loading, configured, session, profile, signOut } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const isLogin = pathname === "/login";
+  const isSupervisor = profile?.role === "supervisor";
+  const isAdmin = profile?.role === "admin";
+  const isAttendance = pathname === "/attendance";
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
 
   useEffect(() => {
     if (loading) return;
@@ -42,16 +61,31 @@ export function AppShell({ children }: { children: ReactNode }) {
       return;
     }
     if (session && isLogin) {
-      router.replace("/open");
+      // Warm profile cache may already know the role — avoid bouncing supervisors to /open.
+      router.replace(isSupervisor ? "/attendance" : "/open");
+      return;
     }
-  }, [loading, configured, session, isLogin, router]);
+    // Supervisor isolation: any non-attendance path hard-redirects.
+    if (session && isSupervisor && !isAttendance && !isLogin) {
+      router.replace("/attendance");
+    }
+  }, [
+    loading,
+    configured,
+    session,
+    isLogin,
+    isSupervisor,
+    isAttendance,
+    router,
+  ]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!session || isSupervisor) return;
     const prefetch = router.prefetch;
     const run = () => {
       prefetch("/open");
       prefetch("/todo");
+      prefetch("/attendance");
     };
     const ric = window.requestIdleCallback?.bind(window);
     if (ric) {
@@ -60,7 +94,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     const t = window.setTimeout(run, 0);
     return () => window.clearTimeout(t);
-  }, [session, router.prefetch]);
+  }, [session, isSupervisor, router.prefetch]);
 
   // Cold auth only — warm profile/hint path starts loading=false.
   if (loading) {
@@ -89,47 +123,68 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
+  // Supervisor mid-redirect to /attendance — no nav chrome.
+  if (isSupervisor && !isAttendance) {
+    return (
+      <div className="flex min-h-full items-center justify-center bg-slate-50 text-sm text-slate-600">
+        Redirecting…
+      </div>
+    );
+  }
+
   const name = profile?.full_name?.trim() || "User";
   const role = roleLabel(profile?.role);
 
   return (
-    <AppProviders>
+    <AppProviders supervisor={isSupervisor}>
       <div className="min-h-full bg-slate-50">
         <OfflineBanner />
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 md:px-8 py-3">
             <div className="flex items-center gap-6 min-w-0">
               <div className="min-w-0">
-                <p className="text-base font-extrabold text-slate-900 tracking-tight">Nawkiran</p>
+                <p className="text-base font-extrabold text-slate-900 tracking-tight">
+                  Nawkiran
+                </p>
                 <p className="truncate text-xs text-slate-500 font-medium">
                   {name}
                   {role ? ` · ${role}` : ""}
                 </p>
               </div>
 
-              {/* Desktop Nav */}
-              <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
-                <Link
-                  href="/open"
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    pathname === "/open" || pathname === "/"
-                      ? "bg-white text-blue-600 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Payments
-                </Link>
-                <Link
-                  href="/todo"
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    pathname === "/todo"
-                      ? "bg-white text-blue-600 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  To-do
-                </Link>
-              </nav>
+              {/* Desktop Nav — supervisors get none */}
+              {!isSupervisor ? (
+                <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
+                  <Link
+                    href="/open"
+                    className={navLinkClass(
+                      pathname === "/open" || pathname === "/"
+                    )}
+                  >
+                    Payments
+                  </Link>
+                  <Link
+                    href="/todo"
+                    className={navLinkClass(pathname === "/todo")}
+                  >
+                    To-do
+                  </Link>
+                  <Link
+                    href="/attendance"
+                    className={navLinkClass(pathname === "/attendance")}
+                  >
+                    Attendance
+                  </Link>
+                  {isAdmin ? (
+                    <Link
+                      href="/admin"
+                      className={navLinkClass(isAdminRoute)}
+                    >
+                      Admin
+                    </Link>
+                  ) : null}
+                </nav>
+              ) : null}
             </div>
 
             <button
@@ -140,12 +195,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               Log out
             </button>
           </div>
-          <PushNotifications />
+          {!isSupervisor ? <PushNotifications /> : null}
         </header>
-        <main className="mx-auto max-w-7xl px-4 md:px-8 pb-28 md:pb-8 pt-4 md:pt-6">{children}</main>
-        <BottomNavigation />
+        <main
+          className={`mx-auto max-w-7xl px-4 md:px-8 pt-4 md:pt-6 ${
+            isSupervisor ? "pb-8" : "pb-28 md:pb-8"
+          }`}
+        >
+          {children}
+        </main>
+        {!isSupervisor ? <BottomNavigation /> : null}
       </div>
     </AppProviders>
   );
 }
-

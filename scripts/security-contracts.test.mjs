@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -529,4 +529,251 @@ test("similar pending match is boolean-only and privileged", () => {
   assert.match(form, /similar open request may already exist/i);
   assert.match(form, /!autoApprove/);
   assert.doesNotMatch(form, /requester_name.*confirm|confirm.*amount.*party/i);
+});
+
+test("supervisor role and company dimension are constrained on profiles", () => {
+  const migration = sql["20260804120000_supervisor_role_and_company.sql"];
+  assert.ok(migration, "supervisor role and company migration missing");
+  assert.match(
+    migration,
+    /role in \('employee', 'director', 'accounts', 'admin', 'supervisor'\)/i
+  );
+  assert.match(migration, /company in \('NKPL', 'APTUS'\)/i);
+  assert.match(
+    migration,
+    /role <> 'supervisor' or company is not null/i
+  );
+
+  const types = readFileSync(
+    join(process.cwd(), "src", "types", "database.ts"),
+    "utf8"
+  );
+  assert.match(types, /"supervisor"/);
+  assert.match(types, /export type Company = "NKPL" \| "APTUS"/);
+  assert.match(types, /company: Company \| null/);
+
+  const roles = readFileSync(join(process.cwd(), "src", "lib", "roles.ts"), "utf8");
+  // Explicit deny — never grant payment/to-do capability via creator short-circuit.
+  assert.match(roles, /role === "supervisor"\) return false/);
+});
+
+test("attendance schema: tables, checks, select-only RLS, supervisor company scope", () => {
+  const migration = sql["20260804120100_attendance_schema.sql"];
+  assert.ok(migration, "attendance schema migration missing");
+
+  for (const table of [
+    "workers",
+    "attendance_days",
+    "attendance_entries",
+    "attendance_events",
+  ]) {
+    assert.match(migration, new RegExp(`create table public\\.${table}`, "i"));
+    assert.match(
+      migration,
+      new RegExp(`alter table public\\.${table} enable row level security`, "i")
+    );
+    assert.match(
+      migration,
+      new RegExp(`create policy ${table}_select`, "i")
+    );
+  }
+
+  // Absence-only kinds — never a "present" mark.
+  assert.match(migration, /kind in \('absent', 'weekly_off', 'lent_out'\)/i);
+  assert.doesNotMatch(migration, /'present'/i);
+
+  // Absent requires informed + reason; other kinds forbid them.
+  assert.match(migration, /attendance_entries_absent_fields_check/i);
+  assert.match(migration, /attendance_entries_other_note_check/i);
+  assert.match(migration, /attendance_entries_lent_check/i);
+
+  // One day+shift per company.
+  assert.match(migration, /unique \(company, work_date, shift\)/i);
+  assert.match(migration, /unique \(attendance_day_id, worker_id\)/i);
+
+  // Select policies: staff see all; supervisor only own company.
+  assert.match(
+    migration,
+    /my_role\(\) in \('employee', 'director', 'accounts', 'admin'\)/i
+  );
+  assert.match(migration, /my_role\(\) = 'supervisor'/i);
+  assert.match(
+    migration,
+    /company = \(\s*select p\.company from public\.profiles p where p\.id = auth\.uid\(\)/i
+  );
+
+  // Entries/events scope supervisor via attendance_days join (no company col).
+  assert.match(
+    migration,
+    /exists \(\s*select 1\s+from public\.attendance_days d\s+where d\.id = attendance_day_id/i
+  );
+
+  // No direct write policies — writes are Phase 3 security definer RPCs.
+  assert.doesNotMatch(migration, /for insert/i);
+  assert.doesNotMatch(migration, /for update/i);
+  assert.doesNotMatch(migration, /for delete/i);
+});
+
+test("attendance RPCs: lock helper, role allowlists, audit, company fences", () => {
+  const migration = sql["20260804120200_attendance_rpcs.sql"];
+  assert.ok(migration, "attendance RPCs migration missing");
+
+  // Lock: 10:00 IST on D+1, computed not stored.
+  assert.match(migration, /create or replace function public\.attendance_locked/i);
+  assert.match(migration, /Asia\/Kolkata/i);
+  assert.match(migration, /time '10:00'/i);
+  assert.doesNotMatch(migration, /is_locked|locked_at/i);
+
+  const rpcs = [
+    ["upsert_attendance_entry", "supervisor', 'admin"],
+    ["delete_attendance_entry", "supervisor', 'admin"],
+    ["confirm_attendance_shift", "supervisor', 'admin"],
+    ["reopen_attendance_shift", "supervisor', 'admin"],
+    ["add_worker", "supervisor', 'admin"],
+    ["update_worker", "admin"],
+  ];
+
+  for (const [name, roles] of rpcs) {
+    assert.match(
+      migration,
+      new RegExp(`create or replace function public\\.${name}`, "i"),
+      `${name} missing`
+    );
+    assert.match(
+      migration,
+      new RegExp(
+        `function public\\.${name}[\\s\\S]*?me := public\\.current_profile\\(\\)`,
+        "i"
+      ),
+      `${name} must open with current_profile`
+    );
+    assert.match(
+      migration,
+      new RegExp(`function public\\.${name}[\\s\\S]*?${roles}`, "i"),
+      `${name} role allowlist`
+    );
+    assert.match(
+      migration,
+      new RegExp(
+        `revoke all on function public\\.${name}[\\s\\S]*?from public, anon`,
+        "i"
+      ),
+      `${name} revoke`
+    );
+    assert.match(
+      migration,
+      new RegExp(
+        `grant execute on function public\\.${name}[\\s\\S]*?to authenticated`,
+        "i"
+      ),
+      `${name} grant`
+    );
+  }
+
+  // update_worker is admin-only — supervisor must not be in its allowlist block.
+  assert.match(
+    migration,
+    /function public\.update_worker[\s\S]*?if me\.role <> 'admin' then/i
+  );
+
+  // Supervisor company always from profile, never request param.
+  assert.match(
+    migration,
+    /Never accept a company argument from a Supervisor/i
+  );
+  assert.match(migration, /company_clean := me\.company/i);
+
+  // Domain errors.
+  for (const code of [
+    "NOT_AUTHORISED",
+    "NOT_FOUND",
+    "LOCKED",
+    "LENT_TO_SAME_COMPANY",
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(`raise exception '${code}' using errcode = 'P0001'`, "i"),
+      code
+    );
+  }
+
+  // Post-lock admin audit only.
+  assert.match(migration, /if locked and me\.role = 'admin' then/i);
+  assert.match(migration, /'entry_created'/i);
+  assert.match(migration, /'entry_updated'/i);
+  assert.match(migration, /'entry_deleted'/i);
+  assert.match(migration, /'shift_confirmed'/i);
+  assert.match(migration, /'shift_reopened'/i);
+
+  // LOCKED guard present on write RPCs.
+  assert.match(migration, /raise exception 'LOCKED' using errcode = 'P0001'/i);
+
+  // All security definer.
+  assert.match(
+    migration,
+    /function public\.upsert_attendance_entry[\s\S]*?security definer/i
+  );
+});
+
+test("service-role key is fenced to one server module (ADR-0007)", () => {
+  const adminUsers = readFileSync(
+    join(process.cwd(), "src", "lib", "admin-users.ts"),
+    "utf8"
+  );
+  assert.match(adminUsers, /import "server-only"/);
+  assert.match(adminUsers, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(adminUsers, /employee|supervisor/);
+  assert.match(adminUsers, /CREATABLE_ROLES|isCreatableRole/);
+  assert.doesNotMatch(adminUsers, /NEXT_PUBLIC_SUPABASE_SERVICE_ROLE/);
+
+  // Creatable roles allowlist — not a blocklist of admin/director.
+  assert.match(
+    adminUsers,
+    /const CREATABLE_ROLES = \["employee", "supervisor"\]/
+  );
+
+  const route = readFileSync(
+    join(process.cwd(), "src", "app", "api", "admin", "users", "route.ts"),
+    "utf8"
+  );
+  assert.match(route, /isCreatableRole/);
+  assert.match(route, /createStaffUser|setStaffActive/);
+  assert.doesNotMatch(route, /SUPABASE_SERVICE_ROLE_KEY/);
+
+  // Key name must not appear outside admin-users.ts under src/.
+  const walk = (dir) => {
+    const out = [];
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name);
+      if (statSync(p).isDirectory()) out.push(...walk(p));
+      else if (/\.(ts|tsx|js|mjs)$/.test(name)) out.push(p);
+    }
+    return out;
+  };
+  const srcRoot = join(process.cwd(), "src");
+  const hits = walk(srcRoot).filter((p) => {
+    if (p.replace(/\\/g, "/").endsWith("/lib/admin-users.ts")) return false;
+    const body = readFileSync(p, "utf8");
+    return body.includes("SUPABASE_SERVICE_ROLE_KEY");
+  });
+  assert.deepEqual(hits, [], `service role key leaked to: ${hits.join(", ")}`);
+
+  // Never in client components as NEXT_PUBLIC
+  const allSrc = walk(srcRoot)
+    .map((p) => readFileSync(p, "utf8"))
+    .join("\n");
+  assert.doesNotMatch(allSrc, /NEXT_PUBLIC_.*SERVICE_ROLE/);
+});
+
+test("payment and to-do RPCs still refuse unknown roles (supervisor default deny)", () => {
+  const paymentAllowlists = [
+    ["015_edit_unpaid_payment.sql", /me\.role not in \('employee', 'director', 'accounts', 'admin'\)/i],
+    ["20260731120000_delete_payment.sql", /me\.role not in \('director', 'admin'\)/i],
+  ];
+  for (const [file, re] of paymentAllowlists) {
+    const body = sql[file];
+    assert.ok(body, `${file} missing`);
+    assert.match(body, re, file);
+    assert.doesNotMatch(body, /'supervisor'/i, `${file} must not list supervisor`);
+  }
 });

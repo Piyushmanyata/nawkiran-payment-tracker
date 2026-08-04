@@ -21,6 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
+      // AppShell will bounce supervisors to /attendance once profile is known.
       router.replace("/open");
     } catch (err) {
       setError(userMessageFromError(err));

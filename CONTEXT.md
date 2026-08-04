@@ -63,6 +63,117 @@ _Avoid_: Hard unique index, cross-employee pending list
 - **Retention & Immutability**: Settled payment records (`paid`, `withdrawn`) are retained for a rolling 30-day window (`HISTORY_KEEP_DAYS = 30`) and purged automatically. `denied` records are never auto-purged — they are still live work for their requester. Manual soft-delete (Deleted Payment) is available to **Directors and Admins only**, for `approved` / `paid` / `denied` / `withdrawn`, from the payment detail drawer with a native browser confirm — not on cards, not for Employees, not for `pending`.
 - **Similar Pending Warning (submit)**: On Employee submit of a new Payment Request, if Similar Pending Match exists, show generic confirm before calling create; no live-as-you-type check.
 
+## Attendance Language
+
+**Company**:
+One of the two businesses whose labour the app tracks — **NKPL** (Nawkiran) and
+**APTUS**. Every Worker, Supervisor and Attendance Day belongs to exactly one.
+_Avoid_: Site, plant, unit, branch
+
+**Worker**:
+A person on a Company's attendance Roster. Workers **never log in** — they have no
+Auth user and no profile. Includes everyone on the salary workbook, not only
+labourers: Operators, Accountants, Security, Cook, Cash Workers. Carries a free-text
+`designation` copied from the workbook (`WORKER`, `Operator`, `SEQURITY`…).
+_Avoid_: Labourer, employee, staff member, headcount
+
+**Supervisor**:
+A staff role that records attendance for exactly one Company and can reach nothing
+else in the app — no payments, no to-dos, no other Company's Roster. Distinct from
+the `Supervisor` designation a Worker may carry on the Roster.
+_Avoid_: Foreman, incharge, manager
+
+**Shift**:
+`day` or `night`. Both Companies run both. The Night Shift of date `D` starts on the
+evening of `D` and ends the following morning; it belongs to `D`.
+_Avoid_: Shift A / Shift B, general shift
+
+**Attendance Day**:
+One Company + one date + one Shift. The unit that gets confirmed and locked. Holds
+zero or more Attendance Entries.
+_Avoid_: Attendance sheet, muster, register
+
+**Attendance Entry**:
+An exception recorded against one Worker on one Attendance Day. Exactly one of three
+kinds — **Absent**, **Weekly Off**, **Lent Out**. Presence is never recorded: a
+Confirmed Shift with no Entries means everybody came.
+_Avoid_: Attendance record, mark, punch
+
+**Absent**:
+An Attendance Entry kind. Carries **Informed** (mandatory yes/no) and an **Absence
+Reason**, plus an optional note.
+_Avoid_: Leave, off, missing
+
+**Informed**:
+Whether the Worker told anyone before not coming. Mandatory yes/no on every Absent
+Entry. Deliberately kept separate from the `no_information` Absence Reason even
+though they overlap.
+_Avoid_: Notified, excused, approved leave
+
+**Absence Reason**:
+A fixed chip from `sick`, `family`, `village`, `festival`, `no_information`,
+`other`. Never free text; `other` requires a note. Fixed so the Director can count.
+_Avoid_: Remarks, comments, cause
+
+**Weekly Off**:
+An Attendance Entry kind for a Worker's rostered day off. Exists so rotating offs are
+never counted as absences.
+_Avoid_: Holiday, leave, rest day
+
+**Lent Out**:
+An Attendance Entry kind recording that a Worker spent the Shift at the *other*
+Company because of a labour shortage. Logged by the Worker's **own** Supervisor,
+never the borrowing one. The Worker stays on his home Roster — the loan is an Entry,
+not a Roster change. Neither present-here nor absent.
+_Avoid_: Transfer, deputation, loan, borrowed
+
+**Shift Confirmation**:
+The Supervisor's explicit "this Shift is done" action. The only thing that separates
+*no absences* from *nobody opened the app*. An unconfirmed Attendance Day reads as
+**Not submitted**, never as full attendance.
+_Avoid_: Submit, save, close day
+
+**Attendance Lock**:
+An Attendance Day for date `D` freezes at **10:00 IST on `D + 1`**, both Shifts, one
+rule. Computed from the date and the current time — never a stored flag, never a
+scheduled job. Before the lock the Supervisor may reopen a Confirmed Shift and edit
+freely. After it, only an Admin may write, and every such write is audited.
+_Avoid_: Cutoff time, freeze flag, closed period
+
+**Attendance Event**:
+The audit row written on every post-lock Admin change — actor, timestamp, previous
+value. Surfaced inline in the UI ("edited by Piyush, 12 Aug"). Mirrors
+`payment_events`.
+_Avoid_: Change log, revision, history entry
+
+**Attendance Export**:
+A server-generated `.xlsx` covering one month, both Companies, as a **list of
+exceptions** — one row per Attendance Entry, never a presence grid. Feeds the
+hand-kept salary workbooks; it does not replace them. Available to Employees,
+Directors and Admins — never Supervisors.
+_Avoid_: Muster roll, timesheet, salary sheet
+
+## Attendance Rules & Visibility
+
+- **Supervisor**: sees only his own Company's attendance route. Hard-redirected from
+  every other path; no navigation rendered. May create Attendance Entries and confirm
+  Shifts before the Lock, may add a Worker to his Roster, and may read past
+  Attendance Days read-only. May not deactivate Workers, export, or touch payments
+  and to-dos.
+- **Director / Admin**: read every Company's attendance. Summary defaults to
+  **Today** (per Company, per Shift, with Not-submitted called out) with a **Month**
+  tab sorted by absence count descending.
+- **Admin only**: writes after the Attendance Lock, deactivates and renames Workers,
+  provisions and deactivates Employee/Supervisor logins.
+- **Employee / accounts**: read the summary and run the Attendance Export. No write
+  access to attendance at all.
+- **Push**: none. Attendance is a pull surface; the notification budget stays with
+  payments.
+- **Realtime**: no third channel. Attendance fetches on load and refetches on focus —
+  `payments-live` and `todos-live` remain the only channels.
+- **Source of truth**: the hand-kept salary workbooks, not this app (ADR-0005). Where
+  they disagree, the workbook wins.
+
 ## To-do & Recurrence Rules
 
 **Recurring To-do**:

@@ -1,4 +1,12 @@
-export type UserRole = "employee" | "director" | "accounts" | "admin";
+export type UserRole =
+  | "employee"
+  | "director"
+  | "accounts"
+  | "admin"
+  | "supervisor";
+
+/** Plant / payroll company a Worker or Supervisor belongs to. */
+export type Company = "NKPL" | "APTUS";
 
 /**
  * `denied` is not a terminal state: the requester must correct and resubmit,
@@ -27,8 +35,64 @@ export interface Profile {
   id: string;
   full_name: string;
   role: UserRole;
+  /** Required when role is supervisor; otherwise optional. */
+  company: Company | null;
   active: boolean;
   created_at: string;
+}
+
+/** Day Shift or Night Shift — not A/B. */
+export type Shift = "day" | "night";
+
+/** Exception kinds only — presence is never recorded. */
+export type AttendanceKind = "absent" | "weekly_off" | "lent_out";
+
+export type AbsenceReason =
+  | "sick"
+  | "family"
+  | "village"
+  | "festival"
+  | "no_information"
+  | "other";
+
+export interface Worker {
+  id: string;
+  company: Company;
+  full_name: string;
+  designation: string | null;
+  active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttendanceDay {
+  id: string;
+  company: Company;
+  work_date: string;
+  shift: Shift;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttendanceEntry {
+  id: string;
+  attendance_day_id: string;
+  worker_id: string;
+  kind: AttendanceKind;
+  informed: boolean | null;
+  reason: AbsenceReason | null;
+  note: string | null;
+  lent_to_company: Company | null;
+  recorded_by: string;
+  created_at: string;
+  updated_at: string;
+  /** Joined for summary/export when available */
+  worker_name?: string | null;
+  worker_designation?: string | null;
+  recorder_name?: string | null;
 }
 
 export interface Payment {

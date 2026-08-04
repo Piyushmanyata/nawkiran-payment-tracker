@@ -26,6 +26,16 @@ const tabs = [
       </svg>
     ),
   },
+  {
+    href: "/attendance",
+    label: "Attendance",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3M4 11h16M6 5h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 15l2 2 4-4" />
+      </svg>
+    ),
+  },
 ] as const;
 
 export function BottomNavigation() {
