@@ -394,7 +394,11 @@ test("summariseMonth ranks by absence count desc with stable name tie-break", ()
     entry("c", "weekly_off", null),
   ];
 
-  const ranked = summariseMonth({ entries, workers });
+  const ranked = summariseMonth({
+    days: [{ id: "d", company: "NKPL" }],
+    entries,
+    workers,
+  });
   assert.deepEqual(
     ranked.map((r) => r.workerName),
     ["Bimal", "Asha", "Chitra"]
@@ -405,6 +409,25 @@ test("summariseMonth ranks by absence count desc with stable name tie-break", ()
   assert.equal(ranked[2].weeklyOffCount, 2);
   assert.equal(ranked[0].informedCount, 1);
   assert.equal(ranked[0].uninformedCount, 1);
+
+  const unknownAptus = summariseMonth({
+    days: [{ id: "aptus-day", company: "APTUS" }],
+    entries: [{
+      id: "unknown-entry",
+      attendance_day_id: "aptus-day",
+      worker_id: "missing-worker",
+      kind: "absent",
+      informed: true,
+      reason: "sick",
+      note: null,
+      lent_to_company: null,
+      recorded_by: "s",
+      created_at: "",
+      updated_at: "",
+    }],
+    workers: [],
+  });
+  assert.equal(unknownAptus[0].company, "APTUS");
 });
 
 test("buildExportRows: one row per entry with agreed columns; includes deactivated workers", () => {

@@ -736,6 +736,21 @@ test("attendance RPCs: lock helper, role allowlists, audit, company fences", () 
   );
 });
 
+test("attendance first writes retry after a concurrent day insert", () => {
+  const migration = sql["20260804130100_attendance_day_race.sql"];
+  assert.ok(migration, "attendance day race migration missing");
+  for (const name of ["upsert_attendance_entry", "confirm_attendance_shift"]) {
+    assert.match(
+      migration,
+      new RegExp(
+        `function public\\.${name}[\\s\\S]*?on conflict \\(company, work_date, shift\\) do nothing[\\s\\S]*?select \\* into day`,
+        "i"
+      ),
+      `${name} must retry after a concurrent day insert`
+    );
+  }
+});
+
 test("service-role key is fenced to one server module (ADR-0007)", () => {
   const adminUsers = readFileSync(
     join(process.cwd(), "src", "lib", "admin-users.ts"),

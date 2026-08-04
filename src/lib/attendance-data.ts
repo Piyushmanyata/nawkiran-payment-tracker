@@ -8,6 +8,8 @@ import type {
   AbsenceReason,
   AttendanceDay,
   AttendanceEntry,
+  AttendanceEvent,
+  AttendanceEventAction,
   AttendanceKind,
   Company,
   Shift,
@@ -60,6 +62,17 @@ function asEntry(row: Record<string, unknown>): AttendanceEntry {
     worker_designation: worker
       ? ((worker.designation as string | null) ?? null)
       : ((row.worker_designation as string | null) ?? null),
+  };
+}
+
+function asEvent(row: Record<string, unknown>): AttendanceEvent {
+  return {
+    id: Number(row.id ?? 0),
+    attendance_day_id: String(row.attendance_day_id ?? ""),
+    entry_id: (row.entry_id as string | null) ?? null,
+    action: row.action as AttendanceEventAction,
+    performed_by: String(row.performed_by ?? ""),
+    created_at: String(row.created_at ?? ""),
   };
 }
 
@@ -135,6 +148,36 @@ export async function fetchAttendanceEntries(
     if ((data ?? []).length < pageSize) break;
   }
   return entries;
+}
+
+export async function fetchAttendanceEvents(
+  dayIds: string[]
+): Promise<AttendanceEvent[]> {
+  if (dayIds.length === 0) return [];
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("attendance_events")
+    .select("id, attendance_day_id, entry_id, action, performed_by, created_at")
+    .in("attendance_day_id", dayIds)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+
+  const events = (data ?? []).map((r) => asEvent(r as Record<string, unknown>));
+  const actorIds = [...new Set(events.map((event) => event.performed_by))];
+  if (actorIds.length === 0) return events;
+
+  const { data: profiles, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", actorIds);
+  if (profileError) throw profileError;
+  const names = new Map(
+    (profiles ?? []).map((profile) => [String(profile.id), String(profile.full_name ?? "")])
+  );
+  return events.map((event) => ({
+    ...event,
+    actor_name: names.get(event.performed_by) ?? null,
+  }));
 }
 
 function nextMonthStart(yyyyMm: string): string {

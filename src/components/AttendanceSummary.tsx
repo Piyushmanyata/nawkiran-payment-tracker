@@ -10,14 +10,16 @@ import {
   REASON_LABELS,
   fetchAttendanceDays,
   fetchAttendanceEntries,
+  fetchAttendanceEvents,
   fetchWorkersAll,
 } from "@/lib/attendance-data";
 import { userMessageFromError } from "@/lib/errors";
-import { todayLocalIso } from "@/lib/format";
+import { formatDateTime, todayLocalIso } from "@/lib/format";
 import { fieldClass } from "@/lib/ui";
 import type {
   AttendanceDay,
   AttendanceEntry,
+  AttendanceEvent,
   Company,
   Shift,
   Worker,
@@ -25,6 +27,13 @@ import type {
 
 const COMPANIES: Company[] = ["NKPL", "APTUS"];
 const SHIFTS: Shift[] = ["day", "night"];
+const EVENT_LABELS: Record<AttendanceEvent["action"], string> = {
+  entry_created: "Entry added",
+  entry_updated: "Entry edited",
+  entry_deleted: "Entry removed",
+  shift_confirmed: "Shift confirmed",
+  shift_reopened: "Shift reopened",
+};
 
 type Tab = "today" | "month";
 
@@ -38,6 +47,7 @@ export function AttendanceSummary() {
   const [month, setMonth] = useState(() => monthPrefixFromDate(todayLocalIso()));
   const [days, setDays] = useState<AttendanceDay[]>([]);
   const [entries, setEntries] = useState<AttendanceEntry[]>([]);
+  const [events, setEvents] = useState<AttendanceEvent[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +61,13 @@ export function AttendanceSummary() {
         ]);
         setDays(d);
         setWorkers(w);
-        setEntries(await fetchAttendanceEntries(d.map((x) => x.id)));
+        const dayIds = d.map((x) => x.id);
+        const [entryRows, eventRows] = await Promise.all([
+          fetchAttendanceEntries(dayIds),
+          fetchAttendanceEvents(dayIds),
+        ]);
+        setEntries(entryRows);
+        setEvents(eventRows);
       } else {
         const [d, w] = await Promise.all([
           fetchAttendanceDays({ monthPrefix: month }),
@@ -60,6 +76,7 @@ export function AttendanceSummary() {
         setDays(d);
         setWorkers(w);
         setEntries(await fetchAttendanceEntries(d.map((x) => x.id)));
+        setEvents([]);
       }
       setError(null);
     } catch (err) {
@@ -90,10 +107,20 @@ export function AttendanceSummary() {
     return m;
   }, [entries]);
 
+  const eventsByDay = useMemo(() => {
+    const m = new Map<string, AttendanceEvent[]>();
+    for (const event of events) {
+      const list = m.get(event.attendance_day_id) ?? [];
+      list.push(event);
+      m.set(event.attendance_day_id, list);
+    }
+    return m;
+  }, [events]);
+
   const monthRows = useMemo(() => {
     if (tab !== "month") return [];
-    return summariseMonth({ entries, workers });
-  }, [tab, entries, workers]);
+    return summariseMonth({ days, entries, workers });
+  }, [tab, days, entries, workers]);
 
   if (loading) return <PageLoading />;
 
@@ -182,6 +209,7 @@ export function AttendanceSummary() {
                 const dayEntries = day
                   ? (entriesByDay.get(day.id) ?? [])
                   : [];
+                const dayEvents = day ? (eventsByDay.get(day.id) ?? []) : [];
                 const summary = summariseDay({
                   company,
                   workDate,
@@ -246,6 +274,22 @@ export function AttendanceSummary() {
                         ))}
                       </ul>
                     )}
+                    {dayEvents.length > 0 ? (
+                      <div className="mt-3 border-t border-slate-100 pt-2">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Admin audit
+                        </p>
+                        {dayEvents.map((event) => (
+                          <p
+                            key={event.id}
+                            className="mt-1 text-xs font-medium text-slate-600"
+                          >
+                            {EVENT_LABELS[event.action]} by {event.actor_name ?? "Admin"} ·{" "}
+                            {formatDateTime(event.created_at)}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
