@@ -288,12 +288,14 @@ export function summariseDay(input: {
  * Weekly Off excluded from absence counts; Lent Out counted separately.
  */
 export function summariseMonth(input: {
+  days: readonly Pick<AttendanceDay, "id" | "company">[];
   entries: readonly AttendanceEntry[];
   workers: readonly Pick<
     Worker,
     "id" | "full_name" | "designation" | "company"
   >[];
 }): MonthWorkerSummary[] {
+  const dayById = new Map(input.days.map((day) => [day.id, day.company]));
   const byId = new Map(
     input.workers.map((w) => [
       w.id,
@@ -319,7 +321,7 @@ export function summariseMonth(input: {
         workerId: e.worker_id,
         workerName: e.worker_name?.trim() || "Unknown",
         designation: e.worker_designation ?? null,
-        company: "NKPL",
+        company: dayById.get(e.attendance_day_id) ?? "NKPL",
         absenceCount: 0,
         informedCount: 0,
         uninformedCount: 0,

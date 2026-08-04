@@ -52,10 +52,16 @@ export async function requireAdminProfile() {
 function randomTempPassword(): string {
   // Unambiguous alphabet; long enough for temporary hand-off.
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$";
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
+  const limit = 256 - (256 % chars.length);
   let out = "";
-  for (const b of bytes) out += chars[b % chars.length];
+  while (out.length < 16) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    for (const b of bytes) {
+      if (b < limit) out += chars[b % chars.length];
+      if (out.length === 16) break;
+    }
+  }
   return out;
 }
 

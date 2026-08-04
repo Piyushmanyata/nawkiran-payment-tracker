@@ -95,6 +95,23 @@ export interface AttendanceEntry {
   recorder_name?: string | null;
 }
 
+export type AttendanceEventAction =
+  | "entry_created"
+  | "entry_updated"
+  | "entry_deleted"
+  | "shift_confirmed"
+  | "shift_reopened";
+
+export interface AttendanceEvent {
+  id: number;
+  attendance_day_id: string;
+  entry_id: string | null;
+  action: AttendanceEventAction;
+  performed_by: string;
+  created_at: string;
+  actor_name?: string | null;
+}
+
 export interface Payment {
   id: string;
   party: string;

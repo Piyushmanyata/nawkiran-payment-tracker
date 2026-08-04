@@ -54,6 +54,7 @@ export function SupervisorAttendance({ profile }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(() => new Date());
 
   const [markOpen, setMarkOpen] = useState(false);
   const [addWorkerOpen, setAddWorkerOpen] = useState(false);
@@ -73,7 +74,7 @@ export function SupervisorAttendance({ profile }: Props) {
       { company, workDate },
       profile
     );
-  const locked = isAttendanceLocked(workDate);
+  const locked = isAttendanceLocked(workDate, now);
   const confirmed = Boolean(day?.confirmed_at || day?.confirmed_by);
   const recordedIds = useMemo(
     () => new Set(entries.map((e) => e.worker_id)),
@@ -117,6 +118,11 @@ export function SupervisorAttendance({ profile }: Props) {
       window.removeEventListener("focus", onFocus);
     };
   }, [load]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const filteredWorkers = useMemo(() => {
     const q = search.trim().toLowerCase();
