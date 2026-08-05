@@ -53,7 +53,6 @@ export type DayShiftSummary = {
   absenceCount: number;
   informedCount: number;
   uninformedCount: number;
-  weeklyOffCount: number;
   lentOutCount: number;
   entries: AttendanceEntry[];
 };
@@ -66,7 +65,6 @@ export type MonthWorkerSummary = {
   absenceCount: number;
   informedCount: number;
   uninformedCount: number;
-  weeklyOffCount: number;
   lentOutCount: number;
 };
 
@@ -190,19 +188,6 @@ export function validateEntry(input: ValidateEntryInput): ValidateEntryResult {
     return { ok: true };
   }
 
-  if (kind === "weekly_off") {
-    if (input.informed != null) {
-      return { ok: false, error: "INVALID_INFORMED" };
-    }
-    if (input.reason != null && String(input.reason).trim() !== "") {
-      return { ok: false, error: "INVALID_REASON" };
-    }
-    if (input.lent_to_company != null && String(input.lent_to_company).trim() !== "") {
-      return { ok: false, error: "INVALID_LENT_TO" };
-    }
-    return { ok: true };
-  }
-
   if (kind === "lent_out") {
     if (input.informed != null) {
       return { ok: false, error: "INVALID_INFORMED" };
@@ -243,15 +228,12 @@ function countKinds(entries: readonly AttendanceEntry[]) {
   let absenceCount = 0;
   let informedCount = 0;
   let uninformedCount = 0;
-  let weeklyOffCount = 0;
   let lentOutCount = 0;
   for (const e of entries) {
     if (e.kind === "absent") {
       absenceCount += 1;
       if (e.informed === true) informedCount += 1;
       else uninformedCount += 1;
-    } else if (e.kind === "weekly_off") {
-      weeklyOffCount += 1;
     } else if (e.kind === "lent_out") {
       lentOutCount += 1;
     }
@@ -260,7 +242,6 @@ function countKinds(entries: readonly AttendanceEntry[]) {
     absenceCount,
     informedCount,
     uninformedCount,
-    weeklyOffCount,
     lentOutCount,
   };
 }
@@ -285,7 +266,7 @@ export function summariseDay(input: {
 
 /**
  * Month ranking: absence count descending, stable name tie-break.
- * Weekly Off excluded from absence counts; Lent Out counted separately.
+ * Lent Out counted separately from absences.
  */
 export function summariseMonth(input: {
   days: readonly Pick<AttendanceDay, "id" | "company">[];
@@ -307,7 +288,6 @@ export function summariseMonth(input: {
         absenceCount: 0,
         informedCount: 0,
         uninformedCount: 0,
-        weeklyOffCount: 0,
         lentOutCount: 0,
       } satisfies MonthWorkerSummary,
     ])
@@ -325,7 +305,6 @@ export function summariseMonth(input: {
         absenceCount: 0,
         informedCount: 0,
         uninformedCount: 0,
-        weeklyOffCount: 0,
         lentOutCount: 0,
       };
       byId.set(e.worker_id, row);
@@ -334,8 +313,6 @@ export function summariseMonth(input: {
       row.absenceCount += 1;
       if (e.informed === true) row.informedCount += 1;
       else row.uninformedCount += 1;
-    } else if (e.kind === "weekly_off") {
-      row.weeklyOffCount += 1;
     } else if (e.kind === "lent_out") {
       row.lentOutCount += 1;
     }

@@ -314,7 +314,6 @@ export function AttendanceSummary() {
                 <th className="px-3 py-2">Absent</th>
                 <th className="px-3 py-2">Informed</th>
                 <th className="px-3 py-2">Uninformed</th>
-                <th className="px-3 py-2">Off</th>
                 <th className="px-3 py-2">Lent</th>
               </tr>
             </thead>
@@ -340,7 +339,6 @@ export function AttendanceSummary() {
                   <td className="px-3 py-2 text-slate-700">
                     {r.uninformedCount}
                   </td>
-                  <td className="px-3 py-2 text-slate-700">{r.weeklyOffCount}</td>
                   <td className="px-3 py-2 text-slate-700">{r.lentOutCount}</td>
                 </tr>
               ))}

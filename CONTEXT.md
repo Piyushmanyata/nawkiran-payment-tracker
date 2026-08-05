@@ -94,15 +94,16 @@ zero or more Attendance Entries.
 _Avoid_: Attendance sheet, muster, register
 
 **Attendance Entry**:
-An exception recorded against one Worker on one Attendance Day. Exactly one of three
-kinds — **Absent**, **Weekly Off**, **Lent Out**. Presence is never recorded: a
-Confirmed Shift with no Entries means everybody came.
+An exception recorded against one Worker on one Attendance Day. Exactly one of two
+kinds — **Absent**, **Lent Out**. Presence is never recorded: a Confirmed Shift with
+no Entries means everybody came. Silence means "not absent", not "present" — a
+rostered day off needs no Entry (ADR-0009).
 _Avoid_: Attendance record, mark, punch
 
 **Absent**:
 An Attendance Entry kind. Carries **Informed** (mandatory yes/no) and an **Absence
 Reason**, plus an optional note.
-_Avoid_: Leave, off, missing
+_Avoid_: Leave, off, missing, weekly_off
 
 **Informed**:
 Whether the Worker told anyone before not coming. Mandatory yes/no on every Absent
@@ -114,11 +115,6 @@ _Avoid_: Notified, excused, approved leave
 A fixed chip from `sick`, `family`, `village`, `festival`, `no_information`,
 `other`. Never free text; `other` requires a note. Fixed so the Director can count.
 _Avoid_: Remarks, comments, cause
-
-**Weekly Off**:
-An Attendance Entry kind for a Worker's rostered day off. Exists so rotating offs are
-never counted as absences.
-_Avoid_: Holiday, leave, rest day
 
 **Lent Out**:
 An Attendance Entry kind recording that a Worker spent the Shift at the *other*

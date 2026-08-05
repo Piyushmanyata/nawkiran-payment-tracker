@@ -45,7 +45,7 @@ export interface Profile {
 export type Shift = "day" | "night";
 
 /** Exception kinds only — presence is never recorded. */
-export type AttendanceKind = "absent" | "weekly_off" | "lent_out";
+export type AttendanceKind = "absent" | "lent_out";
 
 export type AbsenceReason =
   | "sick"

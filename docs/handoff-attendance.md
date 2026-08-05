@@ -1,5 +1,7 @@
 # Handoff — Attendance feature (issue #13)
 
+> **Superseded on kinds (ADR-0009 / #15):** only `absent` and `lent_out` — do not rebuild the three-kind check in the schema snippets below.
+
 You are implementing GitHub issue **#13**. This document tells you exactly how.
 Read it fully before your first tool call. Do not improvise around it.
 

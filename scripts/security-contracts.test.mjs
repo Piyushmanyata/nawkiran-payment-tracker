@@ -774,6 +774,37 @@ test("attendance first writes retry after a concurrent day insert", () => {
   }
 });
 
+test("attendance kinds are absent + lent_out only; weekly_off is rejected (ADR-0009)", () => {
+  // Load-bearing: weekly_off was removed so silence means "not absent".
+  // Original schema still has three kinds; this forward migration narrows them.
+  const migration = sql["20260805061511_attendance_absence_and_lent_only.sql"];
+  assert.ok(migration, "attendance absence_and_lent_only migration missing");
+
+  assert.match(
+    migration,
+    /delete from public\.attendance_entries where kind = 'weekly_off'/i
+  );
+  assert.match(
+    migration,
+    /attendance_entries_kind_check[\s\S]*?kind in \('absent', 'lent_out'\)/i
+  );
+  assert.doesNotMatch(
+    migration,
+    /kind in \('absent', 'weekly_off', 'lent_out'\)/i
+  );
+
+  // RPC allowlist must match the check; body must keep day-race fix.
+  assert.match(
+    migration,
+    /kind_clean not in \('absent', 'lent_out'\)/i
+  );
+  assert.match(migration, /raise exception 'INVALID_KIND'/i);
+  assert.match(
+    migration,
+    /on conflict \(company, work_date, shift\) do nothing/i
+  );
+});
+
 test("admin provisioning surface is removed; roles stay in Supabase", () => {
   assert.equal(
     existsSync(join(process.cwd(), "src", "app", "admin", "page.tsx")),

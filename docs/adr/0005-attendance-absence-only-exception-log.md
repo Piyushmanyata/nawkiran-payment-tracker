@@ -4,7 +4,7 @@ Date: 2026-08-04
 
 ## Status
 
-Accepted
+Accepted. **Amended by ADR-0009** (Weekly Off removed as an Entry kind).
 
 ## Context
 

@@ -323,7 +323,7 @@ export function SupervisorAttendance({ profile }: Props) {
             text={
               confirmed
                 ? "Confirmed with no exceptions — everyone came."
-                : "No exceptions yet. Mark absences, weekly offs, or lent-out workers."
+                : "No exceptions yet. Mark absences or lent-out workers."
             }
           />
         ) : (
@@ -414,13 +414,7 @@ export function SupervisorAttendance({ profile }: Props) {
       >
         <div className="space-y-4">
           <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
-            {(
-              [
-                ["absent", "Absent"],
-                ["weekly_off", "Weekly off"],
-                ["lent_out", "Lent out"],
-              ] as const
-            ).map(([k, label]) => (
+            {(Object.keys(KIND_LABELS) as AttendanceKind[]).map((k) => (
               <button
                 key={k}
                 type="button"
@@ -429,7 +423,7 @@ export function SupervisorAttendance({ profile }: Props) {
                   kind === k ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
                 }`}
               >
-                {label}
+                {KIND_LABELS[k]}
               </button>
             ))}
           </div>

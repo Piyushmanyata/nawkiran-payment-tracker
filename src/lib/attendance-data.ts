@@ -296,6 +296,5 @@ export const REASON_LABELS: Record<AbsenceReason, string> = {
 
 export const KIND_LABELS: Record<AttendanceKind, string> = {
   absent: "Absent",
-  weekly_off: "Weekly off",
   lent_out: "Lent out",
 };

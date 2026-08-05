@@ -144,7 +144,7 @@ test("canWriteAttendance: admin always; supervisor own company pre-lock only", (
   );
 });
 
-test("validateEntry: absent requires informed+reason; weekly_off/lent_out reject them", () => {
+test("validateEntry: absent requires informed+reason; lent_out rejects them", () => {
   assert.equal(
     validateEntry({
       kind: "absent",
@@ -174,27 +174,6 @@ test("validateEntry: absent requires informed+reason; weekly_off/lent_out reject
   );
 
   assert.equal(
-    validateEntry({ kind: "weekly_off", company: "NKPL" }).ok,
-    true
-  );
-  assert.equal(
-    validateEntry({
-      kind: "weekly_off",
-      informed: true,
-      company: "NKPL",
-    }).ok,
-    false
-  );
-  assert.equal(
-    validateEntry({
-      kind: "weekly_off",
-      reason: "sick",
-      company: "NKPL",
-    }).ok,
-    false
-  );
-
-  assert.equal(
     validateEntry({
       kind: "lent_out",
       lent_to_company: "APTUS",
@@ -210,6 +189,17 @@ test("validateEntry: absent requires informed+reason; weekly_off/lent_out reject
       company: "NKPL",
     }).ok,
     false
+  );
+});
+
+test("validateEntry: weekly_off is rejected as INVALID_KIND", () => {
+  // Load-bearing: weekly_off was removed (ADR-0009). Must not quietly return.
+  assert.equal(
+    validateEntry({
+      kind: "weekly_off",
+      company: "NKPL",
+    }).error,
+    "INVALID_KIND"
   );
 });
 
@@ -295,7 +285,7 @@ test("confirmed-with-zero-entries vs unconfirmed-with-zero-entries differ", () =
   assert.notEqual(daySummaryOpen.state, daySummaryConfirmed.state);
 });
 
-test("summariseDay excludes weekly off from absences; splits informed; counts lent out", () => {
+test("summariseDay splits informed absences and counts lent out", () => {
   const entries = [
     {
       id: "1",
@@ -317,19 +307,6 @@ test("summariseDay excludes weekly off from absences; splits informed; counts le
       kind: "absent",
       informed: false,
       reason: "no_information",
-      note: null,
-      lent_to_company: null,
-      recorded_by: "s",
-      created_at: "",
-      updated_at: "",
-    },
-    {
-      id: "3",
-      attendance_day_id: "d",
-      worker_id: "w3",
-      kind: "weekly_off",
-      informed: null,
-      reason: null,
       note: null,
       lent_to_company: null,
       recorded_by: "s",
@@ -371,7 +348,6 @@ test("summariseDay excludes weekly off from absences; splits informed; counts le
   assert.equal(summary.absenceCount, 2);
   assert.equal(summary.informedCount, 1);
   assert.equal(summary.uninformedCount, 1);
-  assert.equal(summary.weeklyOffCount, 1);
   assert.equal(summary.lentOutCount, 1);
   assert.equal(summary.state, "confirmed");
 });
@@ -389,9 +365,9 @@ test("summariseMonth ranks by absence count desc with stable name tie-break", ()
     // Asha and Chitra: 1 absence each — Asha before Chitra by name
     entry("a", "absent", true),
     entry("c", "absent", false),
-    // Weekly offs do not affect ranking
-    entry("c", "weekly_off", null),
-    entry("c", "weekly_off", null),
+    // Lent out does not affect absence ranking
+    entry("c", "lent_out", null),
+    entry("c", "lent_out", null),
   ];
 
   const ranked = summariseMonth({
@@ -406,7 +382,7 @@ test("summariseMonth ranks by absence count desc with stable name tie-break", ()
   assert.equal(ranked[0].absenceCount, 2);
   assert.equal(ranked[1].absenceCount, 1);
   assert.equal(ranked[2].absenceCount, 1);
-  assert.equal(ranked[2].weeklyOffCount, 2);
+  assert.equal(ranked[2].lentOutCount, 2);
   assert.equal(ranked[0].informedCount, 1);
   assert.equal(ranked[0].uninformedCount, 1);
 
@@ -538,7 +514,7 @@ function entry(workerId, kind, informed) {
     informed,
     reason: kind === "absent" ? "sick" : null,
     note: null,
-    lent_to_company: null,
+    lent_to_company: kind === "lent_out" ? "APTUS" : null,
     recorded_by: "s",
     created_at: "",
     updated_at: "",
