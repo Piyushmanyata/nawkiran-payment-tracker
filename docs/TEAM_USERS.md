@@ -14,7 +14,8 @@ dashboard or service-role provisioning path.
 | Sweeti | employee |
 | Piyush | admin |
 | Nawneet | director |
-| *(plant supervisors)* | supervisor + company `NKPL` or `APTUS` |
+| Jitu | supervisor + company `NKPL` |
+| Anupam | supervisor + company `NKPL` |
 
 ## Payment & to-do permissions
 
