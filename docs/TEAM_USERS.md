@@ -16,6 +16,8 @@ dashboard or service-role provisioning path.
 | Nawneet | director |
 | Jitu | supervisor + company `NKPL` |
 | Anupam | supervisor + company `NKPL` |
+| Suraj | supervisor + company `APTUS` |
+| Chiranjit | supervisor + company `APTUS` |
 
 ## Payment & to-do permissions
 
