@@ -805,6 +805,15 @@ test("attendance kinds are absent + lent_out only; weekly_off is rejected (ADR-0
   );
 });
 
+/** One plpgsql function body, so an assertion cannot leak into the next RPC. */
+function attendanceFnBody(migration, name) {
+  const start = migration.indexOf(`create or replace function public.${name}(`);
+  assert.ok(start >= 0, `${name} not defined in migration`);
+  const end = migration.indexOf("\n$$;", start);
+  assert.ok(end > start, `${name} body is not terminated by $$;`);
+  return migration.slice(start, end);
+}
+
 test("attendance entry is an absence; kind and lent columns dropped (ADR-0010, #16)", () => {
   const migration = sql["20260807120000_attendance_entry_is_absence.sql"];
   assert.ok(migration, "attendance_entry_is_absence migration missing");
@@ -821,7 +830,29 @@ test("attendance entry is an absence; kind and lent columns dropped (ADR-0010, #
     /alter column informed set not null/i
   );
   assert.match(migration, /alter column reason set not null/i);
-  assert.match(migration, /attendance_entries_other_note_check/i);
+
+  // The two kind-shaped constraints go; the 'other' note rule is re-added.
+  for (const name of [
+    "attendance_entries_kind_check",
+    "attendance_entries_absent_fields_check",
+    "attendance_entries_lent_check",
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(`drop constraint if exists ${name}`, "i"),
+      `${name} must be dropped`
+    );
+    assert.doesNotMatch(
+      migration,
+      new RegExp(`add constraint ${name}`, "i"),
+      `${name} must not survive`
+    );
+  }
+  assert.match(
+    migration,
+    /add constraint attendance_entries_other_note_check\s+check \(\s*reason <> 'other'\s*or \(note is not null and char_length\(trim\(note\)\) >= 1\)/i,
+    "'other' must still require a note"
+  );
 
   // Old upsert signature dropped; new signature gets revoke+grant.
   assert.match(
@@ -841,11 +872,14 @@ test("attendance entry is an absence; kind and lent columns dropped (ADR-0010, #
     /grant execute on function public\.upsert_attendance_entry\(\s*date, text, uuid, boolean, text, text, text\s*\) to authenticated/i
   );
 
-  // Concurrent day-insert retry must survive the rewrite.
+  // Concurrent day-insert retry must survive the rewrite, inside the upsert.
+  const upsert = attendanceFnBody(migration, "upsert_attendance_entry");
   assert.match(
-    migration,
-    /function public\.upsert_attendance_entry[\s\S]*?on conflict \(company, work_date, shift\) do nothing/i
+    upsert,
+    /on conflict \(company, work_date, shift\) do nothing[\s\S]*?select \* into day/i,
+    "upsert must retry after a concurrent day insert"
   );
+  assert.doesNotMatch(upsert, /\bkind\b|lent_to_company/i);
 });
 
 test("attendance Admin writes are always audited, not only post-lock (ADR-0011, #16)", () => {
@@ -859,21 +893,22 @@ test("attendance Admin writes are always audited, not only post-lock (ADR-0011, 
     "confirm_attendance_shift",
     "reopen_attendance_shift",
   ]) {
+    const body = attendanceFnBody(migration, name);
     assert.match(
-      migration,
-      new RegExp(
-        `function public\\.${name}[\\s\\S]*?if me\\.role = 'admin' then[\\s\\S]*?insert into public\\.attendance_events`,
-        "i"
-      ),
+      body,
+      /if me\.role = 'admin' then\s+insert into public\.attendance_events/i,
       `${name} must audit Admin writes without requiring lock`
     );
     assert.doesNotMatch(
-      migration,
-      new RegExp(
-        `function public\\.${name}[\\s\\S]*?if locked and me\\.role = 'admin' then`,
-        "i"
-      ),
+      body,
+      /if locked and me\.role = 'admin' then/i,
       `${name} must not require lock for Admin audit`
+    );
+    // Supervisors never produce an audit row.
+    assert.doesNotMatch(
+      body,
+      /if me\.role = 'supervisor' then\s+insert into public\.attendance_events/i,
+      `${name} must not audit Supervisor writes`
     );
   }
 });

@@ -80,23 +80,16 @@ export function AbsenceEntryForm({
 
   async function handleSubmit() {
     if (!workerId) return;
-    const validation = validateEntry({
-      informed,
-      reason,
-      note: reason === "other" ? note : note || null,
-    });
+    // The note box only exists for 'other' — never carry it onto another reason.
+    const noteValue = reason === "other" ? note.trim() || null : null;
+    const validation = validateEntry({ informed, reason, note: noteValue });
     if (!validation.ok) {
       setError(userMessageFromError(new Error(validation.error)));
       return;
     }
     if (informed == null || reason == null) return;
     setError(null);
-    await onSubmit({
-      workerId,
-      informed,
-      reason,
-      note: reason === "other" ? note.trim() || null : note.trim() || null,
-    });
+    await onSubmit({ workerId, informed, reason, note: noteValue });
   }
 
   async function handleAddWorker() {
