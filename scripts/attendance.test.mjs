@@ -9,6 +9,7 @@ import {
   ATTENDANCE_LOCK_HOUR_IST,
   buildExportRows,
   canWriteAttendance,
+  defaultReasonForInformed,
   getAttendanceDayActions,
   isAttendanceLocked,
   shiftSubmissionState,
@@ -217,6 +218,34 @@ test("validateEntry: removed kinds are rejected as INVALID_KIND", () => {
       reason: "sick",
     }).error,
     "INVALID_KIND"
+  );
+});
+
+test("defaultReasonForInformed: 'no' pre-picks no_information, never overwrites", () => {
+  // Answering "he did not tell us" fills the reason so the common case is one tap.
+  assert.equal(defaultReasonForInformed(false, null), "no_information");
+  assert.equal(defaultReasonForInformed(false, undefined), "no_information");
+
+  // "Yes" pre-picks nothing — the supervisor still has to say why.
+  assert.equal(defaultReasonForInformed(true, null), null);
+
+  // A reason already chosen survives either answer: Informed is deliberately
+  // separate from the no_information reason, so "sick, did not tell us" holds.
+  assert.equal(defaultReasonForInformed(false, "sick"), "sick");
+  assert.equal(defaultReasonForInformed(true, "sick"), "sick");
+  assert.equal(
+    defaultReasonForInformed(true, "no_information"),
+    "no_information"
+  );
+
+  // Whatever it returns must be submittable.
+  assert.ok(ABSENCE_REASONS.includes(defaultReasonForInformed(false, null)));
+  assert.equal(
+    validateEntry({
+      informed: false,
+      reason: defaultReasonForInformed(false, null),
+    }).ok,
+    true
   );
 });
 

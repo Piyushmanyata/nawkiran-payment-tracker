@@ -242,6 +242,21 @@ export function getAttendanceDayActions(
   };
 }
 
+/**
+ * Reason to pre-select once "Did he tell us?" is answered.
+ * No answer means we almost never learn why, so default to `no_information`
+ * and keep the common case one tap. Never overwrites a reason already picked —
+ * "sick, and he did not tell us" stays sayable (Informed is deliberately
+ * separate from the `no_information` reason).
+ */
+export function defaultReasonForInformed(
+  informed: boolean,
+  current: AbsenceReason | null | undefined
+): AbsenceReason | null {
+  if (current) return current;
+  return informed ? null : "no_information";
+}
+
 /** Mirrors attendance_entries check constraints for pre-submit UI validation. */
 export function validateEntry(input: ValidateEntryInput): ValidateEntryResult {
   // Fail closed on removed kinds (weekly_off, lent_out) if a caller still sends them.

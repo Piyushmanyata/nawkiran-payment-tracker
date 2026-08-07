@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { LoadingButton } from "@/components/LoadingButton";
-import { ABSENCE_REASONS, validateEntry } from "@/lib/attendance";
+import {
+  ABSENCE_REASONS,
+  defaultReasonForInformed,
+  validateEntry,
+} from "@/lib/attendance";
 import { REASON_LABELS, addWorker } from "@/lib/attendance-data";
 import { userMessageFromError } from "@/lib/errors";
 import { fieldClass, labelClass } from "@/lib/ui";
@@ -77,6 +81,11 @@ export function AbsenceEntryForm({
         (!q || w.full_name.toLowerCase().includes(q))
     );
   }, [workers, company, search]);
+
+  function answerInformed(value: boolean) {
+    setInformed(value);
+    setReason((current) => defaultReasonForInformed(value, current));
+  }
 
   async function handleSubmit() {
     if (!workerId) return;
@@ -236,7 +245,7 @@ export function AbsenceEntryForm({
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setInformed(true)}
+            onClick={() => answerInformed(true)}
             className={`min-h-11 flex-1 rounded-xl border text-sm font-bold ${
               informed === true
                 ? "border-blue-500 bg-blue-50 text-blue-700"
@@ -247,7 +256,7 @@ export function AbsenceEntryForm({
           </button>
           <button
             type="button"
-            onClick={() => setInformed(false)}
+            onClick={() => answerInformed(false)}
             className={`min-h-11 flex-1 rounded-xl border text-sm font-bold ${
               informed === false
                 ? "border-blue-500 bg-blue-50 text-blue-700"

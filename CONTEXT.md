@@ -104,7 +104,9 @@ _Avoid_: Attendance record, mark, punch, kind, lent out
 **Informed**:
 Whether the Worker told anyone before not coming ("Did he tell us?"). Mandatory
 yes/no on every Attendance Entry. Deliberately kept separate from the
-`no_information` Absence Reason even though they overlap.
+`no_information` Absence Reason even though they overlap: answering **no**
+pre-selects that Reason to save a tap, but it stays overwritable, so "sick, and
+he did not tell us" is still recordable.
 _Avoid_: Notified, excused, approved leave
 
 **Absence Reason**:
