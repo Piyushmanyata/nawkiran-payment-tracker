@@ -94,21 +94,17 @@ zero or more Attendance Entries.
 _Avoid_: Attendance sheet, muster, register
 
 **Attendance Entry**:
-An exception recorded against one Worker on one Attendance Day. Exactly one of two
-kinds — **Absent**, **Lent Out**. Presence is never recorded: a Confirmed Shift with
-no Entries means everybody came. Silence means "not absent", not "present" — a
-rostered day off needs no Entry (ADR-0009).
-_Avoid_: Attendance record, mark, punch
-
-**Absent**:
-An Attendance Entry kind. Carries **Informed** (mandatory yes/no) and an **Absence
-Reason**, plus an optional note.
-_Avoid_: Leave, off, missing, weekly_off
+An absence recorded against one Worker on one Attendance Day. Carries **Informed**
+(told-us, mandatory yes/no), an **Absence Reason**, and an optional note. Presence
+is never recorded: a Shift marked done with no Entries means everybody came.
+Silence means "not absent", not "present" — a rostered day off needs no Entry, and
+a sister-company loan needs no Entry either (ADR-0009, ADR-0010).
+_Avoid_: Attendance record, mark, punch, kind, lent out
 
 **Informed**:
-Whether the Worker told anyone before not coming. Mandatory yes/no on every Absent
-Entry. Deliberately kept separate from the `no_information` Absence Reason even
-though they overlap.
+Whether the Worker told anyone before not coming ("Did he tell us?"). Mandatory
+yes/no on every Attendance Entry. Deliberately kept separate from the
+`no_information` Absence Reason even though they overlap.
 _Avoid_: Notified, excused, approved leave
 
 **Absence Reason**:
@@ -116,35 +112,28 @@ A fixed chip from `sick`, `family`, `village`, `festival`, `no_information`,
 `other`. Never free text; `other` requires a note. Fixed so the Director can count.
 _Avoid_: Remarks, comments, cause
 
-**Lent Out**:
-An Attendance Entry kind recording that a Worker spent the Shift at the *other*
-Company because of a labour shortage. Logged by the Worker's **own** Supervisor,
-never the borrowing one. The Worker stays on his home Roster — the loan is an Entry,
-not a Roster change. Neither present-here nor absent.
-_Avoid_: Transfer, deputation, loan, borrowed
-
 **Shift Confirmation**:
-The Supervisor's explicit "this Shift is done" action. The only thing that separates
-*no absences* from *nobody opened the app*. An unconfirmed Attendance Day reads as
-**Not submitted**, never as full attendance.
-_Avoid_: Submit, save, close day
+The Supervisor's explicit "mark shift done" action. The only thing that separates
+*no absences* from *nobody opened the app*. An unfinished Attendance Day reads as
+**Not sent**, never as full attendance.
+_Avoid_: Submit, save, close day, confirm (in product copy)
 
 **Attendance Lock**:
 An Attendance Day for date `D` freezes at **10:00 IST on `D + 1`**, both Shifts, one
 rule. Computed from the date and the current time — never a stored flag, never a
-scheduled job. Before the lock the Supervisor may reopen a Confirmed Shift and edit
-freely. After it, only an Admin may write, and every such write is audited.
+scheduled job. Before the lock the Supervisor may open a finished Shift again and
+edit freely. After it, only an Admin may write.
 _Avoid_: Cutoff time, freeze flag, closed period
 
 **Attendance Event**:
-The audit row written on every post-lock Admin change — actor, timestamp, previous
-value. Surfaced inline in the UI ("edited by Piyush, 12 Aug"). Mirrors
+The audit row written on every Admin attendance write — actor, timestamp, previous
+value — locked or not (ADR-0011). Surfaced inline in the UI as **Changes**. Mirrors
 `payment_events`.
 _Avoid_: Change log, revision, history entry
 
 **Attendance Export**:
 A server-generated `.xlsx` covering one month, both Companies, as a **list of
-exceptions** — one row per Attendance Entry, never a presence grid. Feeds the
+absences** — one row per Attendance Entry, never a presence grid. Feeds the
 hand-kept salary workbooks; it does not replace them. Available to Employees,
 Directors and Admins — never Supervisors.
 _Avoid_: Muster roll, timesheet, salary sheet
@@ -152,15 +141,17 @@ _Avoid_: Muster roll, timesheet, salary sheet
 ## Attendance Rules & Visibility
 
 - **Supervisor**: sees only his own Company's attendance route. Hard-redirected from
-  every other path; no navigation rendered. May create Attendance Entries and confirm
-  Shifts before the Lock, may add a Worker to his Roster, and may read past
-  Attendance Days read-only. May not deactivate Workers, export, or touch payments
-  and to-dos.
-- **Director / Admin**: read every Company's attendance. Summary defaults to
-  **Today** (per Company, per Shift, with Not-submitted called out) with a **Month**
-  tab sorted by absence count descending.
-- **Admin only**: writes after the Attendance Lock, deactivates and renames Workers,
-  provisions and deactivates Employee/Supervisor logins.
+  every other path; no navigation rendered. May record absences and mark Shifts done
+  before the Lock, may add a Worker, and may read past Attendance Days read-only.
+  May not deactivate Workers, export, or touch payments and to-dos.
+- **Director**: reads every Company's attendance, including absence notes. Summary
+  defaults to **Today** (per Company, per Shift, with Not-sent called out) with a
+  **Month** tab sorted by absence count descending (workers with zero absences
+  omitted). Stays read-only.
+- **Admin**: same summary as the Director, plus inline write controls on every
+  company-and-shift card (including after the Lock) and a **Workers** tab to add,
+  rename, change job, deactivate, and reactivate Workers for both Companies. Every
+  Admin write is audited. Provisions staff logins separately.
 - **Employee / accounts**: read the summary and run the Attendance Export. No write
   access to attendance at all.
 - **Push**: none. Attendance is a pull surface; the notification budget stays with

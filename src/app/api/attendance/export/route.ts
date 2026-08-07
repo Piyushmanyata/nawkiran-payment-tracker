@@ -4,7 +4,6 @@ import { createClient } from "@/utils/supabase/server";
 import type {
   AttendanceDay,
   AttendanceEntry,
-  AttendanceKind,
   AbsenceReason,
   Company,
   Shift,
@@ -80,7 +79,7 @@ export async function GET(request: Request) {
       const { data: entryRows, error: entryErr } = await supabase
         .from("attendance_entries")
         .select(
-          "id, attendance_day_id, worker_id, kind, informed, reason, note, lent_to_company, recorded_by, created_at, updated_at"
+          "id, attendance_day_id, worker_id, informed, reason, note, recorded_by, created_at, updated_at"
         )
         .in("attendance_day_id", dayIds)
         .order("id", { ascending: true })
@@ -90,10 +89,15 @@ export async function GET(request: Request) {
       }
       entries.push(
         ...(entryRows ?? []).map((r) => ({
-          ...(r as AttendanceEntry),
-          kind: r.kind as AttendanceKind,
-          reason: (r.reason as AbsenceReason | null) ?? null,
-          lent_to_company: (r.lent_to_company as Company | null) ?? null,
+          id: String(r.id),
+          attendance_day_id: String(r.attendance_day_id),
+          worker_id: String(r.worker_id),
+          informed: Boolean(r.informed),
+          reason: r.reason as AbsenceReason,
+          note: (r.note as string | null) ?? null,
+          recorded_by: String(r.recorded_by),
+          created_at: String(r.created_at ?? ""),
+          updated_at: String(r.updated_at ?? ""),
         }))
       );
       if ((entryRows ?? []).length < ENTRY_PAGE_SIZE) break;
@@ -144,9 +148,8 @@ export async function GET(request: Request) {
     { header: "Date", key: "work_date", width: 12 },
     { header: "Shift", key: "shift", width: 8 },
     { header: "Worker", key: "worker_name", width: 28 },
-    { header: "Designation", key: "designation", width: 18 },
-    { header: "Kind", key: "kind", width: 12 },
-    { header: "Informed", key: "informed", width: 10 },
+    { header: "Job", key: "designation", width: 18 },
+    { header: "Told us", key: "informed", width: 10 },
     { header: "Reason", key: "reason", width: 16 },
     { header: "Note", key: "note", width: 28 },
     { header: "Recorded by", key: "recorded_by_name", width: 18 },
@@ -160,9 +163,7 @@ export async function GET(request: Request) {
       shift: r.shift,
       worker_name: r.worker_name,
       designation: r.designation ?? "",
-      kind: r.kind,
-      informed:
-        r.informed == null ? "" : r.informed ? "yes" : "no",
+      informed: r.informed ? "yes" : "no",
       reason: r.reason ?? "",
       note: r.note ?? "",
       recorded_by_name: r.recorded_by_name ?? "",

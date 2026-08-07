@@ -16,5 +16,5 @@ export default function AttendancePage() {
     return <SupervisorAttendance profile={profile} />;
   }
 
-  return <AttendanceSummary />;
+  return <AttendanceSummary profile={profile} />;
 }

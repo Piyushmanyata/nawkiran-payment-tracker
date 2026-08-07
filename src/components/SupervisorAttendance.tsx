@@ -2,20 +2,17 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AbsenceEntryForm } from "@/components/AbsenceEntryForm";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { LoadingButton } from "@/components/LoadingButton";
 import { PageLoading } from "@/components/PageLoading";
 import {
-  ABSENCE_REASONS,
-  canWriteAttendance,
+  getAttendanceDayActions,
   isAttendanceLocked,
-  validateEntry,
 } from "@/lib/attendance";
 import {
-  KIND_LABELS,
   REASON_LABELS,
-  addWorker,
   confirmAttendanceShift,
   deleteAttendanceEntry,
   fetchAttendanceDays,
@@ -26,12 +23,10 @@ import {
 } from "@/lib/attendance-data";
 import { userMessageFromError } from "@/lib/errors";
 import { todayLocalIso } from "@/lib/format";
-import { fieldClass, labelClass } from "@/lib/ui";
+import { fieldClass } from "@/lib/ui";
 import type {
-  AbsenceReason,
   AttendanceDay,
   AttendanceEntry,
-  AttendanceKind,
   Company,
   Profile,
   Shift,
@@ -43,6 +38,20 @@ const Modal = dynamic(() =>
 );
 
 type Props = { profile: Profile };
+
+/** Next lock instant (10:00 IST on D+1) as a Date, or null if already locked. */
+function msUntilLock(workDate: string, now: Date): number | null {
+  if (isAttendanceLocked(workDate, now)) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(workDate.trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  // Lock at 10:00 IST on D+1 = 04:30 UTC on D+1.
+  const lockUtc = Date.UTC(y, mo - 1, d + 1, 4, 30, 0);
+  const ms = lockUtc - now.getTime();
+  return ms > 0 ? ms : 0;
+}
 
 export function SupervisorAttendance({ profile }: Props) {
   const company = profile.company as Company | null;
@@ -56,33 +65,33 @@ export function SupervisorAttendance({ profile }: Props) {
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const loadSequence = useRef(0);
+  const workersLoadedFor = useRef<Company | null>(null);
 
   const [markOpen, setMarkOpen] = useState(false);
-  const [addWorkerOpen, setAddWorkerOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [kind, setKind] = useState<AttendanceKind>("absent");
-  const [workerId, setWorkerId] = useState<string | null>(null);
-  const [informed, setInformed] = useState<boolean | null>(null);
-  const [reason, setReason] = useState<AbsenceReason | null>(null);
-  const [note, setNote] = useState("");
-  const [newName, setNewName] = useState("");
-  const [newDesig, setNewDesig] = useState("");
+  const [editEntry, setEditEntry] = useState<AttendanceEntry | null>(null);
 
-  const writable =
-    company != null &&
-    canWriteAttendance(
+  const actions = useMemo(() => {
+    if (!company) {
+      return getAttendanceDayActions(null, null, {
+        company: "NKPL",
+        workDate,
+      }, null, now);
+    }
+    return getAttendanceDayActions(
       "supervisor",
+      profile,
       { company, workDate },
-      profile
+      day,
+      now
     );
-  const locked = isAttendanceLocked(workDate, now);
-  const confirmed = Boolean(day?.confirmed_at || day?.confirmed_by);
+  }, [company, profile, workDate, day, now]);
+
   const recordedIds = useMemo(
     () => new Set(entries.map((e) => e.worker_id)),
     [entries]
   );
 
-  const load = useCallback(async () => {
+  const loadDay = useCallback(async () => {
     const sequence = ++loadSequence.current;
     try {
       if (!company) {
@@ -90,16 +99,21 @@ export function SupervisorAttendance({ profile }: Props) {
           "Your account has no company. Ask an admin to set it."
         );
       }
-      const [roster, days] = await Promise.all([
-        fetchWorkers(company),
-        fetchAttendanceDays({ workDate, company }),
-      ]);
+      // Workers depend only on company — do not re-fetch on date/shift flip.
+      if (workersLoadedFor.current !== company) {
+        const roster = await fetchWorkers(company);
+        if (sequence !== loadSequence.current) return;
+        setWorkers(roster);
+        workersLoadedFor.current = company;
+      }
+
+      const days = await fetchAttendanceDays({ workDate, company });
+      if (sequence !== loadSequence.current) return;
       const match = days.find((d) => d.shift === shift) ?? null;
       const nextEntries = match
         ? await fetchAttendanceEntries([match.id])
         : [];
       if (sequence !== loadSequence.current) return;
-      setWorkers(roster);
       setDay(match);
       setEntries(nextEntries);
       setError(null);
@@ -111,38 +125,29 @@ export function SupervisorAttendance({ profile }: Props) {
   }, [company, workDate, shift]);
 
   useEffect(() => {
-    // Defer so the effect body never sets state inline (house pattern).
-    const kick = window.setTimeout(() => void load(), 0);
-    const onFocus = () => void load();
+    const kick = window.setTimeout(() => void loadDay(), 0);
+    const onFocus = () => void loadDay();
     window.addEventListener("focus", onFocus);
     return () => {
       window.clearTimeout(kick);
       window.removeEventListener("focus", onFocus);
     };
-  }, [load]);
+  }, [loadDay]);
 
+  // Fire once at the lock instant instead of a 30s re-render timer.
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const filteredWorkers = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return workers.filter(
-      (w) => !q || w.full_name.toLowerCase().includes(q)
-    );
-  }, [workers, search]);
+    const delay = msUntilLock(workDate, new Date());
+    const ms = delay == null ? 0 : delay + 50;
+    const timer = window.setTimeout(() => setNow(new Date()), ms);
+    return () => window.clearTimeout(timer);
+  }, [workDate]);
 
   async function onConfirm() {
-    if (!company || !writable) return;
+    if (!company || !actions.showMarkDone) return;
     setBusy(true);
     setError(null);
     try {
-      const d = await confirmAttendanceShift({
-        workDate,
-        shift,
-        company,
-      });
+      const d = await confirmAttendanceShift({ workDate, shift, company });
       setDay(d);
     } catch (err) {
       setError(userMessageFromError(err));
@@ -152,7 +157,7 @@ export function SupervisorAttendance({ profile }: Props) {
   }
 
   async function onReopen() {
-    if (!company || !writable) return;
+    if (!company || !actions.showOpenAgain) return;
     setBusy(true);
     setError(null);
     try {
@@ -166,12 +171,12 @@ export function SupervisorAttendance({ profile }: Props) {
   }
 
   async function onDelete(entryId: string) {
-    if (!writable || confirmed) return;
+    if (!actions.showRemove) return;
     setBusy(true);
     setError(null);
     try {
       await deleteAttendanceEntry(entryId);
-      await load();
+      await loadDay();
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
@@ -179,77 +184,33 @@ export function SupervisorAttendance({ profile }: Props) {
     }
   }
 
-  async function onSaveEntry() {
-    if (!company || !workerId || !writable || confirmed) return;
-    const otherCompany: Company = company === "NKPL" ? "APTUS" : "NKPL";
-    const validation = validateEntry({
-      kind,
-      company,
-      informed: kind === "absent" ? informed : null,
-      reason: kind === "absent" ? reason : null,
-      note: kind === "absent" && reason === "other" ? note : null,
-      lent_to_company: kind === "lent_out" ? otherCompany : null,
-    });
-    if (!validation.ok) {
-      setError(validation.error);
-      return;
-    }
+  async function onSaveAbsence(value: {
+    workerId: string;
+    informed: boolean;
+    reason: import("@/types/database").AbsenceReason;
+    note: string | null;
+  }) {
+    if (!company) return;
     setBusy(true);
     setError(null);
     try {
       await upsertAttendanceEntry({
         workDate,
         shift,
-        workerId,
-        kind,
-        informed: kind === "absent" ? informed : null,
-        reason: kind === "absent" ? reason : null,
-        note:
-          kind === "absent" && reason === "other" ? note.trim() || null : null,
-        lentToCompany: kind === "lent_out" ? otherCompany : null,
+        workerId: value.workerId,
+        informed: value.informed,
+        reason: value.reason,
+        note: value.note,
         company,
       });
       setMarkOpen(false);
-      resetMarkForm();
-      await load();
+      setEditEntry(null);
+      await loadDay();
     } catch (err) {
       setError(userMessageFromError(err));
     } finally {
       setBusy(false);
     }
-  }
-
-  async function onAddWorker() {
-    const name = newName.trim();
-    if (!name) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const w = await addWorker({
-        fullName: name,
-        designation: newDesig.trim() || null,
-      });
-      setWorkers((prev) =>
-        [...prev, w].sort((a, b) => a.full_name.localeCompare(b.full_name))
-      );
-      setWorkerId(w.id);
-      setAddWorkerOpen(false);
-      setNewName("");
-      setNewDesig("");
-    } catch (err) {
-      setError(userMessageFromError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function resetMarkForm() {
-    setSearch("");
-    setKind("absent");
-    setWorkerId(null);
-    setInformed(null);
-    setReason(null);
-    setNote("");
   }
 
   if (!company) {
@@ -266,7 +227,7 @@ export function SupervisorAttendance({ profile }: Props) {
         <div>
           <h1 className="text-xl font-extrabold text-slate-900">Attendance</h1>
           <p className="text-sm font-medium text-slate-500">
-            {company} · exception log
+            {company} · who did not come
           </p>
         </div>
         <label className="block">
@@ -280,11 +241,11 @@ export function SupervisorAttendance({ profile }: Props) {
         </label>
       </div>
 
-      {error ? <ErrorBanner message={error} onRetry={() => void load()} /> : null}
+      {error ? <ErrorBanner message={error} onRetry={() => void loadDay()} /> : null}
 
-      {locked ? (
+      {actions.isLocked ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
-          This day is locked (after 10:00 IST next day). Only an admin can edit.
+          This day is closed. Only the admin can change it now.
         </div>
       ) : null}
 
@@ -305,25 +266,27 @@ export function SupervisorAttendance({ profile }: Props) {
         ))}
       </div>
 
-      {confirmed ? (
+      {actions.isDone ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
-          Shift confirmed
-          {entries.length === 0 ? " — everyone present" : ` — ${entries.length} exception(s)`}
+          Marked done
+          {entries.length === 0
+            ? " — everyone came"
+            : ` — ${entries.length} absent`}
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600">
-          Not submitted yet
+          Not sent yet
         </div>
       )}
 
       <section className="space-y-2">
-        <h2 className="text-sm font-bold text-slate-700">Exceptions</h2>
+        <h2 className="text-sm font-bold text-slate-700">Absent today</h2>
         {entries.length === 0 ? (
           <EmptyState
             text={
-              confirmed
-                ? "Confirmed with no exceptions — everyone came."
-                : "No exceptions yet. Mark absences or lent-out workers."
+              actions.isDone
+                ? "Marked done — everyone came"
+                : "Nobody absent yet"
             }
           />
         ) : (
@@ -338,33 +301,35 @@ export function SupervisorAttendance({ profile }: Props) {
                     {e.worker_name ?? "Worker"}
                   </p>
                   <p className="text-xs font-medium text-slate-500">
-                    {KIND_LABELS[e.kind]}
-                    {e.kind === "absent" && e.reason
-                      ? ` · ${REASON_LABELS[e.reason]}`
-                      : ""}
-                    {e.kind === "absent"
-                      ? e.informed
-                        ? " · Informed"
-                        : " · Did not inform"
-                      : ""}
-                    {e.kind === "lent_out" && e.lent_to_company
-                      ? ` → ${e.lent_to_company}`
-                      : ""}
+                    {REASON_LABELS[e.reason]}
+                    {e.informed ? " · Told us" : " · Did not tell"}
                   </p>
                   {e.note ? (
                     <p className="mt-0.5 text-xs text-slate-600">{e.note}</p>
                   ) : null}
                 </div>
-                {writable && !confirmed ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void onDelete(e.id)}
-                    className="shrink-0 text-xs font-bold text-rose-600"
-                  >
-                    Remove
-                  </button>
-                ) : null}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {actions.showEdit ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setEditEntry(e)}
+                      className="text-xs font-bold text-blue-600"
+                    >
+                      Edit
+                    </button>
+                  ) : null}
+                  {actions.showRemove ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void onDelete(e.id)}
+                      className="text-xs font-bold text-rose-600"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>
@@ -372,233 +337,71 @@ export function SupervisorAttendance({ profile }: Props) {
       </section>
 
       <div className="flex flex-col gap-2 pt-1">
-        {writable && !confirmed ? (
+        {actions.showAdd ? (
           <LoadingButton
             type="button"
             loading={busy}
             onClick={() => {
-              resetMarkForm();
+              setEditEntry(null);
               setMarkOpen(true);
             }}
           >
-            + Mark exception
+            + Add absent worker
           </LoadingButton>
         ) : null}
-        {writable && !confirmed ? (
+        {actions.showMarkDone ? (
           <LoadingButton
             type="button"
             variant="secondary"
             loading={busy}
             onClick={() => void onConfirm()}
           >
-            Confirm shift
+            Mark shift done
           </LoadingButton>
         ) : null}
-        {writable && confirmed ? (
+        {actions.showOpenAgain ? (
           <LoadingButton
             type="button"
             variant="secondary"
             loading={busy}
             onClick={() => void onReopen()}
           >
-            Reopen shift
+            Open again to edit
           </LoadingButton>
         ) : null}
       </div>
 
       <Modal
-        open={markOpen}
-        titleId="mark-exception"
-        title="Mark exception"
-        onClose={() => !busy && setMarkOpen(false)}
+        open={markOpen || editEntry != null}
+        titleId="add-absent-worker"
+        title={editEntry ? "Edit absence" : "Add absent worker"}
+        onClose={() => {
+          if (busy) return;
+          setMarkOpen(false);
+          setEditEntry(null);
+        }}
       >
-        <div className="space-y-4">
-          <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
-            {(Object.keys(KIND_LABELS) as AttendanceKind[]).map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setKind(k)}
-                className={`min-h-10 flex-1 rounded-lg text-xs font-bold transition ${
-                  kind === k ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
-                }`}
-              >
-                {KIND_LABELS[k]}
-              </button>
-            ))}
-          </div>
-
-          <div>
-            <label className={labelClass} htmlFor="worker-search">
-              Worker
-            </label>
-            <input
-              id="worker-search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search roster…"
-              className={fieldClass}
-            />
-            <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">
-              {filteredWorkers.map((w) => {
-                const taken = recordedIds.has(w.id);
-                return (
-                  <li key={w.id}>
-                    <button
-                      type="button"
-                      disabled={taken}
-                      onClick={() => setWorkerId(w.id)}
-                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-semibold ${
-                        workerId === w.id
-                          ? "bg-blue-50 text-blue-700"
-                          : taken
-                            ? "text-slate-400"
-                            : "text-slate-800 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span>{w.full_name}</span>
-                      {taken ? (
-                        <span className="text-xs">Recorded</span>
-                      ) : null}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            <button
-              type="button"
-              className="mt-2 text-xs font-bold text-blue-600"
-              onClick={() => setAddWorkerOpen(true)}
-            >
-              + Add worker to roster
-            </button>
-          </div>
-
-          {kind === "absent" ? (
-            <>
-              <div>
-                <p className={labelClass}>Informed?</p>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setInformed(true)}
-                    className={`min-h-11 flex-1 rounded-xl border text-sm font-bold ${
-                      informed === true
-                        ? "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-slate-200 text-slate-700"
-                    }`}
-                  >
-                    Yes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInformed(false)}
-                    className={`min-h-11 flex-1 rounded-xl border text-sm font-bold ${
-                      informed === false
-                        ? "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-slate-200 text-slate-700"
-                    }`}
-                  >
-                    No
-                  </button>
-                </div>
-              </div>
-              <div>
-                <p className={labelClass}>Reason</p>
-                <div className="flex flex-wrap gap-2">
-                  {ABSENCE_REASONS.map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setReason(r)}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
-                        reason === r
-                          ? "border-blue-500 bg-blue-50 text-blue-700"
-                          : "border-slate-200 text-slate-700"
-                      }`}
-                    >
-                      {REASON_LABELS[r]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {reason === "other" ? (
-                <div>
-                  <label className={labelClass} htmlFor="note">
-                    Note
-                  </label>
-                  <input
-                    id="note"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    maxLength={200}
-                    className={fieldClass}
-                    placeholder="Short explanation"
-                  />
-                </div>
-              ) : null}
-            </>
-          ) : null}
-
-          {kind === "lent_out" ? (
-            <p className="text-sm text-slate-600">
-              Worker works at{" "}
-              <strong>{company === "NKPL" ? "APTUS" : "NKPL"}</strong> today.
-            </p>
-          ) : null}
-
-          <LoadingButton
-            type="button"
-            loading={busy}
-            disabled={!workerId}
-            onClick={() => void onSaveEntry()}
-            className="w-full"
-          >
-            Save
-          </LoadingButton>
-        </div>
-      </Modal>
-
-      <Modal
-        open={addWorkerOpen}
-        titleId="add-worker"
-        title="Add worker"
-        onClose={() => !busy && setAddWorkerOpen(false)}
-      >
-        <div className="space-y-3">
-          <div>
-            <label className={labelClass} htmlFor="new-name">
-              Full name
-            </label>
-            <input
-              id="new-name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className={fieldClass}
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="new-desig">
-              Designation (optional)
-            </label>
-            <input
-              id="new-desig"
-              value={newDesig}
-              onChange={(e) => setNewDesig(e.target.value)}
-              className={fieldClass}
-            />
-          </div>
-          <LoadingButton
-            type="button"
-            loading={busy}
-            disabled={!newName.trim()}
-            onClick={() => void onAddWorker()}
-            className="w-full"
-          >
-            Add
-          </LoadingButton>
-        </div>
+        <AbsenceEntryForm
+          key={editEntry?.id ?? "new"}
+          company={company}
+          workers={workers}
+          recordedWorkerIds={
+            editEntry
+              ? new Set(
+                  [...recordedIds].filter((id) => id !== editEntry.worker_id)
+                )
+              : recordedIds
+          }
+          initial={editEntry}
+          busy={busy}
+          allowAddWorker
+          onWorkersChange={setWorkers}
+          onSubmit={onSaveAbsence}
+          onCancel={() => {
+            setMarkOpen(false);
+            setEditEntry(null);
+          }}
+        />
       </Modal>
     </div>
   );

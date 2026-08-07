@@ -44,9 +44,6 @@ export interface Profile {
 /** Day Shift or Night Shift — not A/B. */
 export type Shift = "day" | "night";
 
-/** Exception kinds only — presence is never recorded. */
-export type AttendanceKind = "absent" | "lent_out";
-
 export type AbsenceReason =
   | "sick"
   | "family"
@@ -77,15 +74,14 @@ export interface AttendanceDay {
   updated_at: string;
 }
 
+/** An absence on one Attendance Day. Presence is never recorded (ADR-0010). */
 export interface AttendanceEntry {
   id: string;
   attendance_day_id: string;
   worker_id: string;
-  kind: AttendanceKind;
-  informed: boolean | null;
-  reason: AbsenceReason | null;
+  informed: boolean;
+  reason: AbsenceReason;
   note: string | null;
-  lent_to_company: Company | null;
   recorded_by: string;
   created_at: string;
   updated_at: string;

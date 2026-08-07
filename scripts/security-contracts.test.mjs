@@ -805,6 +805,79 @@ test("attendance kinds are absent + lent_out only; weekly_off is rejected (ADR-0
   );
 });
 
+test("attendance entry is an absence; kind and lent columns dropped (ADR-0010, #16)", () => {
+  const migration = sql["20260807120000_attendance_entry_is_absence.sql"];
+  assert.ok(migration, "attendance_entry_is_absence migration missing");
+
+  // Defensive scrub of non-absent rows, then drop kind + lent columns.
+  assert.match(
+    migration,
+    /delete from public\.attendance_entries where kind is distinct from 'absent'/i
+  );
+  assert.match(migration, /drop column if exists kind/i);
+  assert.match(migration, /drop column if exists lent_to_company/i);
+  assert.match(
+    migration,
+    /alter column informed set not null/i
+  );
+  assert.match(migration, /alter column reason set not null/i);
+  assert.match(migration, /attendance_entries_other_note_check/i);
+
+  // Old upsert signature dropped; new signature gets revoke+grant.
+  assert.match(
+    migration,
+    /drop function if exists public\.upsert_attendance_entry\(\s*date, text, uuid, text, boolean, text, text, text, text\s*\)/i
+  );
+  assert.match(
+    migration,
+    /create or replace function public\.upsert_attendance_entry\(\s*p_work_date date,\s*p_shift text,\s*p_worker_id uuid,\s*p_informed boolean,\s*p_reason text/i
+  );
+  assert.match(
+    migration,
+    /revoke all on function public\.upsert_attendance_entry\(\s*date, text, uuid, boolean, text, text, text\s*\) from public, anon/i
+  );
+  assert.match(
+    migration,
+    /grant execute on function public\.upsert_attendance_entry\(\s*date, text, uuid, boolean, text, text, text\s*\) to authenticated/i
+  );
+
+  // Concurrent day-insert retry must survive the rewrite.
+  assert.match(
+    migration,
+    /function public\.upsert_attendance_entry[\s\S]*?on conflict \(company, work_date, shift\) do nothing/i
+  );
+});
+
+test("attendance Admin writes are always audited, not only post-lock (ADR-0011, #16)", () => {
+  const migration = sql["20260807120000_attendance_entry_is_absence.sql"];
+  assert.ok(migration, "attendance_entry_is_absence migration missing");
+
+  // Four audit-writing RPCs: condition is Admin only (no locked and).
+  for (const name of [
+    "upsert_attendance_entry",
+    "delete_attendance_entry",
+    "confirm_attendance_shift",
+    "reopen_attendance_shift",
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(
+        `function public\\.${name}[\\s\\S]*?if me\\.role = 'admin' then[\\s\\S]*?insert into public\\.attendance_events`,
+        "i"
+      ),
+      `${name} must audit Admin writes without requiring lock`
+    );
+    assert.doesNotMatch(
+      migration,
+      new RegExp(
+        `function public\\.${name}[\\s\\S]*?if locked and me\\.role = 'admin' then`,
+        "i"
+      ),
+      `${name} must not require lock for Admin audit`
+    );
+  }
+});
+
 test("admin provisioning surface is removed; roles stay in Supabase", () => {
   assert.equal(
     existsSync(join(process.cwd(), "src", "app", "admin", "page.tsx")),

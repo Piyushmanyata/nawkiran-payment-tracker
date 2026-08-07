@@ -1,5 +1,5 @@
 /**
- * Pure attendance rules (ADR-0005, ADR-0006).
+ * Pure attendance rules (ADR-0005, ADR-0006, ADR-0010, ADR-0011).
  * Components call this module and render — they never re-implement a rule.
  * Server truth for writes is the RPCs; this mirrors lock + validation + summaries.
  */
@@ -8,7 +8,6 @@ import type {
   AbsenceReason,
   AttendanceDay,
   AttendanceEntry,
-  AttendanceKind,
   Company,
   Profile,
   Shift,
@@ -29,16 +28,20 @@ export const ABSENCE_REASONS: readonly AbsenceReason[] = [
   "other",
 ] as const;
 
-export type ShiftSubmissionState = "not_submitted" | "confirmed_all_present" | "confirmed";
+export type ShiftSubmissionState =
+  | "not_submitted"
+  | "confirmed_all_present"
+  | "confirmed";
 
 export type ValidateEntryInput = {
-  kind: AttendanceKind;
   informed?: boolean | null;
   reason?: AbsenceReason | string | null;
   note?: string | null;
-  lent_to_company?: Company | string | null;
-  /** Company of the Attendance Day (home company for the Worker). */
-  company: Company;
+  /**
+   * Removed kinds (weekly_off, lent_out) must fail closed if a caller still
+   * sends them. Presence is never recorded.
+   */
+  kind?: string | null;
 };
 
 export type ValidateEntryResult =
@@ -53,7 +56,6 @@ export type DayShiftSummary = {
   absenceCount: number;
   informedCount: number;
   uninformedCount: number;
-  lentOutCount: number;
   entries: AttendanceEntry[];
 };
 
@@ -65,7 +67,6 @@ export type MonthWorkerSummary = {
   absenceCount: number;
   informedCount: number;
   uninformedCount: number;
-  lentOutCount: number;
 };
 
 export type ExportRow = {
@@ -74,12 +75,21 @@ export type ExportRow = {
   shift: Shift;
   worker_name: string;
   designation: string | null;
-  kind: AttendanceKind;
-  informed: boolean | null;
-  reason: AbsenceReason | null;
+  informed: boolean;
+  reason: AbsenceReason;
   note: string | null;
-  lent_to_company: Company | null;
   recorded_by_name: string | null;
+};
+
+/** Card control booleans — pure module decides, UI only renders (issue #16). */
+export type AttendanceDayActions = {
+  showAdd: boolean;
+  showEdit: boolean;
+  showRemove: boolean;
+  showMarkDone: boolean;
+  showOpenAgain: boolean;
+  isLocked: boolean;
+  isDone: boolean;
 };
 
 function partsInIst(now: Date) {
@@ -129,7 +139,10 @@ function nextCalendarDay(y: number, m: number, d: number) {
  * An Attendance Day for D locks at 10:00 IST on D+1.
  * Pass `now` in tests — never read the wall clock from callers under test.
  */
-export function isAttendanceLocked(workDate: string, now: Date = new Date()): boolean {
+export function isAttendanceLocked(
+  workDate: string,
+  now: Date = new Date()
+): boolean {
   const work = parseWorkDate(workDate);
   const lockDay = nextCalendarDay(work.y, work.m, work.d);
   const ist = partsInIst(now);
@@ -163,49 +176,94 @@ export function canWriteAttendance(
   return !isAttendanceLocked(target.workDate, now);
 }
 
+/**
+ * Which controls a company-and-shift card should show.
+ * Mirrors getPaymentActions: pure booleans in, booleans out.
+ */
+export function getAttendanceDayActions(
+  role: UserRole | null | undefined,
+  profile: Pick<Profile, "role" | "company"> | null | undefined,
+  target: { company: Company; workDate: string },
+  day: Pick<AttendanceDay, "confirmed_at" | "confirmed_by"> | null | undefined,
+  now: Date = new Date()
+): AttendanceDayActions {
+  const isLocked = isAttendanceLocked(target.workDate, now);
+  const isDone = Boolean(day?.confirmed_at || day?.confirmed_by);
+  const none: AttendanceDayActions = {
+    showAdd: false,
+    showEdit: false,
+    showRemove: false,
+    showMarkDone: false,
+    showOpenAgain: false,
+    isLocked,
+    isDone,
+  };
+
+  if (!role || !profile) return none;
+
+  if (role === "admin") {
+    return {
+      showAdd: true,
+      showEdit: true,
+      showRemove: true,
+      showMarkDone: !isDone,
+      showOpenAgain: isDone,
+      isLocked,
+      isDone,
+    };
+  }
+
+  if (role !== "supervisor") return none;
+  if (profile.company == null || profile.company !== target.company) {
+    return none;
+  }
+  if (isLocked) return none;
+
+  if (isDone) {
+    return {
+      showAdd: false,
+      showEdit: false,
+      showRemove: false,
+      showMarkDone: false,
+      showOpenAgain: true,
+      isLocked,
+      isDone,
+    };
+  }
+
+  return {
+    showAdd: true,
+    showEdit: true,
+    showRemove: true,
+    showMarkDone: true,
+    showOpenAgain: false,
+    isLocked,
+    isDone,
+  };
+}
+
 /** Mirrors attendance_entries check constraints for pre-submit UI validation. */
 export function validateEntry(input: ValidateEntryInput): ValidateEntryResult {
-  const { kind, company } = input;
-
-  if (kind === "absent") {
-    if (input.informed == null) {
-      return { ok: false, error: "INVALID_INFORMED" };
-    }
-    const reason = (input.reason ?? null) as AbsenceReason | null;
-    if (!reason || !ABSENCE_REASONS.includes(reason)) {
-      return { ok: false, error: "INVALID_REASON" };
-    }
-    const note = input.note == null ? null : String(input.note).trim();
-    if (reason === "other" && (!note || note.length < 1)) {
-      return { ok: false, error: "INVALID_NOTE" };
-    }
-    if (note && note.length > 200) {
-      return { ok: false, error: "INVALID_NOTE" };
-    }
-    if (input.lent_to_company != null && String(input.lent_to_company).trim() !== "") {
-      return { ok: false, error: "INVALID_LENT_TO" };
-    }
-    return { ok: true };
+  // Fail closed on removed kinds (weekly_off, lent_out) if a caller still sends them.
+  if (input.kind != null && String(input.kind).trim() !== "" && input.kind !== "absent") {
+    return { ok: false, error: "INVALID_KIND" };
   }
 
-  if (kind === "lent_out") {
-    if (input.informed != null) {
-      return { ok: false, error: "INVALID_INFORMED" };
-    }
-    if (input.reason != null && String(input.reason).trim() !== "") {
-      return { ok: false, error: "INVALID_REASON" };
-    }
-    const lent = String(input.lent_to_company ?? "").trim().toUpperCase();
-    if (lent !== "NKPL" && lent !== "APTUS") {
-      return { ok: false, error: "INVALID_LENT_TO" };
-    }
-    if (lent === company) {
-      return { ok: false, error: "LENT_TO_SAME_COMPANY" };
-    }
-    return { ok: true };
+  if (input.informed == null) {
+    return { ok: false, error: "INVALID_INFORMED" };
   }
-
-  return { ok: false, error: "INVALID_KIND" };
+  const reason = (input.reason ?? null) as AbsenceReason | null;
+  if (!reason || !ABSENCE_REASONS.includes(reason)) {
+    return { ok: false, error: "INVALID_REASON" };
+  }
+  const note = input.note == null ? null : String(input.note).trim();
+  if (reason === "other" && (!note || note.length < 1)) {
+    return { ok: false, error: "INVALID_NOTE" };
+  }
+  if (note && note.length > 200) {
+    return { ok: false, error: "INVALID_NOTE" };
+  }
+  return { ok: true };
 }
 
 /**
@@ -224,26 +282,16 @@ export function shiftSubmissionState(
   return "confirmed";
 }
 
-function countKinds(entries: readonly AttendanceEntry[]) {
+function countAbsences(entries: readonly AttendanceEntry[]) {
   let absenceCount = 0;
   let informedCount = 0;
   let uninformedCount = 0;
-  let lentOutCount = 0;
   for (const e of entries) {
-    if (e.kind === "absent") {
-      absenceCount += 1;
-      if (e.informed === true) informedCount += 1;
-      else uninformedCount += 1;
-    } else if (e.kind === "lent_out") {
-      lentOutCount += 1;
-    }
+    absenceCount += 1;
+    if (e.informed === true) informedCount += 1;
+    else uninformedCount += 1;
   }
-  return {
-    absenceCount,
-    informedCount,
-    uninformedCount,
-    lentOutCount,
-  };
+  return { absenceCount, informedCount, uninformedCount };
 }
 
 export function summariseDay(input: {
@@ -253,7 +301,7 @@ export function summariseDay(input: {
   day: AttendanceDay | null | undefined;
   entries: readonly AttendanceEntry[];
 }): DayShiftSummary {
-  const counts = countKinds(input.entries);
+  const counts = countAbsences(input.entries);
   return {
     company: input.company,
     workDate: input.workDate,
@@ -265,38 +313,19 @@ export function summariseDay(input: {
 }
 
 /**
- * Month ranking: absence count descending, stable name tie-break.
- * Lent Out counted separately from absences.
+ * Month ranking from absences only: count descending, stable name tie-break.
+ * Workers with zero absences produce no row.
  */
 export function summariseMonth(input: {
   days: readonly Pick<AttendanceDay, "id" | "company">[];
   entries: readonly AttendanceEntry[];
-  workers: readonly Pick<
-    Worker,
-    "id" | "full_name" | "designation" | "company"
-  >[];
 }): MonthWorkerSummary[] {
   const dayById = new Map(input.days.map((day) => [day.id, day.company]));
-  const byId = new Map(
-    input.workers.map((w) => [
-      w.id,
-      {
-        workerId: w.id,
-        workerName: w.full_name,
-        designation: w.designation,
-        company: w.company,
-        absenceCount: 0,
-        informedCount: 0,
-        uninformedCount: 0,
-        lentOutCount: 0,
-      } satisfies MonthWorkerSummary,
-    ])
-  );
+  const byId = new Map<string, MonthWorkerSummary>();
 
   for (const e of input.entries) {
     let row = byId.get(e.worker_id);
     if (!row) {
-      // Deactivated / missing worker still appears for months they worked.
       row = {
         workerId: e.worker_id,
         workerName: e.worker_name?.trim() || "Unknown",
@@ -305,17 +334,12 @@ export function summariseMonth(input: {
         absenceCount: 0,
         informedCount: 0,
         uninformedCount: 0,
-        lentOutCount: 0,
       };
       byId.set(e.worker_id, row);
     }
-    if (e.kind === "absent") {
-      row.absenceCount += 1;
-      if (e.informed === true) row.informedCount += 1;
-      else row.uninformedCount += 1;
-    } else if (e.kind === "lent_out") {
-      row.lentOutCount += 1;
-    }
+    row.absenceCount += 1;
+    if (e.informed === true) row.informedCount += 1;
+    else row.uninformedCount += 1;
   }
 
   return [...byId.values()].sort((a, b) => {
@@ -353,18 +377,13 @@ export function buildExportRows(input: {
       company: day.company,
       work_date: day.work_date,
       shift: day.shift,
-      worker_name:
-        worker?.full_name ?? (e.worker_name?.trim() || "Unknown"),
+      worker_name: worker?.full_name ?? (e.worker_name?.trim() || "Unknown"),
       designation: worker?.designation ?? e.worker_designation ?? null,
-      kind: e.kind,
       informed: e.informed,
       reason: e.reason,
       note: e.note,
-      lent_to_company: e.lent_to_company,
       recorded_by_name:
-        input.recorderNames?.get(e.recorded_by) ??
-        e.recorder_name ??
-        null,
+        input.recorderNames?.get(e.recorded_by) ?? e.recorder_name ?? null,
     });
   }
 

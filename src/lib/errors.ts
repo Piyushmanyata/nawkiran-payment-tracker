@@ -36,15 +36,15 @@ const RULES: Array<{ test: (t: string) => boolean; message: string }> = [
   },
   {
     test: (t) => t.includes("confirmed"),
-    message: "This shift is confirmed. Reopen it before editing.",
+    message: "This shift is marked done. Open it again before editing.",
   },
   {
     test: (t) => t.includes("locked"),
-    message: "This attendance day is locked. Ask an admin to correct it.",
+    message: "This day is closed. Only the admin can change it now.",
   },
   {
     test: (t) => t.includes("invalid_informed"),
-    message: "Choose whether the worker informed someone.",
+    message: "Choose whether he told us.",
   },
   {
     test: (t) => t.includes("invalid_reason"),
@@ -55,17 +55,12 @@ const RULES: Array<{ test: (t: string) => boolean; message: string }> = [
     message: "Add a short note for this absence reason.",
   },
   {
-    test: (t) =>
-      t.includes("invalid_lent_to") || t.includes("lent_to_same_company"),
-    message: "Choose the other company for a lent-out worker.",
-  },
-  {
     test: (t) => t.includes("invalid_name"),
     message: "Enter a valid worker name.",
   },
   {
     test: (t) => t.includes("invalid_designation"),
-    message: "Enter a shorter designation.",
+    message: "Enter a shorter job title.",
   },
   {
     test: (t) => t.includes("invalid_party"),

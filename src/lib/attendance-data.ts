@@ -10,7 +10,6 @@ import type {
   AttendanceEntry,
   AttendanceEvent,
   AttendanceEventAction,
-  AttendanceKind,
   Company,
   Shift,
   Worker,
@@ -48,11 +47,9 @@ function asEntry(row: Record<string, unknown>): AttendanceEntry {
     id: String(row.id ?? ""),
     attendance_day_id: String(row.attendance_day_id ?? ""),
     worker_id: String(row.worker_id ?? ""),
-    kind: row.kind as AttendanceKind,
-    informed: (row.informed as boolean | null) ?? null,
-    reason: (row.reason as AbsenceReason | null) ?? null,
+    informed: Boolean(row.informed),
+    reason: row.reason as AbsenceReason,
     note: (row.note as string | null) ?? null,
-    lent_to_company: (row.lent_to_company as Company | null) ?? null,
     recorded_by: String(row.recorded_by ?? ""),
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
@@ -66,6 +63,7 @@ function asEntry(row: Record<string, unknown>): AttendanceEntry {
 }
 
 function asEvent(row: Record<string, unknown>): AttendanceEvent {
+  const profile = row.profiles as Record<string, unknown> | null | undefined;
   return {
     id: Number(row.id ?? 0),
     attendance_day_id: String(row.attendance_day_id ?? ""),
@@ -73,6 +71,9 @@ function asEvent(row: Record<string, unknown>): AttendanceEvent {
     action: row.action as AttendanceEventAction,
     performed_by: String(row.performed_by ?? ""),
     created_at: String(row.created_at ?? ""),
+    actor_name: profile
+      ? String(profile.full_name ?? "")
+      : ((row.actor_name as string | null) ?? null),
   };
 }
 
@@ -90,7 +91,7 @@ export async function fetchWorkers(company?: Company): Promise<Worker[]> {
   return (data ?? []).map((r) => asWorker(r as Record<string, unknown>));
 }
 
-/** All workers including inactive — month summary / export. */
+/** All workers including inactive — Workers tab / export. */
 export async function fetchWorkersAll(company?: Company): Promise<Worker[]> {
   const supabase = getSupabaseBrowserClient();
   let q = supabase
@@ -138,7 +139,7 @@ export async function fetchAttendanceEntries(
     const { data, error } = await supabase
       .from("attendance_entries")
       .select(
-        "id, attendance_day_id, worker_id, kind, informed, reason, note, lent_to_company, recorded_by, created_at, updated_at, workers(full_name, designation)"
+        "id, attendance_day_id, worker_id, informed, reason, note, recorded_by, created_at, updated_at, workers(full_name, designation)"
       )
       .in("attendance_day_id", dayIds)
       .order("id", { ascending: true })
@@ -155,29 +156,42 @@ export async function fetchAttendanceEvents(
 ): Promise<AttendanceEvent[]> {
   if (dayIds.length === 0) return [];
   const supabase = getSupabaseBrowserClient();
+  // Actor name via FK embed — one round trip (issue #16 perf).
   const { data, error } = await supabase
     .from("attendance_events")
-    .select("id, attendance_day_id, entry_id, action, performed_by, created_at")
+    .select(
+      "id, attendance_day_id, entry_id, action, performed_by, created_at, profiles!attendance_events_performed_by_fkey(full_name)"
+    )
     .in("attendance_day_id", dayIds)
     .order("created_at", { ascending: false });
-  if (error) throw error;
-
-  const events = (data ?? []).map((r) => asEvent(r as Record<string, unknown>));
-  const actorIds = [...new Set(events.map((event) => event.performed_by))];
-  if (actorIds.length === 0) return events;
-
-  const { data: profiles, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .in("id", actorIds);
-  if (profileError) throw profileError;
-  const names = new Map(
-    (profiles ?? []).map((profile) => [String(profile.id), String(profile.full_name ?? "")])
-  );
-  return events.map((event) => ({
-    ...event,
-    actor_name: names.get(event.performed_by) ?? null,
-  }));
+  if (error) {
+    // Fallback if embed name differs — still one attempt then profiles batch.
+    const { data: plain, error: plainError } = await supabase
+      .from("attendance_events")
+      .select("id, attendance_day_id, entry_id, action, performed_by, created_at")
+      .in("attendance_day_id", dayIds)
+      .order("created_at", { ascending: false });
+    if (plainError) throw plainError;
+    const events = (plain ?? []).map((r) => asEvent(r as Record<string, unknown>));
+    const actorIds = [...new Set(events.map((event) => event.performed_by))];
+    if (actorIds.length === 0) return events;
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", actorIds);
+    if (profileError) throw profileError;
+    const names = new Map(
+      (profiles ?? []).map((profile) => [
+        String(profile.id),
+        String(profile.full_name ?? ""),
+      ])
+    );
+    return events.map((event) => ({
+      ...event,
+      actor_name: names.get(event.performed_by) ?? null,
+    }));
+  }
+  return (data ?? []).map((r) => asEvent(r as Record<string, unknown>));
 }
 
 function nextMonthStart(yyyyMm: string): string {
@@ -191,11 +205,9 @@ export async function upsertAttendanceEntry(input: {
   workDate: string;
   shift: Shift;
   workerId: string;
-  kind: AttendanceKind;
-  informed?: boolean | null;
-  reason?: AbsenceReason | null;
+  informed: boolean;
+  reason: AbsenceReason;
   note?: string | null;
-  lentToCompany?: Company | null;
   company?: Company | null;
 }): Promise<AttendanceEntry> {
   const supabase = getSupabaseBrowserClient();
@@ -203,11 +215,9 @@ export async function upsertAttendanceEntry(input: {
     p_work_date: input.workDate,
     p_shift: input.shift,
     p_worker_id: input.workerId,
-    p_kind: input.kind,
-    p_informed: input.informed ?? null,
-    p_reason: input.reason ?? null,
+    p_informed: input.informed,
+    p_reason: input.reason,
     p_note: input.note ?? null,
-    p_lent_to_company: input.lentToCompany ?? null,
     p_company: input.company ?? null,
   });
   if (error) throw error;
@@ -292,9 +302,4 @@ export const REASON_LABELS: Record<AbsenceReason, string> = {
   festival: "Marriage/festival",
   no_information: "No information",
   other: "Other",
-};
-
-export const KIND_LABELS: Record<AttendanceKind, string> = {
-  absent: "Absent",
-  lent_out: "Lent out",
 };

@@ -1,5 +1,5 @@
 /**
- * Pure attendance module (issue #13 seam one).
+ * Pure attendance module (issues #13, #16 — seam one).
  * All times are injected — never read the wall clock.
  */
 import assert from "node:assert/strict";
@@ -9,6 +9,7 @@ import {
   ATTENDANCE_LOCK_HOUR_IST,
   buildExportRows,
   canWriteAttendance,
+  getAttendanceDayActions,
   isAttendanceLocked,
   shiftSubmissionState,
   summariseDay,
@@ -144,101 +145,78 @@ test("canWriteAttendance: admin always; supervisor own company pre-lock only", (
   );
 });
 
-test("validateEntry: absent requires informed+reason; lent_out rejects them", () => {
+test("validateEntry: absence requires informed+reason; other needs a note", () => {
   assert.equal(
     validateEntry({
-      kind: "absent",
       informed: true,
       reason: "sick",
-      company: "NKPL",
     }).ok,
     true
   );
   assert.equal(
     validateEntry({
-      kind: "absent",
       informed: null,
       reason: "sick",
-      company: "NKPL",
     }).ok,
     false
   );
   assert.equal(
     validateEntry({
-      kind: "absent",
       informed: true,
       reason: null,
-      company: "NKPL",
     }).ok,
     false
   );
-
   assert.equal(
     validateEntry({
-      kind: "lent_out",
-      lent_to_company: "APTUS",
-      company: "NKPL",
-    }).ok,
-    true
-  );
-  assert.equal(
-    validateEntry({
-      kind: "lent_out",
-      informed: false,
-      lent_to_company: "APTUS",
-      company: "NKPL",
-    }).ok,
-    false
-  );
-});
-
-test("validateEntry: weekly_off is rejected as INVALID_KIND", () => {
-  // Load-bearing: weekly_off was removed (ADR-0009). Must not quietly return.
-  assert.equal(
-    validateEntry({
-      kind: "weekly_off",
-      company: "NKPL",
+      informed: true,
+      reason: "unknown",
     }).error,
-    "INVALID_KIND"
+    "INVALID_REASON"
   );
-});
-
-test("validateEntry: other demands a note; lent_out rejects own company", () => {
   assert.equal(
     validateEntry({
-      kind: "absent",
       informed: true,
       reason: "other",
       note: "flood",
-      company: "NKPL",
     }).ok,
     true
   );
   assert.equal(
     validateEntry({
-      kind: "absent",
       informed: true,
       reason: "other",
       note: "  ",
-      company: "NKPL",
     }).ok,
     false
   );
   assert.equal(
     validateEntry({
-      kind: "lent_out",
-      lent_to_company: "NKPL",
-      company: "NKPL",
+      informed: true,
+      reason: "sick",
+      note: "x".repeat(201),
     }).error,
-    "LENT_TO_SAME_COMPANY"
+    "INVALID_NOTE"
+  );
+});
+
+test("validateEntry: removed kinds are rejected as INVALID_KIND", () => {
+  // Load-bearing: weekly_off (ADR-0009) and lent_out (ADR-0010) must not quietly pass.
+  assert.equal(
+    validateEntry({
+      kind: "weekly_off",
+      informed: true,
+      reason: "sick",
+    }).error,
+    "INVALID_KIND"
   );
   assert.equal(
     validateEntry({
       kind: "lent_out",
-      lent_to_company: "APTUS",
-      company: "APTUS",
+      informed: true,
+      reason: "sick",
     }).error,
-    "LENT_TO_SAME_COMPANY"
+    "INVALID_KIND"
   );
 });
 
@@ -285,17 +263,15 @@ test("confirmed-with-zero-entries vs unconfirmed-with-zero-entries differ", () =
   assert.notEqual(daySummaryOpen.state, daySummaryConfirmed.state);
 });
 
-test("summariseDay splits informed absences and counts lent out", () => {
+test("summariseDay splits told-us from no-word absences", () => {
   const entries = [
     {
       id: "1",
       attendance_day_id: "d",
       worker_id: "w1",
-      kind: "absent",
       informed: true,
       reason: "sick",
       note: null,
-      lent_to_company: null,
       recorded_by: "s",
       created_at: "",
       updated_at: "",
@@ -304,24 +280,9 @@ test("summariseDay splits informed absences and counts lent out", () => {
       id: "2",
       attendance_day_id: "d",
       worker_id: "w2",
-      kind: "absent",
       informed: false,
       reason: "no_information",
       note: null,
-      lent_to_company: null,
-      recorded_by: "s",
-      created_at: "",
-      updated_at: "",
-    },
-    {
-      id: "4",
-      attendance_day_id: "d",
-      worker_id: "w4",
-      kind: "lent_out",
-      informed: null,
-      reason: null,
-      note: null,
-      lent_to_company: "APTUS",
       recorded_by: "s",
       created_at: "",
       updated_at: "",
@@ -348,32 +309,23 @@ test("summariseDay splits informed absences and counts lent out", () => {
   assert.equal(summary.absenceCount, 2);
   assert.equal(summary.informedCount, 1);
   assert.equal(summary.uninformedCount, 1);
-  assert.equal(summary.lentOutCount, 1);
   assert.equal(summary.state, "confirmed");
+  assert.equal("lentOutCount" in summary, false);
 });
 
-test("summariseMonth ranks by absence count desc with stable name tie-break", () => {
-  const workers = [
-    { id: "a", full_name: "Asha", designation: null, company: "NKPL" },
-    { id: "b", full_name: "Bimal", designation: "Operator", company: "NKPL" },
-    { id: "c", full_name: "Chitra", designation: null, company: "NKPL" },
-  ];
+test("summariseMonth ranks by absence count desc; zero-absence workers omitted", () => {
   const entries = [
     // Bimal: 2 absences
-    entry("b", "absent", true),
-    entry("b", "absent", false),
+    entry("b", "Bimal", true),
+    entry("b", "Bimal", false),
     // Asha and Chitra: 1 absence each — Asha before Chitra by name
-    entry("a", "absent", true),
-    entry("c", "absent", false),
-    // Lent out does not affect absence ranking
-    entry("c", "lent_out", null),
-    entry("c", "lent_out", null),
+    entry("a", "Asha", true),
+    entry("c", "Chitra", false),
   ];
 
   const ranked = summariseMonth({
     days: [{ id: "d", company: "NKPL" }],
     entries,
-    workers,
   });
   assert.deepEqual(
     ranked.map((r) => r.workerName),
@@ -382,31 +334,42 @@ test("summariseMonth ranks by absence count desc with stable name tie-break", ()
   assert.equal(ranked[0].absenceCount, 2);
   assert.equal(ranked[1].absenceCount, 1);
   assert.equal(ranked[2].absenceCount, 1);
-  assert.equal(ranked[2].lentOutCount, 2);
   assert.equal(ranked[0].informedCount, 1);
   assert.equal(ranked[0].uninformedCount, 1);
+  assert.equal("lentOutCount" in ranked[0], false);
 
+  // Deactivated / missing worker still named from the absence snapshot.
   const unknownAptus = summariseMonth({
     days: [{ id: "aptus-day", company: "APTUS" }],
-    entries: [{
-      id: "unknown-entry",
-      attendance_day_id: "aptus-day",
-      worker_id: "missing-worker",
-      kind: "absent",
-      informed: true,
-      reason: "sick",
-      note: null,
-      lent_to_company: null,
-      recorded_by: "s",
-      created_at: "",
-      updated_at: "",
-    }],
-    workers: [],
+    entries: [
+      {
+        id: "unknown-entry",
+        attendance_day_id: "aptus-day",
+        worker_id: "missing-worker",
+        informed: true,
+        reason: "sick",
+        note: null,
+        recorded_by: "s",
+        created_at: "",
+        updated_at: "",
+        worker_name: "Former Worker",
+        worker_designation: "Operator",
+      },
+    ],
   });
+  assert.equal(unknownAptus.length, 1);
   assert.equal(unknownAptus[0].company, "APTUS");
+  assert.equal(unknownAptus[0].workerName, "Former Worker");
+  assert.equal(unknownAptus[0].designation, "Operator");
+
+  // Quiet month — no rows.
+  assert.deepEqual(
+    summariseMonth({ days: [{ id: "d", company: "NKPL" }], entries: [] }),
+    []
+  );
 });
 
-test("buildExportRows: one row per entry with agreed columns; includes deactivated workers", () => {
+test("buildExportRows: one row per absence; no kind or lent column", () => {
   const days = [
     {
       id: "d1",
@@ -450,11 +413,9 @@ test("buildExportRows: one row per entry with agreed columns; includes deactivat
       id: "e1",
       attendance_day_id: "d1",
       worker_id: "w1",
-      kind: "absent",
       informed: true,
       reason: "sick",
       note: null,
-      lent_to_company: null,
       recorded_by: "s1",
       created_at: "",
       updated_at: "",
@@ -463,11 +424,9 @@ test("buildExportRows: one row per entry with agreed columns; includes deactivat
       id: "e2",
       attendance_day_id: "d2",
       worker_id: "w2",
-      kind: "lent_out",
-      informed: null,
-      reason: null,
-      note: null,
-      lent_to_company: "NKPL",
+      informed: false,
+      reason: "other",
+      note: "bus strike",
       recorded_by: "s2",
       created_at: "",
       updated_at: "",
@@ -491,32 +450,152 @@ test("buildExportRows: one row per entry with agreed columns; includes deactivat
     shift: "day",
     worker_name: "Ramesh",
     designation: "Worker",
-    kind: "absent",
     informed: true,
     reason: "sick",
     note: null,
-    lent_to_company: null,
     recorded_by_name: "Tapas",
   });
   assert.equal(rows[1].company, "APTUS");
   assert.equal(rows[1].worker_name, "Sita");
-  assert.equal(rows[1].kind, "lent_out");
-  assert.equal(rows[1].lent_to_company, "NKPL");
+  assert.equal(rows[1].informed, false);
+  assert.equal(rows[1].reason, "other");
+  assert.equal(rows[1].note, "bus strike");
   assert.equal(rows[1].recorded_by_name, "Suraj");
+  assert.equal("kind" in rows[0], false);
+  assert.equal("lent_to_company" in rows[0], false);
 });
 
-function entry(workerId, kind, informed) {
+test("getAttendanceDayActions: admin always; supervisor pre-lock own company; others never", () => {
+  const workDate = "2026-08-03";
+  const open = istDate("2026-08-04T09:00:00");
+  const locked = istDate("2026-08-04T11:00:00");
+  const openDay = { confirmed_at: null, confirmed_by: null };
+  const doneDay = {
+    confirmed_at: "2026-08-03T12:00:00Z",
+    confirmed_by: "s1",
+  };
+  const admin = { role: "admin", company: null };
+  const supNkpl = { role: "supervisor", company: "NKPL" };
+  const director = { role: "director", company: null };
+  const employee = { role: "employee", company: null };
+  const target = { company: "NKPL", workDate };
+
+  // Admin: every control on open day, locked day, and done day.
+  const adminOpen = getAttendanceDayActions("admin", admin, target, openDay, open);
+  assert.deepEqual(
+    {
+      showAdd: adminOpen.showAdd,
+      showEdit: adminOpen.showEdit,
+      showRemove: adminOpen.showRemove,
+      showMarkDone: adminOpen.showMarkDone,
+      showOpenAgain: adminOpen.showOpenAgain,
+    },
+    {
+      showAdd: true,
+      showEdit: true,
+      showRemove: true,
+      showMarkDone: true,
+      showOpenAgain: false,
+    }
+  );
+  const adminLocked = getAttendanceDayActions(
+    "admin",
+    admin,
+    target,
+    openDay,
+    locked
+  );
+  assert.equal(adminLocked.showAdd, true);
+  assert.equal(adminLocked.isLocked, true);
+  const adminDone = getAttendanceDayActions(
+    "admin",
+    admin,
+    target,
+    doneDay,
+    locked
+  );
+  assert.equal(adminDone.showAdd, true);
+  assert.equal(adminDone.showEdit, true);
+  assert.equal(adminDone.showRemove, true);
+  assert.equal(adminDone.showMarkDone, false);
+  assert.equal(adminDone.showOpenAgain, true);
+  assert.equal(adminDone.isDone, true);
+
+  // Supervisor: own company before lock.
+  const supOpen = getAttendanceDayActions(
+    "supervisor",
+    supNkpl,
+    target,
+    openDay,
+    open
+  );
+  assert.equal(supOpen.showAdd, true);
+  assert.equal(supOpen.showMarkDone, true);
+  assert.equal(supOpen.showOpenAgain, false);
+
+  // Supervisor: nothing after lock.
+  const supLocked = getAttendanceDayActions(
+    "supervisor",
+    supNkpl,
+    target,
+    openDay,
+    locked
+  );
+  assert.equal(supLocked.showAdd, false);
+  assert.equal(supLocked.showMarkDone, false);
+  assert.equal(supLocked.showOpenAgain, false);
+
+  // Supervisor: done day pre-lock — only open again.
+  const supDone = getAttendanceDayActions(
+    "supervisor",
+    supNkpl,
+    target,
+    doneDay,
+    open
+  );
+  assert.equal(supDone.showAdd, false);
+  assert.equal(supDone.showRemove, false);
+  assert.equal(supDone.showMarkDone, false);
+  assert.equal(supDone.showOpenAgain, true);
+
+  // Supervisor: other company — nothing.
+  const supOther = getAttendanceDayActions(
+    "supervisor",
+    supNkpl,
+    { company: "APTUS", workDate },
+    openDay,
+    open
+  );
+  assert.equal(supOther.showAdd, false);
+  assert.equal(supOther.showOpenAgain, false);
+
+  // Director and employee: nothing, every combination.
+  for (const now of [open, locked]) {
+    for (const day of [openDay, doneDay, null]) {
+      const d = getAttendanceDayActions("director", director, target, day, now);
+      const e = getAttendanceDayActions("employee", employee, target, day, now);
+      assert.equal(d.showAdd, false);
+      assert.equal(d.showMarkDone, false);
+      assert.equal(d.showOpenAgain, false);
+      assert.equal(e.showAdd, false);
+      assert.equal(e.showMarkDone, false);
+      assert.equal(e.showOpenAgain, false);
+    }
+  }
+});
+
+function entry(workerId, workerName, informed) {
   return {
-    id: `${workerId}-${kind}-${Math.random()}`,
+    id: `${workerId}-${Math.random()}`,
     attendance_day_id: "d",
     worker_id: workerId,
-    kind,
     informed,
-    reason: kind === "absent" ? "sick" : null,
+    reason: "sick",
     note: null,
-    lent_to_company: kind === "lent_out" ? "APTUS" : null,
     recorded_by: "s",
     created_at: "",
     updated_at: "",
+    worker_name: workerName,
+    worker_designation: null,
   };
 }
