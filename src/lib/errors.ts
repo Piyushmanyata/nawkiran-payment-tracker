@@ -47,8 +47,10 @@ const RULES: Array<{ test: (t: string) => boolean; message: string }> = [
     message: "Choose whether he told us.",
   },
   {
+    // deny_payment and upsert_attendance_entry both raise a bare INVALID_REASON,
+    // so one message has to serve the denial box and the absence chips alike.
     test: (t) => t.includes("invalid_reason"),
-    message: "Choose an absence reason.",
+    message: "Please provide a reason.",
   },
   {
     test: (t) => t.includes("invalid_note"),
@@ -69,10 +71,6 @@ const RULES: Array<{ test: (t: string) => boolean; message: string }> = [
   {
     test: (t) => t.includes("invalid_amount"),
     message: "Please enter an amount greater than zero.",
-  },
-  {
-    test: (t) => t.includes("invalid_reason"),
-    message: "Please enter a denial reason.",
   },
   {
     test: (t) => t.includes("invalid_payment_mode"),
