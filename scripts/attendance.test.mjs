@@ -9,9 +9,9 @@ import {
   ATTENDANCE_LOCK_HOUR_IST,
   buildExportRows,
   canWriteAttendance,
-  defaultReasonForInformed,
   getAttendanceDayActions,
   isAttendanceLocked,
+  reasonForInformedAnswer,
   shiftSubmissionState,
   summariseDay,
   summariseMonth,
@@ -221,29 +221,28 @@ test("validateEntry: removed kinds are rejected as INVALID_KIND", () => {
   );
 });
 
-test("defaultReasonForInformed: 'no' pre-picks no_information, never overwrites", () => {
-  // Answering "he did not tell us" fills the reason so the common case is one tap.
-  assert.equal(defaultReasonForInformed(false, null), "no_information");
-  assert.equal(defaultReasonForInformed(false, undefined), "no_information");
+test("reasonForInformedAnswer: 'no' always forces no_information", () => {
+  // Answering "he did not tell us" sets the reason, empty or not.
+  assert.equal(reasonForInformedAnswer(false, null), "no_information");
+  assert.equal(reasonForInformedAnswer(false, undefined), "no_information");
+  assert.equal(reasonForInformedAnswer(false, "sick"), "no_information");
+  assert.equal(reasonForInformedAnswer(false, "other"), "no_information");
 
-  // "Yes" pre-picks nothing — the supervisor still has to say why.
-  assert.equal(defaultReasonForInformed(true, null), null);
-
-  // A reason already chosen survives either answer: Informed is deliberately
-  // separate from the no_information reason, so "sick, did not tell us" holds.
-  assert.equal(defaultReasonForInformed(false, "sick"), "sick");
-  assert.equal(defaultReasonForInformed(true, "sick"), "sick");
+  // "Yes" forces nothing: it neither picks a reason nor clears one.
+  assert.equal(reasonForInformedAnswer(true, null), null);
+  assert.equal(reasonForInformedAnswer(true, undefined), null);
+  assert.equal(reasonForInformedAnswer(true, "sick"), "sick");
   assert.equal(
-    defaultReasonForInformed(true, "no_information"),
+    reasonForInformedAnswer(true, "no_information"),
     "no_information"
   );
 
   // Whatever it returns must be submittable.
-  assert.ok(ABSENCE_REASONS.includes(defaultReasonForInformed(false, null)));
+  assert.ok(ABSENCE_REASONS.includes(reasonForInformedAnswer(false, "sick")));
   assert.equal(
     validateEntry({
       informed: false,
-      reason: defaultReasonForInformed(false, null),
+      reason: reasonForInformedAnswer(false, "sick"),
     }).ok,
     true
   );

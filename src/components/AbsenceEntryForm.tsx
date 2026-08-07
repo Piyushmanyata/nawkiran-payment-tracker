@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { LoadingButton } from "@/components/LoadingButton";
 import {
   ABSENCE_REASONS,
-  defaultReasonForInformed,
+  reasonForInformedAnswer,
   validateEntry,
 } from "@/lib/attendance";
 import { REASON_LABELS, addWorker } from "@/lib/attendance-data";
@@ -84,7 +84,7 @@ export function AbsenceEntryForm({
 
   function answerInformed(value: boolean) {
     setInformed(value);
-    setReason((current) => defaultReasonForInformed(value, current));
+    setReason((current) => reasonForInformedAnswer(value, current));
   }
 
   async function handleSubmit() {

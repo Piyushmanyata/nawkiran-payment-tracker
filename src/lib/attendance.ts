@@ -243,18 +243,18 @@ export function getAttendanceDayActions(
 }
 
 /**
- * Reason to pre-select once "Did he tell us?" is answered.
- * No answer means we almost never learn why, so default to `no_information`
- * and keep the common case one tap. Never overwrites a reason already picked —
- * "sick, and he did not tell us" stays sayable (Informed is deliberately
- * separate from the `no_information` reason).
+ * Reason to select once "Did he tell us?" is answered.
+ * **No** always forces `no_information`, overwriting a reason already picked —
+ * no answer means we did not learn why, so the Reason follows the answer.
+ * To record "sick, and he did not tell us", answer No first, then pick Sick.
+ * **Yes** forces nothing and leaves any chosen Reason alone.
  */
-export function defaultReasonForInformed(
+export function reasonForInformedAnswer(
   informed: boolean,
   current: AbsenceReason | null | undefined
 ): AbsenceReason | null {
-  if (current) return current;
-  return informed ? null : "no_information";
+  if (!informed) return "no_information";
+  return current ?? null;
 }
 
 /** Mirrors attendance_entries check constraints for pre-submit UI validation. */
