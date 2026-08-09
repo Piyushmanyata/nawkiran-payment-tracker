@@ -493,7 +493,7 @@ test("buildExportRows: one row per absence; no kind or lent column", () => {
   assert.equal("lent_to_company" in rows[0], false);
 });
 
-test("getAttendanceDayActions: admin always; supervisor pre-lock own company; others never", () => {
+test("getAttendanceDayActions: an absence confirms; everyone-came only on an empty shift (ADR-0012)", () => {
   const workDate = "2026-08-03";
   const open = istDate("2026-08-04T09:00:00");
   const locked = istDate("2026-08-04T11:00:00");
@@ -508,58 +508,109 @@ test("getAttendanceDayActions: admin always; supervisor pre-lock own company; ot
   const employee = { role: "employee", company: null };
   const target = { company: "NKPL", workDate };
 
-  // Admin: every control on open day, locked day, and done day.
-  const adminOpen = getAttendanceDayActions("admin", admin, target, openDay, open);
+  // Admin, empty unconfirmed shift: the everyone-came answer is offered.
+  const adminEmpty = getAttendanceDayActions(
+    "admin",
+    admin,
+    target,
+    openDay,
+    0,
+    open
+  );
   assert.deepEqual(
     {
-      showAdd: adminOpen.showAdd,
-      showEdit: adminOpen.showEdit,
-      showRemove: adminOpen.showRemove,
-      showMarkDone: adminOpen.showMarkDone,
-      showOpenAgain: adminOpen.showOpenAgain,
+      showAdd: adminEmpty.showAdd,
+      showEdit: adminEmpty.showEdit,
+      showRemove: adminEmpty.showRemove,
+      showEveryoneCame: adminEmpty.showEveryoneCame,
+      showOpenAgain: adminEmpty.showOpenAgain,
     },
     {
       showAdd: true,
       showEdit: true,
       showRemove: true,
-      showMarkDone: true,
+      showEveryoneCame: true,
       showOpenAgain: false,
     }
   );
+
+  // Absences recorded: nothing left to answer — the absence confirms the shift.
+  const adminAbsences = getAttendanceDayActions(
+    "admin",
+    admin,
+    target,
+    openDay,
+    2,
+    open
+  );
+  assert.equal(adminAbsences.showAdd, true);
+  assert.equal(adminAbsences.showEveryoneCame, false);
+
   const adminLocked = getAttendanceDayActions(
     "admin",
     admin,
     target,
     openDay,
+    0,
     locked
   );
   assert.equal(adminLocked.showAdd, true);
   assert.equal(adminLocked.isLocked, true);
+
+  // Confirmed: open-again replaces the answer, and edits stay available.
   const adminDone = getAttendanceDayActions(
     "admin",
     admin,
     target,
     doneDay,
+    0,
     locked
   );
   assert.equal(adminDone.showAdd, true);
   assert.equal(adminDone.showEdit, true);
   assert.equal(adminDone.showRemove, true);
-  assert.equal(adminDone.showMarkDone, false);
+  assert.equal(adminDone.showEveryoneCame, false);
   assert.equal(adminDone.showOpenAgain, true);
   assert.equal(adminDone.isDone, true);
 
-  // Supervisor: own company before lock.
-  const supOpen = getAttendanceDayActions(
+  // Supervisor: own company before lock, empty shift.
+  const supEmpty = getAttendanceDayActions(
     "supervisor",
     supNkpl,
     target,
     openDay,
+    0,
     open
   );
-  assert.equal(supOpen.showAdd, true);
-  assert.equal(supOpen.showMarkDone, true);
-  assert.equal(supOpen.showOpenAgain, false);
+  assert.equal(supEmpty.showAdd, true);
+  assert.equal(supEmpty.showEveryoneCame, true);
+  assert.equal(supEmpty.showOpenAgain, false);
+
+  const supAbsences = getAttendanceDayActions(
+    "supervisor",
+    supNkpl,
+    target,
+    openDay,
+    1,
+    open
+  );
+  assert.equal(supAbsences.showEveryoneCame, false);
+
+  // Confirmed shift stays fully editable pre-lock (inverts ADR-0006 §2),
+  // and reopen is Admin-only now.
+  const supDone = getAttendanceDayActions(
+    "supervisor",
+    supNkpl,
+    target,
+    doneDay,
+    1,
+    open
+  );
+  assert.equal(supDone.showAdd, true);
+  assert.equal(supDone.showEdit, true);
+  assert.equal(supDone.showRemove, true);
+  assert.equal(supDone.showEveryoneCame, false);
+  assert.equal(supDone.showOpenAgain, false);
 
   // Supervisor: nothing after lock.
   const supLocked = getAttendanceDayActions(
@@ -567,24 +618,12 @@ test("getAttendanceDayActions: admin always; supervisor pre-lock own company; ot
     supNkpl,
     target,
     openDay,
+    0,
     locked
   );
   assert.equal(supLocked.showAdd, false);
-  assert.equal(supLocked.showMarkDone, false);
+  assert.equal(supLocked.showEveryoneCame, false);
   assert.equal(supLocked.showOpenAgain, false);
-
-  // Supervisor: done day pre-lock — only open again.
-  const supDone = getAttendanceDayActions(
-    "supervisor",
-    supNkpl,
-    target,
-    doneDay,
-    open
-  );
-  assert.equal(supDone.showAdd, false);
-  assert.equal(supDone.showRemove, false);
-  assert.equal(supDone.showMarkDone, false);
-  assert.equal(supDone.showOpenAgain, true);
 
   // Supervisor: other company — nothing.
   const supOther = getAttendanceDayActions(
@@ -592,24 +631,60 @@ test("getAttendanceDayActions: admin always; supervisor pre-lock own company; ot
     supNkpl,
     { company: "APTUS", workDate },
     openDay,
+    0,
     open
   );
   assert.equal(supOther.showAdd, false);
+  assert.equal(supOther.showEveryoneCame, false);
   assert.equal(supOther.showOpenAgain, false);
 
   // Director and employee: nothing, every combination.
   for (const now of [open, locked]) {
     for (const day of [openDay, doneDay, null]) {
-      const d = getAttendanceDayActions("director", director, target, day, now);
-      const e = getAttendanceDayActions("employee", employee, target, day, now);
-      assert.equal(d.showAdd, false);
-      assert.equal(d.showMarkDone, false);
-      assert.equal(d.showOpenAgain, false);
-      assert.equal(e.showAdd, false);
-      assert.equal(e.showMarkDone, false);
-      assert.equal(e.showOpenAgain, false);
+      for (const count of [0, 3]) {
+        const d = getAttendanceDayActions(
+          "director",
+          director,
+          target,
+          day,
+          count,
+          now
+        );
+        const e = getAttendanceDayActions(
+          "employee",
+          employee,
+          target,
+          day,
+          count,
+          now
+        );
+        assert.equal(d.showAdd, false);
+        assert.equal(d.showEveryoneCame, false);
+        assert.equal(d.showOpenAgain, false);
+        assert.equal(e.showAdd, false);
+        assert.equal(e.showEveryoneCame, false);
+        assert.equal(e.showOpenAgain, false);
+      }
     }
   }
+});
+
+test("shiftSubmissionState: three states survive the button removal (ADR-0012)", () => {
+  const doneDay = { confirmed_at: "2026-08-03T12:00:00Z", confirmed_by: "s1" };
+  const openDay = { confirmed_at: null, confirmed_by: null };
+
+  // Silence is still never read as full attendance.
+  assert.equal(shiftSubmissionState(openDay, []), "not_submitted");
+  assert.equal(shiftSubmissionState(null, []), "not_submitted");
+
+  // Answering "everyone came" is what separates the two.
+  assert.equal(shiftSubmissionState(doneDay, []), "confirmed_all_present");
+
+  // An absence auto-confirms the day, so this is the normal recorded shift.
+  assert.equal(
+    shiftSubmissionState(doneDay, [entry("w1", "Ramesh", true)]),
+    "confirmed"
+  );
 });
 
 function entry(workerId, workerName, informed) {

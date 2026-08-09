@@ -96,7 +96,7 @@ _Avoid_: Attendance sheet, muster, register
 **Attendance Entry**:
 An absence recorded against one Worker on one Attendance Day. Carries **Informed**
 (told-us, mandatory yes/no), an **Absence Reason**, and an optional note. Presence
-is never recorded: a Shift marked done with no Entries means everybody came.
+is never recorded: a confirmed Shift with no Entries means everybody came.
 Silence means "not absent", not "present" — a rostered day off needs no Entry, and
 a sister-company loan needs no Entry either (ADR-0009, ADR-0010).
 _Avoid_: Attendance record, mark, punch, kind, lent out
@@ -115,10 +115,14 @@ A fixed chip from `sick`, `family`, `village`, `festival`, `no_information`,
 _Avoid_: Remarks, comments, cause
 
 **Shift Confirmation**:
-The Supervisor's explicit "mark shift done" action. The only thing that separates
-*no absences* from *nobody opened the app*. An unfinished Attendance Day reads as
-**Not sent**, never as full attendance.
-_Avoid_: Submit, save, close day, confirm (in product copy)
+The record that somebody accounted for an Attendance Day. Recording an absence
+confirms the Shift by itself; a Shift with no absences must be answered
+— "everyone came" — because silence is the one case that leaves no evidence.
+The only thing that separates *no absences* from *nobody opened the app*. An
+unanswered Attendance Day reads as **Not sent**, never as full attendance.
+Confirmation is not a freeze: a confirmed Shift stays editable until the
+Attendance Lock (ADR-0012).
+_Avoid_: Submit, save, close day, mark done, confirm (in product copy)
 
 **Attendance Lock**:
 An Attendance Day for date `D` freezes at **10:00 IST on `D + 1`**, both Shifts, one
@@ -143,9 +147,10 @@ _Avoid_: Muster roll, timesheet, salary sheet
 ## Attendance Rules & Visibility
 
 - **Supervisor**: sees only his own Company's attendance route. Hard-redirected from
-  every other path; no navigation rendered. May record absences and mark Shifts done
-  before the Lock, may add a Worker, and may read past Attendance Days read-only.
-  May not deactivate Workers, export, or touch payments and to-dos.
+  every other path; no navigation rendered. May record absences and answer
+  "everyone came" before the Lock, may add a Worker, and may read past Attendance
+  Days read-only. May not reopen a Shift, deactivate Workers, export, or touch
+  payments and to-dos.
 - **Director**: reads every Company's attendance, including absence notes. Summary
   defaults to **Today** (per Company, per Shift, with Not-sent called out) with a
   **Month** tab sorted by absence count descending (workers with zero absences

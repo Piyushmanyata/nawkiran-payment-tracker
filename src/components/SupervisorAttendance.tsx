@@ -18,7 +18,6 @@ import {
   fetchAttendanceDays,
   fetchAttendanceEntries,
   fetchWorkers,
-  reopenAttendanceShift,
   upsertAttendanceEntry,
 } from "@/lib/attendance-data";
 import { userMessageFromError } from "@/lib/errors";
@@ -75,16 +74,17 @@ export function SupervisorAttendance({ profile }: Props) {
       return getAttendanceDayActions(null, null, {
         company: "NKPL",
         workDate,
-      }, null, now);
+      }, null, 0, now);
     }
     return getAttendanceDayActions(
       "supervisor",
       profile,
       { company, workDate },
       day,
+      entries.length,
       now
     );
-  }, [company, profile, workDate, day, now]);
+  }, [company, profile, workDate, day, entries.length, now]);
 
   const recordedIds = useMemo(
     () => new Set(entries.map((e) => e.worker_id)),
@@ -142,26 +142,13 @@ export function SupervisorAttendance({ profile }: Props) {
     return () => window.clearTimeout(timer);
   }, [workDate]);
 
-  async function onConfirm() {
-    if (!company || !actions.showMarkDone) return;
+  /** Answers "everyone came" on a Shift with no absences (ADR-0012). */
+  async function onEveryoneCame() {
+    if (!company || !actions.showEveryoneCame) return;
     setBusy(true);
     setError(null);
     try {
       const d = await confirmAttendanceShift({ workDate, shift, company });
-      setDay(d);
-    } catch (err) {
-      setError(userMessageFromError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onReopen() {
-    if (!company || !actions.showOpenAgain) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const d = await reopenAttendanceShift({ workDate, shift, company });
       setDay(d);
     } catch (err) {
       setError(userMessageFromError(err));
@@ -268,10 +255,9 @@ export function SupervisorAttendance({ profile }: Props) {
 
       {actions.isDone ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
-          Marked done
           {entries.length === 0
-            ? " — everyone came"
-            : ` — ${entries.length} absent`}
+            ? "Everyone came"
+            : `${entries.length} absent`}
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600">
@@ -279,15 +265,44 @@ export function SupervisorAttendance({ profile }: Props) {
         </div>
       )}
 
+      {actions.showEveryoneCame ? (
+        // The one case with no evidence to infer from, so the screen refuses to
+        // look finished until it is answered (ADR-0012).
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4">
+          <p className="text-sm font-bold text-amber-900">
+            Did anyone miss the {shift} shift?
+          </p>
+          <p className="mt-1 text-xs font-medium text-amber-800">
+            Until you answer, this shift stays unsent.
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            <LoadingButton
+              type="button"
+              loading={busy}
+              onClick={() => {
+                setEditEntry(null);
+                setMarkOpen(true);
+              }}
+            >
+              + Add absent worker
+            </LoadingButton>
+            <LoadingButton
+              type="button"
+              variant="secondary"
+              loading={busy}
+              onClick={() => void onEveryoneCame()}
+            >
+              No, everyone came
+            </LoadingButton>
+          </div>
+        </div>
+      ) : null}
+
       <section className="space-y-2">
         <h2 className="text-sm font-bold text-slate-700">Absent today</h2>
         {entries.length === 0 ? (
           <EmptyState
-            text={
-              actions.isDone
-                ? "Marked done — everyone came"
-                : "Nobody absent yet"
-            }
+            text={actions.isDone ? "Everyone came" : "Nobody absent yet"}
           />
         ) : (
           <ul className="space-y-2">
@@ -336,8 +351,8 @@ export function SupervisorAttendance({ profile }: Props) {
         )}
       </section>
 
-      <div className="flex flex-col gap-2 pt-1">
-        {actions.showAdd ? (
+      {actions.showAdd && !actions.showEveryoneCame ? (
+        <div className="flex flex-col gap-2 pt-1">
           <LoadingButton
             type="button"
             loading={busy}
@@ -348,28 +363,8 @@ export function SupervisorAttendance({ profile }: Props) {
           >
             + Add absent worker
           </LoadingButton>
-        ) : null}
-        {actions.showMarkDone ? (
-          <LoadingButton
-            type="button"
-            variant="secondary"
-            loading={busy}
-            onClick={() => void onConfirm()}
-          >
-            Mark shift done
-          </LoadingButton>
-        ) : null}
-        {actions.showOpenAgain ? (
-          <LoadingButton
-            type="button"
-            variant="secondary"
-            loading={busy}
-            onClick={() => void onReopen()}
-          >
-            Open again to edit
-          </LoadingButton>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <Modal
         open={markOpen || editEntry != null}

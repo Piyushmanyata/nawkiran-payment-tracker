@@ -1,5 +1,5 @@
 /**
- * Pure attendance rules (ADR-0005, ADR-0006, ADR-0010, ADR-0011).
+ * Pure attendance rules (ADR-0005, ADR-0006, ADR-0010, ADR-0011, ADR-0012).
  * Components call this module and render — they never re-implement a rule.
  * Server truth for writes is the RPCs; this mirrors lock + validation + summaries.
  */
@@ -86,7 +86,13 @@ export type AttendanceDayActions = {
   showAdd: boolean;
   showEdit: boolean;
   showRemove: boolean;
-  showMarkDone: boolean;
+  /**
+   * "No, everyone came" — the only surviving confirmation tap (ADR-0012).
+   * Recording an absence confirms the Shift by itself, so this shows only on a
+   * Shift that has none: the one case that leaves no evidence behind.
+   */
+  showEveryoneCame: boolean;
+  /** Undo for a mistaken "everyone came". Admin only (ADR-0012). */
   showOpenAgain: boolean;
   isLocked: boolean;
   isDone: boolean;
@@ -179,12 +185,17 @@ export function canWriteAttendance(
 /**
  * Which controls a company-and-shift card should show.
  * Mirrors getPaymentActions: pure booleans in, booleans out.
+ *
+ * `entryCount` is load-bearing (ADR-0012): the everyone-came answer exists only
+ * for a Shift with no absences, because an absence confirms the Shift by itself.
+ * Confirming no longer freezes the Shift — it stays editable until the Lock.
  */
 export function getAttendanceDayActions(
   role: UserRole | null | undefined,
   profile: Pick<Profile, "role" | "company"> | null | undefined,
   target: { company: Company; workDate: string },
   day: Pick<AttendanceDay, "confirmed_at" | "confirmed_by"> | null | undefined,
+  entryCount: number,
   now: Date = new Date()
 ): AttendanceDayActions {
   const isLocked = isAttendanceLocked(target.workDate, now);
@@ -193,7 +204,7 @@ export function getAttendanceDayActions(
     showAdd: false,
     showEdit: false,
     showRemove: false,
-    showMarkDone: false,
+    showEveryoneCame: false,
     showOpenAgain: false,
     isLocked,
     isDone,
@@ -201,12 +212,14 @@ export function getAttendanceDayActions(
 
   if (!role || !profile) return none;
 
+  const showEveryoneCame = !isDone && entryCount === 0;
+
   if (role === "admin") {
     return {
       showAdd: true,
       showEdit: true,
       showRemove: true,
-      showMarkDone: !isDone,
+      showEveryoneCame,
       showOpenAgain: isDone,
       isLocked,
       isDone,
@@ -219,23 +232,11 @@ export function getAttendanceDayActions(
   }
   if (isLocked) return none;
 
-  if (isDone) {
-    return {
-      showAdd: false,
-      showEdit: false,
-      showRemove: false,
-      showMarkDone: false,
-      showOpenAgain: true,
-      isLocked,
-      isDone,
-    };
-  }
-
   return {
     showAdd: true,
     showEdit: true,
     showRemove: true,
-    showMarkDone: true,
+    showEveryoneCame,
     showOpenAgain: false,
     isLocked,
     isDone,

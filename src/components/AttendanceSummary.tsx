@@ -49,7 +49,7 @@ const EVENT_LABELS: Record<AttendanceEvent["action"], string> = {
   entry_created: "Absence added",
   entry_updated: "Absence changed",
   entry_deleted: "Absence removed",
-  shift_confirmed: "Shift marked done",
+  shift_confirmed: "Shift sent",
   shift_reopened: "Shift opened again",
 };
 
@@ -298,7 +298,8 @@ export function AttendanceSummary({ profile }: Props) {
     }
   }
 
-  async function onMarkDone(company: Company, shift: Shift) {
+  /** Answers "everyone came" on a Shift with no absences (ADR-0012). */
+  async function onEveryoneCame(company: Company, shift: Shift) {
     setBusy(true);
     setError(null);
     try {
@@ -513,6 +514,7 @@ export function AttendanceSummary({ profile }: Props) {
                   profile,
                   { company, workDate },
                   day,
+                  dayEntries.length,
                   now
                 );
                 return (
@@ -533,11 +535,6 @@ export function AttendanceSummary({ profile }: Props) {
                     {actions.isLocked ? (
                       <p className="mb-2 text-xs font-medium text-amber-800">
                         This day is closed. Only the admin can change it now.
-                      </p>
-                    ) : null}
-                    {actions.isDone && !actions.isLocked ? (
-                      <p className="mb-2 text-xs font-medium text-emerald-800">
-                        Marked done
                       </p>
                     ) : null}
                     {summary.state === "not_submitted" ? (
@@ -613,7 +610,7 @@ export function AttendanceSummary({ profile }: Props) {
                       </ul>
                     ) : null}
                     {actions.showAdd ||
-                    actions.showMarkDone ||
+                    actions.showEveryoneCame ||
                     actions.showOpenAgain ? (
                       <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-2">
                         {actions.showAdd ? (
@@ -626,15 +623,15 @@ export function AttendanceSummary({ profile }: Props) {
                             + Add absent worker
                           </LoadingButton>
                         ) : null}
-                        {actions.showMarkDone ? (
+                        {actions.showEveryoneCame ? (
                           <LoadingButton
                             type="button"
                             variant="secondary"
                             loading={busy}
-                            onClick={() => void onMarkDone(company, shift)}
+                            onClick={() => void onEveryoneCame(company, shift)}
                             className="!min-h-9 !px-3 !text-xs"
                           >
-                            Mark shift done
+                            No, everyone came
                           </LoadingButton>
                         ) : null}
                         {actions.showOpenAgain ? (
@@ -645,7 +642,7 @@ export function AttendanceSummary({ profile }: Props) {
                             onClick={() => void onOpenAgain(company, shift)}
                             className="!min-h-9 !px-3 !text-xs"
                           >
-                            Open again to edit
+                            Open again
                           </LoadingButton>
                         ) : null}
                       </div>
@@ -993,7 +990,7 @@ function StateBadge({
   }
   return (
     <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-700">
-      Done
+      Sent
     </span>
   );
 }
