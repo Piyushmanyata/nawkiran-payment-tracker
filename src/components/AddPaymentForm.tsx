@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { usePayments } from "@/components/PaymentsProvider";
 import { createPayment, hasSimilarPendingPayment } from "@/lib/payments";
@@ -15,7 +14,6 @@ import {
   hintClass,
   labelClass,
   roundAmount,
-  successBoxClass,
 } from "@/lib/ui";
 import { LoadingButton } from "@/components/LoadingButton";
 import { Modal } from "@/components/Modal";
@@ -32,8 +30,12 @@ type PendingCreate = {
   dueDate: string;
 };
 
-export function AddPaymentForm() {
-  const router = useRouter();
+type AddPaymentFormProps = {
+  /** Fired once the request is saved, so whoever opened the form can dismiss it. */
+  onCreated?: () => void;
+};
+
+export function AddPaymentForm({ onCreated }: AddPaymentFormProps) {
   const { profile } = useAuth();
   const { upsertPayment } = usePayments();
   const autoApprove = canApprove(profile?.role);
@@ -42,7 +44,6 @@ export function AddPaymentForm() {
   const [dueDate, setDueDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const requestId = useRef<string | null>(null);
   const pendingCreate = useRef<PendingCreate | null>(null);
@@ -92,11 +93,11 @@ export function AddPaymentForm() {
     });
     requestId.current = null;
     pendingCreate.current = null;
-    setSuccess(autoApprove ? "Added and approved" : "Sent for approval");
     setParty("");
     setAmount("");
     setDueDate("");
-    window.setTimeout(() => router.push("/open"), 400);
+    setSubmitting(false);
+    onCreated?.();
   }
 
   async function onSubmit(e: FormEvent) {
@@ -104,7 +105,6 @@ export function AddPaymentForm() {
     if (submitting) return;
 
     setError(null);
-    setSuccess(null);
     const parsed = parseForm();
     if (!parsed.ok) return;
 
@@ -231,7 +231,6 @@ export function AddPaymentForm() {
         </label>
 
         {error ? <p className={errorBoxClass}>{error}</p> : null}
-        {success ? <p className={successBoxClass}>{success}</p> : null}
 
         <LoadingButton
           type="submit"

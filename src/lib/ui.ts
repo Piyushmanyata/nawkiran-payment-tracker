@@ -11,9 +11,6 @@ export const hintClass = "mt-1 block text-xs text-slate-500";
 export const errorBoxClass =
   "rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700";
 
-export const successBoxClass =
-  "rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800";
-
 export function roleLabel(role: string | null | undefined): string {
   if (!role) return "";
   return role.charAt(0).toUpperCase() + role.slice(1);

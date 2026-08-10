@@ -408,7 +408,7 @@ export default function OpenPage() {
               ✕ Close
             </button>
           </div>
-          <AddPaymentForm />
+          <AddPaymentForm onCreated={() => setShowAddDrawer(false)} />
         </div>
       )}
 
