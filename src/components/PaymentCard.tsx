@@ -31,7 +31,7 @@ function PaymentCardInner({
   onEdit?: (p: Payment) => void;
 }) {
   // Delete is drawer-only (ADR-0004); never wire onDelete here.
-  const { showApprove, showMarkPaid, showEdit, showWithdraw } =
+  const { showApprove, showDeny, showMarkPaid, showEdit, showWithdraw } =
     getPaymentActions(
       payment,
       role,
@@ -152,17 +152,23 @@ function PaymentCardInner({
         <span className="group-hover:translate-x-0.5 transition-transform text-blue-600 font-bold">Details →</span>
       </div>
 
-      {showApprove ? (
+      {showApprove || showDeny ? (
         <div
-          className="mt-3 grid grid-cols-2 gap-2"
+          className={`mt-3 grid gap-2 ${
+            showApprove && showDeny ? "grid-cols-2" : "grid-cols-1"
+          }`}
           onClick={(e) => e.stopPropagation()}
         >
-          <LoadingButton variant="primary" onClick={() => onApprove?.(payment)}>
-            ✓ Approve
-          </LoadingButton>
-          <LoadingButton variant="danger" onClick={() => onDeny?.(payment)}>
-            Deny
-          </LoadingButton>
+          {showApprove ? (
+            <LoadingButton variant="primary" onClick={() => onApprove?.(payment)}>
+              ✓ Approve
+            </LoadingButton>
+          ) : null}
+          {showDeny ? (
+            <LoadingButton variant="danger" onClick={() => onDeny?.(payment)}>
+              Deny
+            </LoadingButton>
+          ) : null}
         </div>
       ) : null}
 
@@ -176,7 +182,7 @@ function PaymentCardInner({
 
       {showEdit ? (
         <div
-          className={showApprove || showMarkPaid ? "mt-2" : "mt-3"}
+          className={showApprove || showDeny || showMarkPaid ? "mt-2" : "mt-3"}
           onClick={(e) => e.stopPropagation()}
         >
           <LoadingButton variant="secondary" onClick={() => onEdit?.(payment)}>

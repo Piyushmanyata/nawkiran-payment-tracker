@@ -47,7 +47,7 @@ export function PaymentDetailDrawer({
 
   if (!payment) return null;
 
-  const { showApprove, showMarkPaid, showEdit, showWithdraw, showDelete } =
+  const { showApprove, showDeny, showMarkPaid, showEdit, showWithdraw, showDelete } =
     getPaymentActions(
       payment,
       role,
@@ -317,28 +317,36 @@ export function PaymentDetailDrawer({
         </div>
 
         {/* Footer Actions */}
-        {(showApprove || showMarkPaid || showEdit || showWithdraw || showDelete) && (
+        {(showApprove || showDeny || showMarkPaid || showEdit || showWithdraw || showDelete) && (
           <div className="p-5 md:p-6 border-t border-slate-100 bg-slate-50/80 space-y-2">
-            {showApprove && (
-              <div className="grid grid-cols-2 gap-2">
-                <LoadingButton
-                  variant="primary"
-                  onClick={() => {
-                    onApprove?.(payment);
-                    onClose();
-                  }}
-                >
-                  ✓ Approve
-                </LoadingButton>
-                <LoadingButton
-                  variant="danger"
-                  onClick={() => {
-                    onDeny?.(payment);
-                    onClose();
-                  }}
-                >
-                  Deny
-                </LoadingButton>
+            {(showApprove || showDeny) && (
+              <div
+                className={`grid gap-2 ${
+                  showApprove && showDeny ? "grid-cols-2" : "grid-cols-1"
+                }`}
+              >
+                {showApprove && (
+                  <LoadingButton
+                    variant="primary"
+                    onClick={() => {
+                      onApprove?.(payment);
+                      onClose();
+                    }}
+                  >
+                    ✓ Approve
+                  </LoadingButton>
+                )}
+                {showDeny && (
+                  <LoadingButton
+                    variant="danger"
+                    onClick={() => {
+                      onDeny?.(payment);
+                      onClose();
+                    }}
+                  >
+                    Deny
+                  </LoadingButton>
+                )}
               </div>
             )}
 

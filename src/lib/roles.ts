@@ -5,9 +5,33 @@ function isSettledPayment(status: string | undefined): boolean {
   return status === "paid" || status === "withdrawn";
 }
 
-/** Director (and admin) approve / deny pending requests. */
-export function canApprove(role: UserRole | null | undefined): boolean {
+/**
+ * Who may approve a pending request (ADR-0013).
+ * Director/admin at role level; nobody approves the request they raised.
+ * Pass `payment` + `userId` for the per-row guard; omit payment for role-level capability.
+ * Only bites for admins — a director's creates never sit in pending.
+ */
+export function canApprove(
+  role: UserRole | null | undefined,
+  payment?: { requested_by?: string } | null,
+  userId?: string | null
+): boolean {
+  if (role !== "director" && role !== "admin") return false;
+  if (!payment) return true;
+  return !(userId && payment.requested_by === userId);
+}
+
+/**
+ * Denial is not an authorisation — a requester may still stop their own request,
+ * and for an admin it is the only route out of pending (deny → withdraw).
+ */
+export function canDeny(role: UserRole | null | undefined): boolean {
   return role === "director" || role === "admin";
+}
+
+/** Only a director's create is approved on the spot; everyone else waits (ADR-0013). */
+export function autoApprovesOnCreate(role: UserRole | null | undefined): boolean {
+  return role === "director";
 }
 
 /** Employees process payouts; accounts/admin kept for older setups. */
@@ -132,10 +156,17 @@ export function getPaymentActions(
   },
   userId?: string | null
 ) {
+  // Approve and deny part ways for an admin looking at their own request:
+  // they may stop it, they may not authorise it.
   const showApprove =
     payment.status === "pending" &&
-    canApprove(role) &&
-    Boolean(handlers.onApprove && handlers.onDeny);
+    canApprove(role, payment, userId) &&
+    Boolean(handlers.onApprove);
+
+  const showDeny =
+    payment.status === "pending" &&
+    canDeny(role) &&
+    Boolean(handlers.onDeny);
 
   const showMarkPaid =
     payment.status === "approved" &&
@@ -168,6 +199,6 @@ export function getPaymentActions(
     canDeletePayment(role) &&
     Boolean(handlers.onDelete);
 
-  return { showApprove, showMarkPaid, showEdit, showWithdraw, showDelete };
+  return { showApprove, showDeny, showMarkPaid, showEdit, showWithdraw, showDelete };
 }
 

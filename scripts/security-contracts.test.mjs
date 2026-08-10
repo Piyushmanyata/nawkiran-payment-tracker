@@ -527,8 +527,45 @@ test("similar pending match is boolean-only and privileged", () => {
   );
   assert.match(form, /hasSimilarPendingPayment/);
   assert.match(form, /similar open request may already exist/i);
+  // Gated on "does my create land in Pending" — director-only skip (ADR-0013),
+  // so admins now get the warning too.
   assert.match(form, /!autoApprove/);
+  assert.match(form, /autoApprovesOnCreate\(profile\?\.role\)/);
   assert.doesNotMatch(form, /requester_name.*confirm|confirm.*amount.*party/i);
+});
+
+test("admin creates land pending and nobody approves their own request", () => {
+  const migration = sql["20260810120000_admin_no_self_approval.sql"];
+  assert.ok(migration, "20260810120000_admin_no_self_approval migration missing");
+
+  // Auto-approve is director-only; admin is gone from the predicate.
+  assert.match(migration, /create or replace function public\.create_payment/i);
+  assert.match(migration, /auto_approve := me\.role = 'director'/i);
+  assert.doesNotMatch(migration, /auto_approve := me\.role in \([^)]*'admin'/i);
+
+  // Four-eyes on approve, enforced server-side ahead of the status check.
+  assert.match(migration, /create or replace function public\.approve_payment/i);
+  assert.match(migration, /row\.requested_by = me\.id/i);
+  assert.match(migration, /SELF_APPROVAL/);
+  assert.match(migration, /grant execute on function public\.approve_payment\(uuid\) to authenticated/i);
+
+  // Deny is untouched — it is the admin's only route out of their own pending row.
+  assert.doesNotMatch(migration, /create or replace function public\.deny_payment/i);
+
+  // No backfill: settled or already-approved history is left alone.
+  assert.doesNotMatch(migration, /update public\.payments\s+set\s+status = 'pending'/i);
+
+  const roles = readFileSync(join(process.cwd(), "src", "lib", "roles.ts"), "utf8");
+  assert.match(roles, /export function autoApprovesOnCreate/);
+  assert.match(roles, /return role === "director";/);
+  assert.match(roles, /export function canDeny/);
+
+  const errors = readFileSync(join(process.cwd(), "src", "lib", "errors.ts"), "utf8");
+  assert.match(errors, /self_approval/i);
+  assert.ok(
+    errors.indexOf("self_approval") < errors.indexOf("not_authorised"),
+    "SELF_APPROVAL rule must precede the generic not_authorised rule"
+  );
 });
 
 test("supervisor role and company dimension are constrained on profiles", () => {

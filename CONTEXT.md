@@ -9,8 +9,12 @@ A request submitted by staff for a vendor or party payment requiring Director au
 _Avoid_: Expense claim, reimbursement ticket
 
 **Pending Request**:
-A Payment Request created by an Employee or Director waiting for Director approval. Visible only to the requester and Directors/Admins.
+A Payment Request created by anyone other than a Director — Employee, Accounts or Admin — waiting for approval. Visible only to the requester and Directors/Admins. A Director's own request is never Pending: it is Approved on creation.
 _Avoid_: Open draft, unapproved claim
+
+**Self-Approval**:
+Approving the Payment Request you raised yourself. Never permitted, for any role. In practice this only constrains an Admin, since a Director's request is Approved on creation and so never awaits approval. Denying your own request is **not** Self-Approval and remains permitted — a denial stops a payment rather than authorizing one, and Deny → Withdraw is the only way a requester retires their own Pending Request.
+_Avoid_: Four-eyes check, maker-checker, self-service approval
 
 **Approved Request**:
 A Payment Request authorized by a Director. Visible and notified to all active staff/employees for payout execution.
@@ -33,11 +37,11 @@ A Payment Request that a Director or Admin has soft-removed from everyone's acti
 _Avoid_: Hard delete, void payment, cancel status, trash, archive
 
 **Similar Pending Match**:
-A server-side similarity check used only when an Employee submits a new Payment Request. A match exists when another Payment Request is still **Pending** (not Approved/Denied/Paid), the **amount is exact**, and the **party names are similar** after normalize (trim, collapse spaces, case-insensitive): if the shorter name is at least 5 characters, either name may **contain** the other; otherwise names must be normalized-equal. Matches include the Employee's **own** Pending requests.
+A server-side similarity check used when a new Payment Request is submitted by anyone whose request lands Pending — Employee, Accounts or Admin. A match exists when another Payment Request is still **Pending** (not Approved/Denied/Paid), the **amount is exact**, and the **party names are similar** after normalize (trim, collapse spaces, case-insensitive): if the shorter name is at least 5 characters, either name may **contain** the other; otherwise names must be normalized-equal. Matches include the Employee's **own** Pending requests.
 _Avoid_: Duplicate invoice lock, unique payment constraint
 
 **Similar Pending Warning**:
-A soft, generic confirm shown only to Employees on submit when a Similar Pending Match exists. Copy must not reveal party, amount, requester, or status details of the other request (e.g. "A similar open request may already exist — still submit?"). Confirming proceeds; the second Pending Request is allowed. Directors/Admins do not receive this warning. There is no server hard-block or override token for this case.
+A soft, generic confirm shown on submit when a Similar Pending Match exists. Copy must not reveal party, amount, requester, or status details of the other request (e.g. "A similar open request may already exist — still submit?"). Confirming proceeds; the second Pending Request is allowed. Only a Director is exempt — their request is Approved on creation and so can never be half of a duplicate pair. There is no server hard-block or override token for this case.
 _Avoid_: Hard unique index, cross-employee pending list
 
 ## Rules & Notification Targets
@@ -48,7 +52,8 @@ _Avoid_: Hard unique index, cross-employee pending list
 - **Withdrawn**: Visible to Requester + Directors + Admins. No push. Always history.
 - **Paid**: Visible to All active staff. Push target: Directors + Requester + Admins. Direct 1-click execution (defaults to NEFT mode).
 - **Deleted**: Hidden from all staff lists (soft-hide). Push only when the removed row was **Approved** (unpaid): Employees (+ legacy accounts), excluding the actor. No push for Paid / Denied / Withdrawn deletes. No product restore.
-- **Similar Pending Warning**: Employees only; on submit only; Pending + exact amount + similar party (see Similar Pending Match). Soft confirm; doubles remain allowed. Does not apply to Approved (unpaid) or history. Privacy: boolean/generic signal only — does not widen Pending visibility.
+- **Approval**: Directors and Admins approve. Nobody approves their own request (see Self-Approval) — an Admin's request needs a Director. Denying your own request stays allowed.
+- **Similar Pending Warning**: Everyone except Directors; on submit only; Pending + exact amount + similar party (see Similar Pending Match). Soft confirm; doubles remain allowed. Does not apply to Approved (unpaid) or history. Privacy: boolean/generic signal only — does not widen Pending visibility.
 
 ## UI Architecture
 

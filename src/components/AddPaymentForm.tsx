@@ -5,7 +5,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { usePayments } from "@/components/PaymentsProvider";
 import { createPayment, hasSimilarPendingPayment } from "@/lib/payments";
 import { userMessageFromError } from "@/lib/errors";
-import { canApprove } from "@/lib/roles";
+import { autoApprovesOnCreate } from "@/lib/roles";
 import { detectPartyTags } from "@/lib/party-tag";
 import {
   blockNumberWheel,
@@ -38,7 +38,7 @@ type AddPaymentFormProps = {
 export function AddPaymentForm({ onCreated }: AddPaymentFormProps) {
   const { profile } = useAuth();
   const { upsertPayment } = usePayments();
-  const autoApprove = canApprove(profile?.role);
+  const autoApprove = autoApprovesOnCreate(profile?.role);
   const [party, setParty] = useState("");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -116,8 +116,10 @@ export function AddPaymentForm({ onCreated }: AddPaymentFormProps) {
 
     setSubmitting(true);
     try {
-      // Employees (and accounts): soft similar-pending warning on submit only.
-      // Directors/Admins skip — their creates auto-approve.
+      // Soft similar-pending warning on submit only, for everyone whose create
+      // lands in Pending — employees, accounts and (since ADR-0013) admins.
+      // Only a director skips it: their create is approved on the spot and can
+      // never be half of a pending duplicate.
       if (!autoApprove) {
         const similar = await hasSimilarPendingPayment({
           party: payload.partyClean,

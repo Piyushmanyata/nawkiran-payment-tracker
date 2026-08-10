@@ -27,6 +27,12 @@ const RULES: Array<{ test: (t: string) => boolean; message: string }> = [
     message: "Please log in again.",
   },
   {
+    // Must precede the generic permission rule below: an admin *is* authorised
+    // to approve, just not their own request.
+    test: (t) => t.includes("self_approval"),
+    message: "You cannot approve your own request. Ask a Director to approve it.",
+  },
+  {
     test: (t) =>
       t.includes("not_authorised") ||
       t.includes("not_authorized") ||

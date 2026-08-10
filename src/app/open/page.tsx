@@ -24,7 +24,13 @@ import {
 } from "@/lib/payments";
 import { usePayments } from "@/components/PaymentsProvider";
 import { userMessageFromError } from "@/lib/errors";
-import { canApprove, canDeletePayment, canEditPayment, canMarkPaid } from "@/lib/roles";
+import {
+  canApprove,
+  canDeletePayment,
+  canDeny,
+  canEditPayment,
+  canMarkPaid,
+} from "@/lib/roles";
 import { formatInr } from "@/lib/format";
 import { LoadingButton } from "@/components/LoadingButton";
 import type { EditPaymentInput, Payment, PaymentMode } from "@/types/database";
@@ -87,7 +93,9 @@ export default function OpenPage() {
   const [withdrawTarget, setWithdrawTarget] = useState<Payment | null>(null);
 
   const canEdit = canEditPayment(role);
+  // Role-level only — the "not your own request" guard lives in getPaymentActions.
   const userCanApprove = canApprove(role);
+  const userCanDeny = canDeny(role);
   const userCanMarkPaid = canMarkPaid(role);
   const userCanDelete = canDeletePayment(role);
 
@@ -446,7 +454,7 @@ export default function OpenPage() {
                 userId={profile?.id}
                 onSelect={setDetailTarget}
                 onApprove={userCanApprove ? setApproveTarget : undefined}
-                onDeny={userCanApprove ? setDenyTarget : undefined}
+                onDeny={userCanDeny ? setDenyTarget : undefined}
                 onMarkPaid={userCanMarkPaid ? (p) => void doMarkPaid(p) : undefined}
                 onEdit={canEdit ? setEditTarget : undefined}
                 onWithdraw={setWithdrawTarget}
@@ -463,7 +471,7 @@ export default function OpenPage() {
         userId={profile?.id}
         onClose={() => setDetailTarget(null)}
         onApprove={userCanApprove ? setApproveTarget : undefined}
-        onDeny={userCanApprove ? setDenyTarget : undefined}
+        onDeny={userCanDeny ? setDenyTarget : undefined}
         onMarkPaid={userCanMarkPaid ? (p) => void doMarkPaid(p) : undefined}
         onEdit={canEdit ? setEditTarget : undefined}
         onWithdraw={setWithdrawTarget}
