@@ -122,6 +122,14 @@ function partsInIst(now: Date) {
   };
 }
 
+/** First day of the month after `YYYY-MM` — the exclusive upper bound of a month range. */
+export function nextMonthStart(yyyyMm: string): string {
+  const [y, m] = yyyyMm.split("-").map(Number);
+  const nm = m === 12 ? 1 : m + 1;
+  const ny = m === 12 ? y + 1 : y;
+  return `${ny}-${String(nm).padStart(2, "0")}-01`;
+}
+
 /** Parse YYYY-MM-DD as a plain calendar date (no timezone). */
 function parseWorkDate(workDate: string): { y: number; m: number; d: number } {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(workDate.trim());

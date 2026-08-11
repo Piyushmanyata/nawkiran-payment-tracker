@@ -1001,3 +1001,45 @@ test("payment and to-do RPCs still refuse unknown roles (supervisor default deny
     assert.doesNotMatch(body, /'supervisor'/i, `${file} must not list supervisor`);
   }
 });
+
+test("no RPC keeps a superseded overload a caller could reach (ADR-0014)", () => {
+  const migration = sql["20260811120000_drop_stale_overloads_and_rls_initplan.sql"];
+  assert.ok(migration, "drop_stale_overloads migration missing");
+  // PostgREST resolves overloads by supplied argument names, so the pre-ADR-0001
+  // update_todo was reachable by omitting p_recurrence_rule.
+  assert.match(
+    migration,
+    /drop function if exists public\.update_todo\(uuid, text, date, public\.todo_priority, uuid\[\]\);/i
+  );
+  assert.match(
+    migration,
+    /drop function if exists public\.create_todo\(text, date, public\.todo_priority, uuid\[\]\);/i
+  );
+});
+
+test("every RPC signature added after 008 repeats the anon revoke", () => {
+  const migration = sql["20260811120000_drop_stale_overloads_and_rls_initplan.sql"];
+  for (const fn of ["create_todo", "is_todo_overdue_ist"]) {
+    assert.match(
+      migration,
+      new RegExp(`revoke all on function public\\.${fn}\\([^)]*\\) from public, anon;`, "i"),
+      `${fn} must be revoked from anon`
+    );
+    assert.match(
+      migration,
+      new RegExp(`grant execute on function public\\.${fn}\\([^)]*\\) to authenticated;`, "i"),
+      `${fn} must be granted to authenticated`
+    );
+  }
+});
+
+test("RLS policies never re-evaluate auth helpers per row", () => {
+  const migration = sql["20260811120000_drop_stale_overloads_and_rls_initplan.sql"];
+  const policyBodies = migration.split(/create policy /i).slice(1).join("\n");
+  // Every helper call inside a policy must sit behind a scalar subquery.
+  for (const call of ["auth.uid()", "public.my_role()", "public.is_active_user()"]) {
+    const bare = new RegExp(`(?<!\\(select )${call.replace(/[.()]/g, "\\$&")}`, "g");
+    const hits = policyBodies.match(bare) ?? [];
+    assert.deepEqual(hits, [], `${call} must be wrapped in (select ...) inside policies`);
+  }
+});

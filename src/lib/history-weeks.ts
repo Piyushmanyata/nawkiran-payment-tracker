@@ -101,7 +101,3 @@ export function groupHistoryByDay(
     };
   });
 }
-
-/** @deprecated use groupHistoryByDay */
-export const groupHistoryByWeek = groupHistoryByDay;
-export type HistoryWeekGroup = HistoryDayGroup;

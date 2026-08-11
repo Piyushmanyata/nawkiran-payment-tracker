@@ -82,6 +82,8 @@ export function canDeletePayment(role: UserRole | null | undefined): boolean {
   return role === "director" || role === "admin";
 }
 
+// Copied from lib/recurrence and lib/format rather than imported: `npm test` runs
+// this module through node --experimental-strip-types, which does not resolve @/.
 function isRecurringRule(rule?: RecurrenceRule | null): boolean {
   return Boolean(rule && rule.type && rule.type !== "none");
 }

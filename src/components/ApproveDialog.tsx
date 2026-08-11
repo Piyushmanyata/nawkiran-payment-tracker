@@ -8,22 +8,16 @@ import type { PaymentActionTarget } from "@/types/database";
 export function ApproveDialog({
   open,
   target,
-  party,
-  amount,
   loading,
   onCancel,
   onConfirm,
 }: {
   open: boolean;
   target?: PaymentActionTarget | null;
-  party?: string;
-  amount?: number | string;
   loading: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const displayParty = target?.party ?? party ?? "";
-  const displayAmount = target?.amount ?? amount ?? 0;
   return (
     <Modal
       open={open}
@@ -33,7 +27,7 @@ export function ApproveDialog({
       disableClose={loading}
     >
       <p className="mt-2 text-base text-slate-700">
-        Approve {formatInr(displayAmount)} for {displayParty}?
+        Approve {formatInr(target?.amount ?? 0)} for {target?.party ?? ""}?
       </p>
       <div className="mt-5 grid grid-cols-2 gap-3">
         <LoadingButton variant="secondary" onClick={onCancel} disabled={loading}>

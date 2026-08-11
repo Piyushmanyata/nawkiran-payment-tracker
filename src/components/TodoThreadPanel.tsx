@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { Todo } from "@/types/database";
+import { useMemo, useState } from "react";
+import type { Todo, TodoThread } from "@/types/database";
 import { formatWhen } from "@/lib/format";
 
 export function TodoThreadPanel({
@@ -14,9 +14,21 @@ export function TodoThreadPanel({
   onReplyUpdate?: (t: Todo, parentId: string, message: string) => Promise<void>;
 }) {
   const open = todo.status === "open";
-  const threads = todo.threads ?? [];
-  const topRequests = threads.filter((t) => t.type === "request");
-  const threadCount = threads.length;
+  const threadCount = todo.threads?.length ?? 0;
+  const { topRequests, repliesByParent } = useMemo(() => {
+    const requests: TodoThread[] = [];
+    const byParent = new Map<string, TodoThread[]>();
+    for (const t of todo.threads ?? []) {
+      if (t.type === "request") {
+        requests.push(t);
+      } else if (t.parent_id) {
+        const list = byParent.get(t.parent_id);
+        if (list) list.push(t);
+        else byParent.set(t.parent_id, [t]);
+      }
+    }
+    return { topRequests: requests, repliesByParent: byParent };
+  }, [todo.threads]);
 
   const [expanded, setExpanded] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -139,9 +151,7 @@ export function TodoThreadPanel({
       {expanded && threadCount > 0 ? (
         <div className="mt-3 space-y-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
           {topRequests.map((req) => {
-            const replies = threads.filter(
-              (t) => t.type === "reply" && t.parent_id === req.id
-            );
+            const replies = repliesByParent.get(req.id) ?? [];
 
             return (
               <div

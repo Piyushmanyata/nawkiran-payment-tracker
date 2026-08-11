@@ -3,6 +3,7 @@
  * No realtime channel (ADR / CONTEXT: payments-live and todos-live only).
  */
 
+import { nextMonthStart } from "@/lib/attendance";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import type {
   AbsenceReason,
@@ -192,13 +193,6 @@ export async function fetchAttendanceEvents(
     }));
   }
   return (data ?? []).map((r) => asEvent(r as Record<string, unknown>));
-}
-
-function nextMonthStart(yyyyMm: string): string {
-  const [y, m] = yyyyMm.split("-").map(Number);
-  const nm = m === 12 ? 1 : m + 1;
-  const ny = m === 12 ? y + 1 : y;
-  return `${ny}-${String(nm).padStart(2, "0")}-01`;
 }
 
 export async function upsertAttendanceEntry(input: {

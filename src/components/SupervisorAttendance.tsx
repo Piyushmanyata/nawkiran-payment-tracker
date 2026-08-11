@@ -222,7 +222,9 @@ export function SupervisorAttendance({ profile }: Props) {
           <input
             type="date"
             value={workDate}
-            onChange={(e) => setWorkDate(e.target.value)}
+            // A cleared date would drop the work_date filter and pull every
+            // Attendance Day ever recorded.
+            onChange={(e) => e.target.value && setWorkDate(e.target.value)}
             className={`${fieldClass} py-2 text-sm`}
           />
         </label>

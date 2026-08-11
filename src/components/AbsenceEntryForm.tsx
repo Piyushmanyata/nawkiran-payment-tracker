@@ -34,7 +34,6 @@ type Props = {
   busy: boolean;
   /** Supervisors can add workers; Admin Workers tab owns full CRUD. */
   allowAddWorker?: boolean;
-  onBusyChange?: (busy: boolean) => void;
   onWorkersChange?: (workers: Worker[]) => void;
   onSubmit: (value: AbsenceEntryFormValue) => void | Promise<void>;
   onCancel?: () => void;
@@ -47,7 +46,6 @@ export function AbsenceEntryForm({
   initial = null,
   busy,
   allowAddWorker = false,
-  onBusyChange,
   onWorkersChange,
   onSubmit,
   onCancel,
@@ -105,7 +103,6 @@ export function AbsenceEntryForm({
     const name = newName.trim();
     if (!name) return;
     setLocalBusy(true);
-    onBusyChange?.(true);
     setError(null);
     try {
       const w = await addWorker({
@@ -125,7 +122,6 @@ export function AbsenceEntryForm({
       setError(userMessageFromError(err));
     } finally {
       setLocalBusy(false);
-      onBusyChange?.(false);
     }
   }
 

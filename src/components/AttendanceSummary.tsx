@@ -186,32 +186,18 @@ export function AttendanceSummary({ profile }: Props) {
     return summariseMonth({ days, entries });
   }, [tab, days, entries]);
 
-  const activeWorkers = useMemo(() => {
-    return workers
-      .filter((w) => w.active)
-      .filter(
-        (w) =>
-          workerCompanyFilter === "all" || w.company === workerCompanyFilter
-      )
-      .filter(
-        (w) =>
-          !workerSearch.trim() ||
-          w.full_name.toLowerCase().includes(workerSearch.trim().toLowerCase())
-      );
-  }, [workers, workerCompanyFilter, workerSearch]);
-
-  const inactiveWorkers = useMemo(() => {
-    return workers
-      .filter((w) => !w.active)
-      .filter(
-        (w) =>
-          workerCompanyFilter === "all" || w.company === workerCompanyFilter
-      )
-      .filter(
-        (w) =>
-          !workerSearch.trim() ||
-          w.full_name.toLowerCase().includes(workerSearch.trim().toLowerCase())
-      );
+  const { activeWorkers, inactiveWorkers } = useMemo(() => {
+    const q = workerSearch.trim().toLowerCase();
+    const active: Worker[] = [];
+    const inactive: Worker[] = [];
+    for (const w of workers) {
+      if (workerCompanyFilter !== "all" && w.company !== workerCompanyFilter) {
+        continue;
+      }
+      if (q && !w.full_name.toLowerCase().includes(q)) continue;
+      (w.active ? active : inactive).push(w);
+    }
+    return { activeWorkers: active, inactiveWorkers: inactive };
   }, [workers, workerCompanyFilter, workerSearch]);
 
   async function refreshFormWorkers(company: Company) {
@@ -458,7 +444,9 @@ export function AttendanceSummary({ profile }: Props) {
               <input
                 type="date"
                 value={workDate}
-                onChange={(e) => setWorkDate(e.target.value)}
+                // A cleared date would drop the work_date filter and pull every
+                // Attendance Day ever recorded.
+                onChange={(e) => e.target.value && setWorkDate(e.target.value)}
                 className={`${fieldClass} py-2 text-sm`}
               />
             </label>
@@ -470,7 +458,7 @@ export function AttendanceSummary({ profile }: Props) {
               <input
                 type="month"
                 value={month}
-                onChange={(e) => setMonth(e.target.value)}
+                onChange={(e) => e.target.value && setMonth(e.target.value)}
                 className={`${fieldClass} py-2 text-sm`}
               />
             </label>

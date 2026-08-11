@@ -13,15 +13,12 @@ function HistoryWeekListInner({
   userId,
   onSelect,
   onEdit,
-  /** When searching, expand every group that has matches. */
-  forceExpandAll = false,
 }: {
   payments: Payment[];
   role: UserRole | null;
   userId?: string | null;
   onSelect?: (p: Payment) => void;
   onEdit?: (p: Payment) => void;
-  forceExpandAll?: boolean;
 }) {
   const groups = useMemo(() => groupHistoryByDay(payments), [payments]);
   /** Explicit toggles; today starts open. */
@@ -29,11 +26,10 @@ function HistoryWeekListInner({
 
   const isOpen = useCallback(
     (key: string, isToday: boolean) => {
-      if (forceExpandAll) return true;
       if (openKeys[key] !== undefined) return openKeys[key] === true;
       return isToday;
     },
-    [forceExpandAll, openKeys]
+    [openKeys]
   );
 
   const toggle = useCallback((key: string, isToday: boolean) => {

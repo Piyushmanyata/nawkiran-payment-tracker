@@ -96,7 +96,6 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
         if (version !== requestVersion.current) return;
         setPayments(rows);
         rememberMeta(rows);
-        writePaymentsCache(rows);
         hasData.current = true;
         setError(null);
         lastLoadAt.current = performance.now();
@@ -113,32 +112,27 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
   const upsertPayment = useCallback(
     (payment: Payment) => {
       suppressedPayments.current.set(payment.id, performance.now() + 900);
+      hasData.current = true;
       setPayments((prev) => {
         const i = prev.findIndex((p) => p.id === payment.id);
-        let next: Payment[];
-        if (i === -1) {
-          next = [payment, ...prev];
-        } else {
-          const merged: Payment = {
-            ...prev[i],
-            ...payment,
-            requester_name: payment.requester_name ?? prev[i].requester_name,
-            requester_role: payment.requester_role ?? prev[i].requester_role,
-            approver_name: payment.approved_by
-              ? (payment.approver_name ?? prev[i].approver_name)
-              : null,
-            denier_name: payment.denied_by
-              ? (payment.denier_name ?? prev[i].denier_name)
-              : null,
-            payer_name: payment.paid_by
-              ? (payment.payer_name ?? prev[i].payer_name)
-              : null,
-          };
-          next = prev.slice();
-          next[i] = merged;
-        }
-        writePaymentsCache(next);
-        hasData.current = true;
+        if (i === -1) return [payment, ...prev];
+        const merged: Payment = {
+          ...prev[i],
+          ...payment,
+          requester_name: payment.requester_name ?? prev[i].requester_name,
+          requester_role: payment.requester_role ?? prev[i].requester_role,
+          approver_name: payment.approved_by
+            ? (payment.approver_name ?? prev[i].approver_name)
+            : null,
+          denier_name: payment.denied_by
+            ? (payment.denier_name ?? prev[i].denier_name)
+            : null,
+          payer_name: payment.paid_by
+            ? (payment.payer_name ?? prev[i].payer_name)
+            : null,
+        };
+        const next = prev.slice();
+        next[i] = merged;
         return next;
       });
       rememberMeta([payment]);
@@ -148,11 +142,7 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
 
   const removePayment = useCallback((id: string) => {
     suppressedPayments.current.set(id, performance.now() + 900);
-    setPayments((prev) => {
-      const next = prev.filter((p) => p.id !== id);
-      writePaymentsCache(next);
-      return next;
-    });
+    setPayments((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
   useEffect(() => {
@@ -201,6 +191,7 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
 
       if (event === "INSERT" || event === "UPDATE") {
         const mapped = mapPayment(row);
+        hasData.current = true;
         const reqMeta = profileMeta.current.get(mapped.requested_by);
         const approverMeta = mapped.approved_by
           ? profileMeta.current.get(mapped.approved_by)
@@ -249,8 +240,6 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
                 : null,
             };
           }
-          writePaymentsCache(next);
-          hasData.current = true;
           return next;
         });
         return true;
@@ -271,6 +260,13 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
       unsubscribe();
     };
   }, [load, removePayment, rememberMeta]);
+
+  // Persist once per committed list. Writing inside the setPayments updater
+  // instead would serialise the whole array twice under StrictMode.
+  useEffect(() => {
+    if (!hasData.current) return;
+    writePaymentsCache(payments);
+  }, [payments]);
 
   const reload = useCallback(
     () => load({ silent: false, force: true }),

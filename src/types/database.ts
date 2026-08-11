@@ -138,26 +138,6 @@ export interface Payment {
   payer_name?: string | null;
 }
 
-export interface PaymentEvent {
-  id: number;
-  payment_id: string;
-  action:
-    | "created"
-    | "approved"
-    | "denied"
-    | "paid"
-    | "resubmitted"
-    | "edited"
-    | "withdrawn"
-    | "admin_deleted"
-    | "deleted";
-  performed_by: string;
-  old_status: PaymentStatus | null;
-  new_status: PaymentStatus;
-  note: string | null;
-  created_at: string;
-}
-
 export type TodoThreadType = "request" | "reply";
 
 export interface TodoThread {

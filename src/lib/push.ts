@@ -15,6 +15,13 @@ export type SerializedPushSubscription = {
   };
 };
 
+/** One device row as the target-list RPCs return it. */
+type PushTarget = { endpoint: string; p256dh: string; auth: string };
+
+function asTargets(data: unknown): PushTarget[] {
+  return (data ?? []) as PushTarget[];
+}
+
 function vapidConfigured(): boolean {
   const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
   const priv = process.env.VAPID_PRIVATE_KEY?.trim();
@@ -184,60 +191,7 @@ export async function sendPaymentPush(
 
   if (error) throw error;
 
-  const targets = (data ?? []) as Array<{
-    endpoint: string;
-    p256dh: string;
-    auth: string;
-  }>;
-
-  if (targets.length === 0) {
-    return { sent: 0, failed: 0 };
-  }
-
-  const body = JSON.stringify({
-    title: payload.title,
-    body: payload.body,
-    icon: "/icon-192.png",
-    badge: "/badge-72.png",
-    url: payload.url,
-    tag: payload.tag,
-  });
-
-  let sent = 0;
-  let failed = 0;
-
-  await Promise.all(
-    targets.map(async (t) => {
-      try {
-        const outcome = await sendWithRetry(
-          {
-            endpoint: t.endpoint,
-            keys: { p256dh: t.p256dh, auth: t.auth },
-          },
-          body
-        );
-        if (outcome === "ok") {
-          sent += 1;
-          return;
-        }
-        failed += 1;
-        if (outcome === "gone") {
-          // Drop dead endpoints so later payments skip them.
-          try {
-            await supabase.rpc("purge_push_endpoint", {
-              p_endpoint: t.endpoint,
-            });
-          } catch {
-            /* best-effort cleanup */
-          }
-        }
-      } catch {
-        failed += 1;
-      }
-    })
-  );
-
-  return { sent, failed };
+  return dispatchPushPayloadToTargets(asTargets(data), payload, supabase);
 }
 
 function pushStatus(error: unknown): number {
@@ -344,54 +298,7 @@ export async function sendTodoPush(
   });
   if (error) throw error;
 
-  const targets = (data ?? []) as Array<{
-    endpoint: string;
-    p256dh: string;
-    auth: string;
-  }>;
-  if (targets.length === 0) return { sent: 0, failed: 0 };
-
-  const body = JSON.stringify({
-    title: payload.title,
-    body: payload.body,
-    icon: "/icon-192.png",
-    badge: "/badge-72.png",
-    url: payload.url,
-    tag: payload.tag,
-  });
-
-  let sent = 0;
-  let failed = 0;
-  await Promise.all(
-    targets.map(async (t) => {
-      try {
-        const outcome = await sendWithRetry(
-          {
-            endpoint: t.endpoint,
-            keys: { p256dh: t.p256dh, auth: t.auth },
-          },
-          body
-        );
-        if (outcome === "ok") {
-          sent += 1;
-          return;
-        }
-        failed += 1;
-        if (outcome === "gone") {
-          try {
-            await supabase.rpc("purge_push_endpoint", {
-              p_endpoint: t.endpoint,
-            });
-          } catch {
-            /* best-effort */
-          }
-        }
-      } catch {
-        failed += 1;
-      }
-    })
-  );
-  return { sent, failed };
+  return dispatchPushPayloadToTargets(asTargets(data), payload, supabase);
 }
 
 /**
@@ -408,62 +315,53 @@ export async function sendTodoOverdueDigestPush(
   }
 
   const supabase = supabaseClient ?? (await createClient());
-  let sent = 0;
-  let failed = 0;
+  const recipients = userTitles.filter((u) => u.titles.length > 0);
+  if (recipients.length === 0) return { sent: 0, failed: 0 };
 
-  await Promise.all(
-    userTitles.map(async ({ user_id, titles }) => {
-      if (!titles.length) return;
+  // One query for the whole digest — a select per recipient was the slow path.
+  const { data: subs, error } = await supabase
+    .from("push_subscriptions")
+    .select("user_id, endpoint, p256dh, auth")
+    .in(
+      "user_id",
+      recipients.map((u) => u.user_id)
+    );
+  if (error || !subs?.length) return { sent: 0, failed: 0 };
 
-      const { data: subs, error } = await supabase
-        .from("push_subscriptions")
-        .select("endpoint, p256dh, auth")
-        .eq("user_id", user_id);
-      if (error || !subs?.length) return;
+  const byUser = new Map<string, PushTarget[]>();
+  for (const row of subs as Array<PushTarget & { user_id: string }>) {
+    const list = byUser.get(row.user_id);
+    if (list) list.push(row);
+    else byUser.set(row.user_id, [row]);
+  }
 
-      const preview =
-        titles.length === 1
-          ? titles[0]
-          : `${titles[0]} (+${titles.length - 1} more)`;
-      const body = JSON.stringify({
-        title:
-          titles.length === 1
-            ? "To-do reminder"
-            : `${titles.length} to-do reminders`,
-        body: preview,
-        icon: "/icon-192.png",
-        badge: "/badge-72.png",
-        url: "/todo",
-        tag: "nk:todo-overdue",
-      });
-
-      await Promise.all(
-        subs.map(async (t) => {
-          try {
-            const outcome = await sendWithRetry(
-              { endpoint: t.endpoint, keys: { p256dh: t.p256dh, auth: t.auth } },
-              body
-            );
-            if (outcome === "ok") sent += 1;
-            else {
-              failed += 1;
-              if (outcome === "gone") {
-                try {
-                  await supabase.rpc("purge_push_endpoint", { p_endpoint: t.endpoint });
-                } catch {
-                  /* best-effort */
-                }
-              }
-            }
-          } catch {
-            failed += 1;
-          }
-        })
+  const results = await Promise.all(
+    recipients.map(({ user_id, titles }) => {
+      const targets = byUser.get(user_id) ?? [];
+      if (targets.length === 0) return { sent: 0, failed: 0 };
+      return dispatchPushPayloadToTargets(
+        targets,
+        {
+          title:
+            titles.length === 1
+              ? "To-do reminder"
+              : `${titles.length} to-do reminders`,
+          body:
+            titles.length === 1
+              ? titles[0]
+              : `${titles[0]} (+${titles.length - 1} more)`,
+          url: "/todo",
+          tag: "nk:todo-overdue",
+        },
+        supabase
       );
     })
   );
 
-  return { sent, failed };
+  return results.reduce(
+    (total, r) => ({ sent: total.sent + r.sent, failed: total.failed + r.failed }),
+    { sent: 0, failed: 0 }
+  );
 }
 
 export type TodoUpdatePushParams = {
@@ -500,7 +398,7 @@ export function buildTodoUpdateReplyPayload(params: TodoUpdatePushParams) {
 }
 
 async function dispatchPushPayloadToTargets(
-  targets: Array<{ endpoint: string; p256dh: string; auth: string }>,
+  targets: PushTarget[],
   payload: { title: string; body: string; url: string; tag: string },
   supabase: SupabaseClient
 ): Promise<{ sent: number; failed: number }> {
@@ -556,12 +454,7 @@ export async function sendTodoUpdateRequestPush(
   });
   if (error) throw error;
 
-  const targets = (data ?? []) as Array<{
-    endpoint: string;
-    p256dh: string;
-    auth: string;
-  }>;
-  return dispatchPushPayloadToTargets(targets, payload, supabase);
+  return dispatchPushPayloadToTargets(asTargets(data), payload, supabase);
 }
 
 export async function sendTodoUpdateReplyPush(
@@ -581,11 +474,6 @@ export async function sendTodoUpdateReplyPush(
   });
   if (error) throw error;
 
-  const targets = (data ?? []) as Array<{
-    endpoint: string;
-    p256dh: string;
-    auth: string;
-  }>;
-  return dispatchPushPayloadToTargets(targets, payload, supabase);
+  return dispatchPushPayloadToTargets(asTargets(data), payload, supabase);
 }
 

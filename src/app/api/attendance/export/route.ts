@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { buildExportRows } from "@/lib/attendance";
+import { buildExportRows, nextMonthStart } from "@/lib/attendance";
 import { createClient } from "@/utils/supabase/server";
 import type {
   AttendanceDay,
@@ -14,13 +14,6 @@ export const runtime = "nodejs";
 
 const STAFF_ROLES = new Set(["employee", "accounts", "director", "admin"]);
 const ENTRY_PAGE_SIZE = 1000;
-
-function nextMonthStart(yyyyMm: string): string {
-  const [y, m] = yyyyMm.split("-").map(Number);
-  const nm = m === 12 ? 1 : m + 1;
-  const ny = m === 12 ? y + 1 : y;
-  return `${ny}-${String(nm).padStart(2, "0")}-01`;
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

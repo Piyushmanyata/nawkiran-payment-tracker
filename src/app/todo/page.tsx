@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/components/AuthProvider";
 import { EmptyState } from "@/components/EmptyState";
@@ -49,6 +49,7 @@ export default function TodoPage() {
   const { profile } = useAuth();
   const role = profile?.role ?? null;
   const userId = profile?.id ?? null;
+  const userName = profile?.full_name ?? null;
 
   const {
     todos,
@@ -161,20 +162,28 @@ export default function TodoPage() {
     }
   }
 
-  async function doComplete(todo: Todo) {
-    setBusyId(todo.id);
-    try {
-      const updated = await completeTodo(todo.id);
-      upsertLocal({
-        ...updated,
-        completer_name: profile?.full_name ?? updated.completer_name,
-      });
-    } catch (err) {
-      setError(userMessageFromError(err));
-    } finally {
-      setBusyId(null);
-    }
-  }
+  const doComplete = useCallback(
+    async (todo: Todo) => {
+      setBusyId(todo.id);
+      try {
+        const updated = await completeTodo(todo.id);
+        upsertLocal({
+          ...updated,
+          completer_name: userName ?? updated.completer_name,
+        });
+      } catch (err) {
+        setError(userMessageFromError(err));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [userName, upsertLocal, setError]
+  );
+
+  const startEdit = useCallback((todo: Todo) => {
+    setFormError(null);
+    setEditTarget(todo);
+  }, []);
 
   async function doDelete() {
     if (!deleteTarget) return;
@@ -191,26 +200,32 @@ export default function TodoPage() {
     }
   }
 
-  async function doRequestUpdate(todo: Todo, message: string) {
-    const updated = await requestTodoUpdate(todo.id, message);
-    upsertLocal(updated);
-    void notifyTodoUpdateRequest(todo.id, todo.title, message);
-  }
+  const doRequestUpdate = useCallback(
+    async (todo: Todo, message: string) => {
+      const updated = await requestTodoUpdate(todo.id, message);
+      upsertLocal(updated);
+      void notifyTodoUpdateRequest(todo.id, todo.title, message);
+    },
+    [upsertLocal]
+  );
 
-  async function doReplyUpdate(todo: Todo, parentId: string, message: string) {
-    const updated = await replyTodoUpdate(todo.id, parentId, message);
-    upsertLocal(updated);
-    const parentReq = updated.threads?.find((t) => t.id === parentId);
-    const assignees = (updated.assignees ?? []).map((a) => a.id);
-    const targets = Array.from(
-      new Set(
-        [parentReq?.author_id, updated.created_by, ...assignees].filter(
-          Boolean
-        ) as string[]
-      )
-    );
-    void notifyTodoUpdateReply(todo.id, todo.title, targets, message);
-  }
+  const doReplyUpdate = useCallback(
+    async (todo: Todo, parentId: string, message: string) => {
+      const updated = await replyTodoUpdate(todo.id, parentId, message);
+      upsertLocal(updated);
+      const parentReq = updated.threads?.find((t) => t.id === parentId);
+      const assignees = (updated.assignees ?? []).map((a) => a.id);
+      const targets = Array.from(
+        new Set(
+          [parentReq?.author_id, updated.created_by, ...assignees].filter(
+            Boolean
+          ) as string[]
+        )
+      );
+      void notifyTodoUpdateReply(todo.id, todo.title, targets, message);
+    },
+    [upsertLocal]
+  );
 
   if (loading && todos.length === 0) {
     return <PageLoading label="Loading to-dos..." />;
@@ -292,14 +307,7 @@ export default function TodoPage() {
               userId={userId}
               busy={busyId === t.id}
               onComplete={t.status === "open" ? doComplete : undefined}
-              onEdit={
-                t.status === "open"
-                  ? (todo) => {
-                      setFormError(null);
-                      setEditTarget(todo);
-                    }
-                  : undefined
-              }
+              onEdit={t.status === "open" ? startEdit : undefined}
               onDelete={setDeleteTarget}
               onRequestUpdate={t.status === "open" ? doRequestUpdate : undefined}
               onReplyUpdate={t.status === "open" ? doReplyUpdate : undefined}

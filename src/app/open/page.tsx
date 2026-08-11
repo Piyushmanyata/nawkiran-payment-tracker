@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
@@ -63,6 +63,19 @@ const FILTER_CHIPS: ReadonlyArray<readonly [PaymentFilterMode, string, string]> 
   ["history", "History", "bg-emerald-600"],
 ];
 
+function matchesSearch(item: Payment, term: string): boolean {
+  if (!term) return true;
+  return (
+    item.party.toLowerCase().includes(term) ||
+    String(item.amount).includes(term) ||
+    (item.purpose?.toLowerCase().includes(term) ?? false) ||
+    (item.payment_reference?.toLowerCase().includes(term) ?? false) ||
+    (item.payment_mode?.toLowerCase().includes(term) ?? false) ||
+    (item.requester_name?.toLowerCase().includes(term) ?? false) ||
+    (item.denial_reason?.toLowerCase().includes(term) ?? false)
+  );
+}
+
 export default function OpenPage() {
   const searchParams = useSearchParams();
   const actionParam = searchParams.get("action");
@@ -71,6 +84,7 @@ export default function OpenPage() {
   const { profile } = useAuth();
   const role = profile?.role ?? null;
   const userId = profile?.id ?? null;
+  const userName = profile?.full_name ?? null;
   const {
     payments,
     loading,
@@ -105,25 +119,11 @@ export default function OpenPage() {
     }
   }, [role]);
 
-  const matchesSearch = (item: Payment, q: string) => {
-    if (!q) return true;
-    const term = q.toLowerCase();
-    return (
-      item.party.toLowerCase().includes(term) ||
-      String(item.amount).includes(term) ||
-      (item.purpose && item.purpose.toLowerCase().includes(term)) ||
-      (item.payment_reference && item.payment_reference.toLowerCase().includes(term)) ||
-      (item.payment_mode && item.payment_mode.toLowerCase().includes(term)) ||
-      (item.requester_name && item.requester_name.toLowerCase().includes(term)) ||
-      (item.denial_reason && item.denial_reason.toLowerCase().includes(term))
-    );
-  };
-
   // Filtered Payments Stream for Single Page Hub.
   // Denials you own sort to the top of Open — they are the only rows here that
   // are blocked on *you*.
   const filteredPayments = useMemo(() => {
-    const q = searchQuery.trim();
+    const q = searchQuery.trim().toLowerCase();
     const rows = payments.filter((item) => {
       let matchesStatus = false;
       if (activeFilter === "pending") matchesStatus = item.status === "pending";
@@ -149,7 +149,7 @@ export default function OpenPage() {
   );
 
   const matchingHistoryCount = useMemo(() => {
-    const q = searchQuery.trim();
+    const q = searchQuery.trim().toLowerCase();
     if (!q || activeFilter === "history") return 0;
     return payments.filter(
       (item) => isHistoryPayment(item, userId) && matchesSearch(item, q)
@@ -181,33 +181,31 @@ export default function OpenPage() {
     }
   }
 
-  async function doMarkPaid(target: Payment) {
-    const DEFAULT_PAYMENT_MODE: PaymentMode = "NEFT";
-    setBusy(true);
-    if (detailTarget?.id === target.id) {
-      setDetailTarget(null);
-    }
-    upsertPayment({
-      ...target,
-      status: "paid",
-      paid_by: profile?.id ?? null,
-      payer_name: profile?.full_name ?? "Accounts",
-      payment_mode: DEFAULT_PAYMENT_MODE,
-      payment_reference: null,
-    });
-    try {
-      const updated = await markPaymentPaid(target.id, DEFAULT_PAYMENT_MODE);
+  const doMarkPaid = useCallback(
+    async (target: Payment) => {
+      const DEFAULT_PAYMENT_MODE: PaymentMode = "NEFT";
+      setBusy(true);
+      setDetailTarget((current) => (current?.id === target.id ? null : current));
       upsertPayment({
-        ...updated,
-        payer_name: profile?.full_name ?? updated.payer_name,
+        ...target,
+        status: "paid",
+        paid_by: userId,
+        payer_name: userName ?? "Accounts",
+        payment_mode: DEFAULT_PAYMENT_MODE,
+        payment_reference: null,
       });
-    } catch (err) {
-      setError(userMessageFromError(err));
-      void reload();
-    } finally {
-      setBusy(false);
-    }
-  }
+      try {
+        const updated = await markPaymentPaid(target.id, DEFAULT_PAYMENT_MODE);
+        upsertPayment({ ...updated, payer_name: userName ?? updated.payer_name });
+      } catch (err) {
+        setError(userMessageFromError(err));
+        void reload();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [userId, userName, upsertPayment, setError, reload]
+  );
 
   async function doDeny(reason: string) {
     if (!denyTarget) return;
@@ -255,7 +253,7 @@ export default function OpenPage() {
     if (!withdrawTarget) return;
     setBusy(true);
     const target = withdrawTarget;
-    if (detailTarget?.id === target.id) setDetailTarget(null);
+    setDetailTarget((current) => (current?.id === target.id ? null : current));
     try {
       const updated = await withdrawPayment(target.id);
       upsertPayment(updated);
@@ -267,26 +265,30 @@ export default function OpenPage() {
     }
   }
 
-  async function doDelete(payment: Payment) {
-    if (
-      !window.confirm(
-        "This payment will leave everyone's list and cannot be undone. Delete it?"
-      )
-    ) {
-      return;
-    }
-    setBusy(true);
-    try {
-      await deletePayment(payment.id, payment.status);
-      removePayment(payment.id);
-      if (detailTarget?.id === payment.id) setDetailTarget(null);
-    } catch (err) {
-      setError(userMessageFromError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
+  const doDelete = useCallback(
+    async (payment: Payment) => {
+      if (
+        !window.confirm(
+          "This payment will leave everyone's list and cannot be undone. Delete it?"
+        )
+      ) {
+        return;
+      }
+      setBusy(true);
+      try {
+        await deletePayment(payment.id, payment.status);
+        removePayment(payment.id);
+        setDetailTarget((current) =>
+          current?.id === payment.id ? null : current
+        );
+      } catch (err) {
+        setError(userMessageFromError(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [removePayment, setError]
+  );
 
   if (loading && payments.length === 0) {
     return <PageLoading label="Loading payments..." />;
@@ -455,7 +457,7 @@ export default function OpenPage() {
                 onSelect={setDetailTarget}
                 onApprove={userCanApprove ? setApproveTarget : undefined}
                 onDeny={userCanDeny ? setDenyTarget : undefined}
-                onMarkPaid={userCanMarkPaid ? (p) => void doMarkPaid(p) : undefined}
+                onMarkPaid={userCanMarkPaid ? doMarkPaid : undefined}
                 onEdit={canEdit ? setEditTarget : undefined}
                 onWithdraw={setWithdrawTarget}
               />
@@ -472,10 +474,10 @@ export default function OpenPage() {
         onClose={() => setDetailTarget(null)}
         onApprove={userCanApprove ? setApproveTarget : undefined}
         onDeny={userCanDeny ? setDenyTarget : undefined}
-        onMarkPaid={userCanMarkPaid ? (p) => void doMarkPaid(p) : undefined}
+        onMarkPaid={userCanMarkPaid ? doMarkPaid : undefined}
         onEdit={canEdit ? setEditTarget : undefined}
         onWithdraw={setWithdrawTarget}
-        onDelete={userCanDelete ? (p) => void doDelete(p) : undefined}
+        onDelete={userCanDelete ? doDelete : undefined}
       />
 
       <ApproveDialog
