@@ -13,6 +13,7 @@ import type {
 export const runtime = "nodejs";
 
 const STAFF_ROLES = new Set(["employee", "accounts", "director", "admin"]);
+const COMPANIES: Company[] = ["NKPL", "APTUS"];
 const ENTRY_PAGE_SIZE = 1000;
 
 function nextMonthStart(yyyyMm: string): string {
@@ -32,6 +33,15 @@ export async function GET(request: Request) {
     monthNumber > 12
   ) {
     return Response.json({ error: "month must be YYYY-MM" }, { status: 400 });
+  }
+
+  const companyParam = (url.searchParams.get("company") ?? "").trim();
+  const company = COMPANIES.find((c) => c === companyParam);
+  if (!company) {
+    return Response.json(
+      { error: "company must be NKPL or APTUS" },
+      { status: 400 }
+    );
   }
 
   const supabase = await createClient();
@@ -63,6 +73,7 @@ export async function GET(request: Request) {
     .select(
       "id, company, work_date, shift, confirmed_by, confirmed_at, created_at, updated_at"
     )
+    .eq("company", company)
     .gte("work_date", from)
     .lt("work_date", to);
 
@@ -108,7 +119,8 @@ export async function GET(request: Request) {
     .from("workers")
     .select(
       "id, company, full_name, designation, active, created_by, created_at, updated_at"
-    );
+    )
+    .eq("company", company);
   if (workerErr) {
     return Response.json({ error: "Failed to load workers" }, { status: 500 });
   }
@@ -142,9 +154,8 @@ export async function GET(request: Request) {
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Nawkiran";
-  const sheet = workbook.addWorksheet("Attendance");
+  const sheet = workbook.addWorksheet(company);
   sheet.columns = [
-    { header: "Company", key: "company", width: 10 },
     { header: "Date", key: "work_date", width: 12 },
     { header: "Shift", key: "shift", width: 8 },
     { header: "Worker", key: "worker_name", width: 28 },
@@ -158,7 +169,6 @@ export async function GET(request: Request) {
 
   for (const r of rows) {
     sheet.addRow({
-      company: r.company,
       work_date: r.work_date,
       shift: r.shift,
       worker_name: r.worker_name,
@@ -171,7 +181,7 @@ export async function GET(request: Request) {
   }
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const filename = `attendance-${month}.xlsx`;
+  const filename = `attendance-${company}-${month}.xlsx`;
 
   return new Response(buffer, {
     status: 200,

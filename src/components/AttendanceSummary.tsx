@@ -186,6 +186,16 @@ export function AttendanceSummary({ profile }: Props) {
     return summariseMonth({ days, entries });
   }, [tab, days, entries]);
 
+  // Export is always month-granular, on both tabs.
+  const exportMonth = tab === "month" ? month : monthPrefixFromDate(workDate);
+  const exportMonthLabel = useMemo(() => {
+    const [y, m] = exportMonth.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("en-IN", {
+      month: "long",
+      year: "numeric",
+    });
+  }, [exportMonth]);
+
   const activeWorkers = useMemo(() => {
     return workers
       .filter((w) => w.active)
@@ -475,14 +485,24 @@ export function AttendanceSummary({ profile }: Props) {
               />
             </label>
           )}
-          <a
-            href={`/api/attendance/export?month=${encodeURIComponent(
-              tab === "month" ? month : workDate.slice(0, 7)
-            )}`}
-            className="inline-flex min-h-11 items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
-          >
-            Export .xlsx
-          </a>
+          <div>
+            <span className="mb-1 block text-xs font-semibold text-slate-500">
+              Export · {exportMonthLabel}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {COMPANIES.map((company) => (
+                <a
+                  key={company}
+                  href={`/api/attendance/export?month=${encodeURIComponent(
+                    exportMonth
+                  )}&company=${company}`}
+                  className="inline-flex min-h-11 items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
+                >
+                  {company}
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
       ) : null}
 

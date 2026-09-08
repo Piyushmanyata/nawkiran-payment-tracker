@@ -143,11 +143,13 @@ value — locked or not (ADR-0011). Surfaced inline in the UI as **Changes**. Mi
 _Avoid_: Change log, revision, history entry
 
 **Attendance Export**:
-A server-generated `.xlsx` covering one month, both Companies, as a **list of
-absences** — one row per Attendance Entry, never a presence grid. Feeds the
-hand-kept salary workbooks; it does not replace them. Available to Employees,
+A server-generated `.xlsx` covering one month and exactly **one Company**, as a
+**list of absences** — one row per Attendance Entry, never a presence grid. One
+Company per file, always: the file handed to whoever keeps NKPL's salary workbook
+carries no APTUS rows, and there is no combined export. Feeds the hand-kept
+salary workbooks; it does not replace them. Available to Employees, Accounts,
 Directors and Admins — never Supervisors.
-_Avoid_: Muster roll, timesheet, salary sheet
+_Avoid_: Muster roll, timesheet, salary sheet, combined export
 
 ## Attendance Rules & Visibility
 
